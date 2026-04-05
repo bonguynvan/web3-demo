@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-panel: #111827;
+  --color-panel-light: #1a2235;
+  --color-surface: #0A0F1A;
+  --color-border: #1e293b;
+  --color-border-light: #334155;
+  --color-long: #22c55e;
+  --color-long-dim: rgba(34, 197, 94, 0.15);
+  --color-short: #ef4444;
+  --color-short-dim: rgba(239, 68, 68, 0.15);
+  --color-accent: #8b5cf6;
+  --color-accent-dim: rgba(139, 92, 246, 0.15);
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+body {
+  margin: 0;
+  background-color: #0A0F1A;
+  color: #f8fafc;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
