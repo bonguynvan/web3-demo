@@ -228,18 +228,13 @@ export function TradingChart() {
     chart.setData(bars)
   }, [candles])
 
-  // Live price tick → update last bar
+  // Live price tick → update current price line
+  const currentPrice = getPrice(selectedMarket.symbol)
   useEffect(() => {
     const chart = chartRef.current
-    const currentPrice = getPrice(selectedMarket.symbol)
-    if (!chart || !currentPrice || currentPrice.price === 0 || candles.length === 0) return
-
-    chart.updateLastBarFromTick({
-      price: currentPrice.price,
-      volume: 1,
-      time: Math.floor(Date.now() / 1000),
-    })
-  }, [getPrice, selectedMarket.symbol, candles.length])
+    if (!chart || !currentPrice || currentPrice.price === 0) return
+    chart.setCurrentPrice(currentPrice.price)
+  }, [currentPrice])
 
   // Update watermark on market change
   useEffect(() => {

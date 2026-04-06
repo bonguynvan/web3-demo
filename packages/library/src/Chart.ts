@@ -135,6 +135,7 @@ export class Chart {
   private features: Required<FeaturesConfig>;
   private marketConfig: MarketConfig | null = null;
   private container: HTMLElement;
+  private currentPriceLine: import('@chart-lib/core').CurrentPriceLine;
 
   constructor(container: HTMLElement, options: ChartOptions) {
     this.container = container;
@@ -322,6 +323,9 @@ export class Chart {
       fitContent: () => this.fitContent(),
     });
 
+    // Current price line (standalone, works without StreamManager)
+    this.currentPriceLine = new CurrentPriceLine();
+
     // Alerts
     this.alertManager = new AlertManager();
     this.alertManager.setRequestRender(() => this.engine.requestRender(LayerType.Overlay));
@@ -387,6 +391,10 @@ export class Chart {
     this.displayDataCache = null;
     this.sessionBreaks.invalidateCache();
     this.indicatorEngine.recalculateAll(this.dataManager.getData());
+    // Auto-set current price line from last bar's close
+    if (data.length > 0) {
+      this.currentPriceLine.setPrice(data[data.length - 1].close);
+    }
     this.updateViewportAndRender(true);
     this.eventBus.emit('dataUpdate', { length: data.length });
   }
@@ -403,6 +411,8 @@ export class Chart {
   updateLastBar(bar: OHLCBar): void {
     this.dataManager.updateLastBar(bar);
     this.displayDataCache = null;
+    // Auto-update current price line from close
+    this.currentPriceLine.setPrice(bar.close);
     // Only request render — skip full indicator recalc and layout resolve for streaming updates.
     // Indicators are recalculated on the next full update cycle (appendBar/setData).
     this.scheduleRender();
@@ -412,6 +422,8 @@ export class Chart {
   updateLastBarFromTick(tick: { price: number; volume?: number; time: number }): void {
     this.dataManager.updateLastBarFromTick(tick);
     this.displayDataCache = null;
+    // Auto-update current price line
+    this.currentPriceLine.setPrice(tick.price);
     this.scheduleRender();
   }
 
@@ -673,6 +685,9 @@ export class Chart {
 
   setCurrentPrice(price: number): void {
     this.tradingManager.setCurrentPrice(price);
+    // Also update standalone price line (visible even without trading feature)
+    this.currentPriceLine.setPrice(price);
+    this.scheduleRender();
     if (this.features.alerts) this.alertManager.checkPrice(price);
   }
 
@@ -1406,7 +1421,7 @@ export class Chart {
       indicatorEngine: this.features.indicators ? this.indicatorEngine : null,
       drawingRenderer: this.features.drawings ? this.drawingRenderer : null,
       tradingRenderer: this.features.trading ? this.tradingRenderer : null,
-      currentPriceLine: this.streamManager?.priceLine ?? null,
+      currentPriceLine: this.streamManager?.priceLine ?? this.currentPriceLine,
       chartLegend: this.features.legend ? this.chartLegend : null,
       volumeRenderer: this.features.volume ? this.volumeRenderer : null,
       watermark: this.features.watermark ? this.watermark : null,
