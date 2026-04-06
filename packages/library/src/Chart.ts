@@ -408,6 +408,13 @@ export class Chart {
     this.scheduleRender();
   }
 
+  /** Merge a price tick into the current last bar (convenience for live feeds) */
+  updateLastBarFromTick(tick: { price: number; volume?: number; time: number }): void {
+    this.dataManager.updateLastBarFromTick(tick);
+    this.displayDataCache = null;
+    this.scheduleRender();
+  }
+
   // --- Chart type ---
 
   setChartType(type: ChartType): void {
