@@ -24,7 +24,7 @@ export const RouterABI = [
 ] as const;
 
 export const PositionManagerABI = [
-  "function getPosition(address account, address indexToken, bool isLong) external view returns (tuple(uint256 size, uint256 collateral, uint256 averagePrice, uint256 entryFundingRate, uint256 lastUpdatedTime))",
+  "function getPosition(address account, address indexToken, bool isLong) external view returns (uint256 size, uint256 collateral, uint256 averagePrice, uint256 entryFundingRate, uint256 lastUpdatedTime)",
   "function getPositionKey(address account, address indexToken, bool isLong) external pure returns (bytes32)",
   "function marginFeeBps() external view returns (uint256)",
   "function feeReserves() external view returns (uint256)",
