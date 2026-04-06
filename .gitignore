@@ -38,3 +38,6 @@ packages/contracts/lib/
 # Contract build artifacts (generated)
 packages/contracts/abi/
 packages/contracts/deployments/
+
+# Generated deploy addresses
+src/addresses.json
