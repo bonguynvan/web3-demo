@@ -1,14 +1,6 @@
 /**
  * TradingChart — full-featured trading chart with indicators, drawing tools,
  * multi-timeframe support, and chart type switching.
- *
- * Features:
- * - 11 chart types (candlestick, line, area, heikin-ashi, etc.)
- * - 23 technical indicators (SMA, EMA, RSI, MACD, Bollinger, etc.)
- * - 23 drawing tools (trendline, fib, channels, etc.)
- * - Multi-timeframe (1m to 1M)
- * - Volume overlay, crosshair, keyboard navigation
- * - Undo/redo for drawings, screenshot export
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -17,8 +9,8 @@ import type { OHLCBar, Theme, TimeFrame, ChartType, DrawingToolType, IndicatorDe
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'
 import {
-  TrendingUp, Pencil, BarChart3, ChevronDown, Undo2, Redo2, Camera,
-  Trash2, X, Magnet, Settings2,
+  TrendingUp, Pencil, BarChart3, ChevronDown,
+  Undo2, Redo2, Camera, Trash2, X, Magnet,
 } from 'lucide-react'
 import { cn } from '../lib/format'
 
@@ -133,7 +125,6 @@ const DRAWING_TOOL_GROUPS: { label: string; tools: { label: string; value: Drawi
   },
 ]
 
-// Popular indicators for the quick-add toolbar
 const POPULAR_INDICATORS = [
   'sma', 'ema', 'bollingerBands', 'rsi', 'macd', 'stochastic',
   'vwap', 'atr', 'obv', 'ichimoku',
@@ -144,7 +135,7 @@ const POPULAR_INDICATORS = [
 export function TradingChart() {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
-  const candles = useTradingStore(s => s.candles)
+  const lastCandleCountRef = useRef(0)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const { getPrice } = usePrices()
 
@@ -158,7 +149,7 @@ export function TradingChart() {
   const [activeIndicators, setActiveIndicators] = useState<{ instanceId: string; id: string; label: string }[]>([])
   const [availableIndicators, setAvailableIndicators] = useState<IndicatorDescriptor[]>([])
 
-  // Initialize chart
+  // Initialize chart once
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -196,13 +187,12 @@ export function TradingChart() {
     })
 
     chartRef.current = chart
+    lastCandleCountRef.current = 0
 
-    // Load available indicators
     try {
-      const descriptors = chart.getAvailableIndicators()
-      setAvailableIndicators(descriptors)
+      setAvailableIndicators(chart.getAvailableIndicators())
     } catch {
-      // Method may not exist in some builds
+      // fallback
     }
 
     return () => {
@@ -211,24 +201,48 @@ export function TradingChart() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update data when candles change
+  // ─── Smart data sync: setData for new candles, updateLastBar for ticks ───
   useEffect(() => {
     const chart = chartRef.current
-    if (!chart || candles.length === 0) return
+    if (!chart) return
 
-    const bars: OHLCBar[] = candles.map(c => ({
-      time: c.time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-      volume: c.volume,
-    }))
+    // Subscribe to store changes directly for granular control
+    const unsub = useTradingStore.subscribe((state) => {
+      const { candles } = state
+      if (candles.length === 0) return
 
-    chart.setData(bars)
-  }, [candles])
+      const prevCount = lastCandleCountRef.current
 
-  // Live price tick → update current price line
+      if (prevCount === 0 || candles.length > prevCount + 5) {
+        // First load or bulk seed — full setData
+        const bars: OHLCBar[] = candles.map(c => ({
+          time: c.time, open: c.open, high: c.high,
+          low: c.low, close: c.close, volume: c.volume,
+        }))
+        chart.setData(bars)
+        lastCandleCountRef.current = candles.length
+      } else if (candles.length > prevCount) {
+        // New candle added — append it
+        const newCandle = candles[candles.length - 1]
+        chart.appendBar({
+          time: newCandle.time, open: newCandle.open, high: newCandle.high,
+          low: newCandle.low, close: newCandle.close, volume: newCandle.volume,
+        })
+        lastCandleCountRef.current = candles.length
+      } else {
+        // Same count — last candle updated (OHLC change within bucket)
+        const last = candles[candles.length - 1]
+        chart.updateLastBar({
+          time: last.time, open: last.open, high: last.high,
+          low: last.low, close: last.close, volume: last.volume,
+        })
+      }
+    })
+
+    return unsub
+  }, [])
+
+  // ─── Live price line ───
   const currentPrice = getPrice(selectedMarket.symbol)
   useEffect(() => {
     const chart = chartRef.current
@@ -248,8 +262,7 @@ export function TradingChart() {
 
   const handleTimeframe = useCallback((tf: TimeFrame) => {
     setActiveTimeframe(tf)
-    // In production, this would reload data for the new timeframe
-    // For now, we keep the same data (candles are generated from price ticks)
+    // TODO: reload candles from backend for this timeframe
   }, [])
 
   const handleChartType = useCallback((type: ChartType) => {
@@ -259,9 +272,7 @@ export function TradingChart() {
   }, [])
 
   const handleDrawingTool = useCallback((tool: DrawingToolType) => {
-    const chart = chartRef.current
-    if (!chart) return
-    chart.setDrawingTool(tool)
+    chartRef.current?.setDrawingTool(tool)
     setActiveTool(tool)
     setShowDrawingMenu(false)
   }, [])
@@ -284,9 +295,7 @@ export function TradingChart() {
     if (instanceId) {
       const descriptor = availableIndicators.find(d => d.id === id)
       setActiveIndicators(prev => [...prev, {
-        instanceId,
-        id,
-        label: descriptor?.name ?? id,
+        instanceId, id, label: descriptor?.name ?? id,
       }])
     }
     setShowIndicatorMenu(false)
@@ -302,15 +311,20 @@ export function TradingChart() {
   const handleScreenshot = useCallback(() => chartRef.current?.screenshot(), [])
   const handleClearDrawings = useCallback(() => chartRef.current?.clearDrawings(), [])
 
+  const closeAllMenus = useCallback(() => {
+    setShowChartTypeMenu(false)
+    setShowDrawingMenu(false)
+    setShowIndicatorMenu(false)
+  }, [])
+
   // ─── Render ───
 
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border text-xs">
-        {/* Market label */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border text-xs shrink-0">
         <span className="text-text-primary font-medium px-1">{selectedMarket.symbol}</span>
-        <div className="w-px h-4 bg-border mx-1" />
+        <Sep />
 
         {/* Timeframes */}
         {TIMEFRAMES.map(({ label, value }) => (
@@ -327,193 +341,194 @@ export function TradingChart() {
             {label}
           </button>
         ))}
+        <Sep />
 
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* Chart type */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowChartTypeMenu(!showChartTypeMenu); setShowDrawingMenu(false); setShowIndicatorMenu(false) }}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            {CHART_TYPES.find(t => t.value === activeChartType)?.label ?? 'Candles'}
-            <ChevronDown className="w-3 h-3" />
-          </button>
-          {showChartTypeMenu && (
+        {/* Chart type dropdown */}
+        <Dropdown
+          open={showChartTypeMenu}
+          onToggle={() => { setShowChartTypeMenu(v => !v); setShowDrawingMenu(false); setShowIndicatorMenu(false) }}
+          onClose={() => setShowChartTypeMenu(false)}
+          trigger={
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowChartTypeMenu(false)} />
-              <div className="absolute top-full left-0 mt-1 bg-panel border border-border rounded-lg shadow-2xl z-20 min-w-[140px] py-1">
-                {CHART_TYPES.map(t => (
-                  <button
-                    key={t.value}
-                    onClick={() => handleChartType(t.value)}
-                    className={cn(
-                      'w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer',
-                      activeChartType === t.value ? 'text-accent bg-accent-dim' : 'text-text-secondary hover:bg-panel-light'
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <BarChart3 className="w-3.5 h-3.5" />
+              {CHART_TYPES.find(t => t.value === activeChartType)?.label ?? 'Candles'}
+              <ChevronDown className="w-3 h-3" />
             </>
-          )}
-        </div>
+          }
+        >
+          {CHART_TYPES.map(t => (
+            <button
+              key={t.value}
+              onClick={() => handleChartType(t.value)}
+              className={cn(
+                'w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer',
+                activeChartType === t.value ? 'text-accent bg-accent-dim' : 'text-text-secondary hover:bg-panel-light'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </Dropdown>
+        <Sep />
 
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* Indicators */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowIndicatorMenu(!showIndicatorMenu); setShowChartTypeMenu(false); setShowDrawingMenu(false) }}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            Indicators
-            {activeIndicators.length > 0 && (
-              <span className="bg-accent-dim text-accent text-[9px] px-1 rounded-full">{activeIndicators.length}</span>
-            )}
-          </button>
-          {showIndicatorMenu && (
+        {/* Indicators dropdown */}
+        <Dropdown
+          open={showIndicatorMenu}
+          onToggle={() => { setShowIndicatorMenu(v => !v); setShowChartTypeMenu(false); setShowDrawingMenu(false) }}
+          onClose={() => setShowIndicatorMenu(false)}
+          trigger={
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowIndicatorMenu(false)} />
-              <div className="absolute top-full left-0 mt-1 bg-panel border border-border rounded-lg shadow-2xl z-20 w-[280px] max-h-[400px] overflow-y-auto py-1">
-                {/* Quick-add popular */}
-                <div className="px-3 py-1.5 text-[10px] text-text-muted uppercase tracking-wider">Popular</div>
-                {availableIndicators
-                  .filter(d => POPULAR_INDICATORS.includes(d.id))
-                  .map(d => (
-                    <button
-                      key={d.id}
-                      onClick={() => handleAddIndicator(d.id)}
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-panel-light transition-colors cursor-pointer flex justify-between"
-                    >
-                      <span>{d.name}</span>
-                      <span className="text-[10px] text-text-muted">{d.overlay ? 'overlay' : 'panel'}</span>
-                    </button>
-                  ))}
-                {/* All indicators */}
-                <div className="px-3 py-1.5 mt-1 border-t border-border text-[10px] text-text-muted uppercase tracking-wider">All</div>
-                {availableIndicators
-                  .filter(d => !POPULAR_INDICATORS.includes(d.id))
-                  .map(d => (
-                    <button
-                      key={d.id}
-                      onClick={() => handleAddIndicator(d.id)}
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-panel-light transition-colors cursor-pointer flex justify-between"
-                    >
-                      <span>{d.name}</span>
-                      <span className="text-[10px] text-text-muted">{d.overlay ? 'overlay' : 'panel'}</span>
-                    </button>
-                  ))}
-              </div>
+              <TrendingUp className="w-3.5 h-3.5" />
+              Indicators
+              {activeIndicators.length > 0 && (
+                <span className="bg-accent-dim text-accent text-[9px] px-1 rounded-full">{activeIndicators.length}</span>
+              )}
             </>
-          )}
-        </div>
+          }
+          width="w-[280px]"
+          maxHeight="max-h-[400px]"
+        >
+          <div className="px-3 py-1.5 text-[10px] text-text-muted uppercase tracking-wider">Popular</div>
+          {availableIndicators.filter(d => POPULAR_INDICATORS.includes(d.id)).map(d => (
+            <button key={d.id} onClick={() => handleAddIndicator(d.id)}
+              className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-panel-light transition-colors cursor-pointer flex justify-between">
+              <span>{d.name}</span>
+              <span className="text-[10px] text-text-muted">{d.overlay ? 'overlay' : 'panel'}</span>
+            </button>
+          ))}
+          <div className="px-3 py-1.5 mt-1 border-t border-border text-[10px] text-text-muted uppercase tracking-wider">All</div>
+          {availableIndicators.filter(d => !POPULAR_INDICATORS.includes(d.id)).map(d => (
+            <button key={d.id} onClick={() => handleAddIndicator(d.id)}
+              className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-panel-light transition-colors cursor-pointer flex justify-between">
+              <span>{d.name}</span>
+              <span className="text-[10px] text-text-muted">{d.overlay ? 'overlay' : 'panel'}</span>
+            </button>
+          ))}
+        </Dropdown>
 
-        {/* Drawing tools */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowDrawingMenu(!showDrawingMenu); setShowChartTypeMenu(false); setShowIndicatorMenu(false) }}
-            className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer',
-              activeTool ? 'text-accent bg-accent-dim' : 'text-text-muted hover:text-text-primary hover:bg-panel-light'
-            )}
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            {activeTool ? DRAWING_TOOL_GROUPS.flatMap(g => g.tools).find(t => t.value === activeTool)?.label ?? 'Drawing' : 'Draw'}
-          </button>
-          {showDrawingMenu && (
+        {/* Drawing tools dropdown */}
+        <Dropdown
+          open={showDrawingMenu}
+          onToggle={() => { setShowDrawingMenu(v => !v); setShowChartTypeMenu(false); setShowIndicatorMenu(false) }}
+          onClose={() => setShowDrawingMenu(false)}
+          trigger={
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowDrawingMenu(false)} />
-              <div className="absolute top-full left-0 mt-1 bg-panel border border-border rounded-lg shadow-2xl z-20 w-[200px] max-h-[400px] overflow-y-auto py-1">
-                {DRAWING_TOOL_GROUPS.map(group => (
-                  <div key={group.label}>
-                    <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider">{group.label}</div>
-                    {group.tools.map(tool => (
-                      <button
-                        key={tool.value}
-                        onClick={() => handleDrawingTool(tool.value)}
-                        className={cn(
-                          'w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer',
-                          activeTool === tool.value ? 'text-accent bg-accent-dim' : 'text-text-secondary hover:bg-panel-light'
-                        )}
-                      >
-                        {tool.label}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              <Pencil className="w-3.5 h-3.5" />
+              {activeTool ? DRAWING_TOOL_GROUPS.flatMap(g => g.tools).find(t => t.value === activeTool)?.label ?? 'Drawing' : 'Draw'}
             </>
-          )}
-        </div>
+          }
+          active={!!activeTool}
+          width="w-[200px]"
+          maxHeight="max-h-[400px]"
+        >
+          {DRAWING_TOOL_GROUPS.map(group => (
+            <div key={group.label}>
+              <div className="px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider">{group.label}</div>
+              {group.tools.map(tool => (
+                <button key={tool.value} onClick={() => handleDrawingTool(tool.value)}
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer',
+                    activeTool === tool.value ? 'text-accent bg-accent-dim' : 'text-text-secondary hover:bg-panel-light'
+                  )}>
+                  {tool.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </Dropdown>
 
-        {/* Cancel active tool */}
         {activeTool && (
-          <button
-            onClick={handleCancelDrawing}
-            className="px-1.5 py-1 rounded text-short hover:bg-short-dim transition-colors cursor-pointer"
-            title="Cancel drawing"
-          >
+          <button onClick={handleCancelDrawing}
+            className="px-1.5 py-1 rounded text-short hover:bg-short-dim transition-colors cursor-pointer" title="Cancel drawing">
             <X className="w-3.5 h-3.5" />
           </button>
         )}
+        <Sep />
 
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* Magnet */}
-        <button
-          onClick={handleToggleMagnet}
-          className={cn(
-            'px-1.5 py-1 rounded transition-colors cursor-pointer',
-            magnetEnabled ? 'text-accent bg-accent-dim' : 'text-text-muted hover:text-text-primary hover:bg-panel-light'
-          )}
-          title={magnetEnabled ? 'Magnet mode ON' : 'Magnet mode OFF'}
-        >
+        {/* Tool buttons */}
+        <ToolBtn onClick={handleToggleMagnet} active={magnetEnabled} title={magnetEnabled ? 'Magnet ON' : 'Magnet OFF'}>
           <Magnet className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Undo/Redo */}
-        <button onClick={handleUndo} className="px-1.5 py-1 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer" title="Undo">
-          <Undo2 className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={handleRedo} className="px-1.5 py-1 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer" title="Redo">
-          <Redo2 className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Clear drawings */}
-        <button onClick={handleClearDrawings} className="px-1.5 py-1 rounded text-text-muted hover:text-short hover:bg-short-dim transition-colors cursor-pointer" title="Clear all drawings">
+        </ToolBtn>
+        <ToolBtn onClick={handleUndo} title="Undo"><Undo2 className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn onClick={handleRedo} title="Redo"><Redo2 className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn onClick={handleClearDrawings} title="Clear drawings" danger>
           <Trash2 className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Screenshot */}
-        <button onClick={handleScreenshot} className="px-1.5 py-1 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer" title="Screenshot">
-          <Camera className="w-3.5 h-3.5" />
-        </button>
+        </ToolBtn>
+        <ToolBtn onClick={handleScreenshot} title="Screenshot"><Camera className="w-3.5 h-3.5" /></ToolBtn>
 
         <div className="flex-1" />
 
-        {/* Active indicators chips */}
+        {/* Active indicator chips */}
         {activeIndicators.map(ind => (
-          <div
-            key={ind.instanceId}
-            className="flex items-center gap-1 bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded"
-          >
+          <div key={ind.instanceId} className="flex items-center gap-1 bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded">
             <span>{ind.label}</span>
-            <button
-              onClick={() => handleRemoveIndicator(ind.instanceId)}
-              className="hover:text-short transition-colors cursor-pointer"
-            >
+            <button onClick={() => handleRemoveIndicator(ind.instanceId)}
+              className="hover:text-short transition-colors cursor-pointer">
               <X className="w-2.5 h-2.5" />
             </button>
           </div>
         ))}
       </div>
 
-      {/* Chart container */}
+      {/* Chart canvas */}
       <div ref={containerRef} className="flex-1" />
+    </div>
+  )
+}
+
+// ─── Small helper components ───
+
+function Sep() {
+  return <div className="w-px h-4 bg-border mx-0.5" />
+}
+
+function ToolBtn({ onClick, active, danger, title, children }: {
+  onClick: () => void; active?: boolean; danger?: boolean; title: string; children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={cn(
+        'px-1.5 py-1 rounded transition-colors cursor-pointer',
+        active ? 'text-accent bg-accent-dim' :
+        danger ? 'text-text-muted hover:text-short hover:bg-short-dim' :
+        'text-text-muted hover:text-text-primary hover:bg-panel-light'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Dropdown({ open, onToggle, onClose, trigger, children, active, width, maxHeight }: {
+  open: boolean; onToggle: () => void; onClose: () => void;
+  trigger: React.ReactNode; children: React.ReactNode;
+  active?: boolean; width?: string; maxHeight?: string;
+}) {
+  return (
+    <div className="relative">
+      <button
+        onClick={onToggle}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer',
+          active ? 'text-accent bg-accent-dim' : 'text-text-muted hover:text-text-primary hover:bg-panel-light'
+        )}
+      >
+        {trigger}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onClose} />
+          <div className={cn(
+            'absolute top-full left-0 mt-1 bg-panel border border-border rounded-lg shadow-2xl z-20 py-1 overflow-y-auto',
+            width ?? 'min-w-[140px]',
+            maxHeight ?? '',
+          )}>
+            {children}
+          </div>
+        </>
+      )}
     </div>
   )
 }
