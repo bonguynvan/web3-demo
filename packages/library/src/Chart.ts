@@ -79,6 +79,7 @@ import {
   DataExporter,
   SessionBreaks,
   CompareRenderer,
+  CurrentPriceLine,
 } from '@chart-lib/core';
 import type { ChartRendererInterface } from '@chart-lib/core';
 import { DataManager } from './DataManager.js';
