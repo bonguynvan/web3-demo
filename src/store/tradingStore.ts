@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { OrderSide, OrderType, CandleData } from '../types/trading'
+import type { OrderSide, OrderType, CandleData, Trade } from '../types/trading'
 
 /**
  * Trading store — holds UI state only.
@@ -26,10 +26,14 @@ interface TradingState {
   selectedMarket: MarketInfo
   setSelectedMarket: (symbol: string) => void
 
-  // Candles (will be fed by price hook or backend API)
+  // Candles (fed by price hook or backend API)
   candles: CandleData[]
   addCandle: (candle: CandleData) => void
   setCandles: (candles: CandleData[]) => void
+
+  // Recent trades (fed by backend WebSocket or indexer)
+  recentTrades: Trade[]
+  addTrade: (trade: Trade) => void
 
   // Order form
   orderSide: OrderSide
@@ -61,6 +65,12 @@ export const useTradingStore = create<TradingState>((set) => ({
     set(state => ({ candles: [...state.candles.slice(-199), candle] }))
   },
   setCandles: (candles) => set({ candles }),
+
+  // Recent trades
+  recentTrades: [],
+  addTrade: (trade) => {
+    set(state => ({ recentTrades: [trade, ...state.recentTrades.slice(0, 49)] }))
+  },
 
   // Order form
   orderSide: 'long',

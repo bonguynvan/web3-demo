@@ -2,7 +2,6 @@ import { memo } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { cn, formatUsd, formatTime } from '../lib/format'
 import { useThrottledValue } from '../lib/useThrottledValue'
-import { useRenderCount } from '../lib/useRenderCount'
 import type { Trade } from '../types/trading'
 
 /**
@@ -14,8 +13,6 @@ import type { Trade } from '../types/trading'
  * 3. Bounded to 30 visible — prevents DOM bloat from unbounded trade list
  */
 export function RecentTrades() {
-  useRenderCount('RecentTrades')
-
   const rawTrades = useTradingStore(s => s.recentTrades)
   const recentTrades = useThrottledValue(rawTrades)
   const selectedMarket = useTradingStore(s => s.selectedMarket)

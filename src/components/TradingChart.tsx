@@ -3,7 +3,6 @@ import { Chart } from '@chart-lib/library'
 import type { OHLCBar, Theme, TimeFrame } from '@chart-lib/library'
 import { DARK_THEME } from '@chart-lib/library'
 import { useTradingStore } from '../store/tradingStore'
-import { useRenderCount } from '../lib/useRenderCount'
 
 const PERP_THEME: Theme = {
   ...DARK_THEME,
@@ -38,7 +37,6 @@ const TIMEFRAMES: { label: string; value: TimeFrame }[] = [
 ]
 
 export function TradingChart() {
-  useRenderCount('TradingChart')
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const activeTimeframe = useRef<TimeFrame>('1h')
