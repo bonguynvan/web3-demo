@@ -1,35 +1,25 @@
 /**
- * Web3Header — market bar with real wallet connection via wagmi.
- *
- * Wallet connection flow:
- *   1. User clicks "Connect Wallet"
- *   2. wagmi's useConnect shows connector options (MetaMask, WalletConnect)
- *   3. User approves in wallet → useAccount returns the address
- *   4. We sync the address to sessionStore
- *   5. Header shows truncated address + chain indicator
+ * Web3Header — market bar with real wallet connection and on-chain data.
  */
 
 import { useState, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
-import { ChevronDown, Wallet, Zap, LogOut, Shield } from 'lucide-react'
+import { ChevronDown, Wallet, Zap, LogOut } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
-import { useSessionStore } from '../store/sessionStore'
-import { formatUsd, formatCompact, formatCountdown, cn } from '../lib/format'
-import { useThrottledValue } from '../lib/useThrottledValue'
-import { useRenderCount } from '../lib/useRenderCount'
+import { useUsdcBalance } from '../hooks/useTokenBalance'
+import { usePrices } from '../hooks/usePrices'
+import { useVault } from '../hooks/useVault'
+import { useFaucet } from '../hooks/useFaucet'
+import { cn } from '../lib/format'
 
 const CHAIN_NAMES: Record<number, string> = {
-  1: 'Ethereum',
-  11155111: 'Sepolia',
-  1337: 'Localhost',
+  31337: 'Anvil',
+  42161: 'Arbitrum',
+  8453: 'Base',
 }
 
 export function Web3Header() {
-  useRenderCount('Header')
-
-  const { markets, setSelectedMarket, accountBalance } = useTradingStore()
-  const rawMarket = useTradingStore(s => s.selectedMarket)
-  const selectedMarket = useThrottledValue(rawMarket)
+  const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
   const [showMarketSelector, setShowMarketSelector] = useState(false)
   const [showWalletMenu, setShowWalletMenu] = useState(false)
 
@@ -39,17 +29,24 @@ export function Web3Header() {
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
 
-  // Session store
-  const { setWallet, status: sessionStatus, session } = useSessionStore()
+  // On-chain data
+  const { dollars: usdcBalance } = useUsdcBalance()
+  const { getPrice } = usePrices()
+  const { stats: vaultStats } = useVault()
+  const { mint, minting, isAvailable: faucetAvailable } = useFaucet()
 
-  // Sync wagmi state → sessionStore
-  useEffect(() => {
-    setWallet(address ?? null, chainId ?? null)
-  }, [address, chainId, setWallet])
+  const currentPrice = getPrice(selectedMarket.symbol)
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
+
+  const formatUsd = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatCompact = (n: number) => {
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`
+    return n.toFixed(0)
+  }
 
   return (
     <header className="flex items-center h-14 bg-panel border-b border-border px-4 gap-6 shrink-0">
@@ -73,58 +70,49 @@ export function Web3Header() {
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowMarketSelector(false)} />
             <div className="absolute top-full left-0 mt-1 bg-panel border border-border rounded-lg shadow-2xl z-20 min-w-[280px]">
-              {markets.map(m => (
-                <button
-                  key={m.symbol}
-                  onClick={() => { setSelectedMarket(m.symbol); setShowMarketSelector(false) }}
-                  className={cn(
-                    'flex items-center justify-between w-full px-4 py-2.5 hover:bg-panel-light transition-colors cursor-pointer text-left',
-                    m.symbol === selectedMarket.symbol && 'bg-panel-light'
-                  )}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-text-primary">{m.symbol}</div>
-                    <div className="text-xs text-text-muted">Vol {formatCompact(m.volume24h)}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-mono text-text-primary">${formatUsd(m.lastPrice)}</div>
-                    <div className={cn('text-xs font-mono', m.change24h >= 0 ? 'text-long' : 'text-short')}>
-                      {m.change24h >= 0 ? '+' : ''}{m.change24h}%
+              {markets.map(m => {
+                const mPrice = getPrice(m.symbol)
+                return (
+                  <button
+                    key={m.symbol}
+                    onClick={() => { setSelectedMarket(m.symbol); setShowMarketSelector(false) }}
+                    className={cn(
+                      'flex items-center justify-between w-full px-4 py-2.5 hover:bg-panel-light transition-colors cursor-pointer text-left',
+                      m.symbol === selectedMarket.symbol && 'bg-panel-light'
+                    )}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-text-primary">{m.symbol}</div>
+                      <div className="text-xs text-text-muted">{m.baseAsset}</div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="text-right">
+                      <div className="text-sm font-mono text-text-primary">
+                        ${mPrice ? formatUsd(mPrice.price) : '---'}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </>
         )}
       </div>
 
-      {/* Market Stats — truncate on narrow screens to avoid overlapping center toggle */}
+      {/* Market Stats */}
       <div className="flex items-center gap-6 text-xs overflow-hidden">
         <div>
-          <span className="text-text-muted">Mark</span>
-          <span className="ml-1.5 font-mono text-text-primary">${formatUsd(selectedMarket.markPrice)}</span>
-        </div>
-        <div>
-          <span className="text-text-muted">Index</span>
-          <span className="ml-1.5 font-mono text-text-primary">${formatUsd(selectedMarket.indexPrice)}</span>
-        </div>
-        <div>
-          <span className="text-text-muted">24h Change</span>
-          <span className={cn('ml-1.5 font-mono', selectedMarket.change24h >= 0 ? 'text-long' : 'text-short')}>
-            {selectedMarket.change24h >= 0 ? '+' : ''}{selectedMarket.change24h}%
+          <span className="text-text-muted">Oracle Price</span>
+          <span className="ml-1.5 font-mono text-text-primary font-medium">
+            ${currentPrice ? formatUsd(currentPrice.price) : '---'}
           </span>
         </div>
         <div>
-          <span className="text-text-muted">24h Vol</span>
-          <span className="ml-1.5 font-mono text-text-primary">${formatCompact(selectedMarket.volume24h)}</span>
+          <span className="text-text-muted">Pool</span>
+          <span className="ml-1.5 font-mono text-text-primary">${formatCompact(vaultStats.poolAmount)}</span>
         </div>
         <div>
-          <span className="text-text-muted">Funding</span>
-          <span className={cn('ml-1.5 font-mono', selectedMarket.fundingRate >= 0 ? 'text-long' : 'text-short')}>
-            {selectedMarket.fundingRate >= 0 ? '+' : ''}{selectedMarket.fundingRate}%
-          </span>
-          <span className="ml-1 text-text-muted">{formatCountdown(selectedMarket.nextFunding)}</span>
+          <span className="text-text-muted">Utilization</span>
+          <span className="ml-1.5 font-mono text-text-primary">{vaultStats.utilizationPercent.toFixed(1)}%</span>
         </div>
       </div>
 
@@ -133,23 +121,21 @@ export function Web3Header() {
       {/* Wallet Section */}
       {isConnected ? (
         <div className="flex items-center gap-3">
-          {/* Session status indicator */}
-          <div className={cn(
-            'flex items-center gap-1 text-[10px] px-2 py-1 rounded',
-            sessionStatus === 'ready' ? 'bg-long-dim text-long' :
-            sessionStatus === 'signing' ? 'bg-accent-dim text-accent' :
-            'bg-surface text-text-muted'
-          )}>
-            <Shield className="w-3 h-3" />
-            {sessionStatus === 'ready' ? 'Trading Enabled' :
-             sessionStatus === 'signing' ? 'Signing...' :
-             'Sign to Trade'}
-          </div>
+          {/* Faucet (Anvil only) */}
+          {faucetAvailable && (
+            <button
+              onClick={() => mint(10_000)}
+              disabled={minting}
+              className="text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {minting ? 'Minting...' : '+ 10K USDC'}
+            </button>
+          )}
 
-          {/* Balance */}
+          {/* USDC Balance */}
           <div className="text-xs">
-            <span className="text-text-muted">Balance</span>
-            <span className="ml-1.5 font-mono text-text-primary font-medium">${formatUsd(accountBalance)}</span>
+            <span className="text-text-muted">USDC</span>
+            <span className="ml-1.5 font-mono text-text-primary font-medium">${formatUsd(usdcBalance)}</span>
           </div>
 
           {/* Wallet address + menu */}
@@ -170,11 +156,6 @@ export function Web3Header() {
                   <div className="px-4 py-3 border-b border-border">
                     <div className="text-xs text-text-muted">Connected as</div>
                     <div className="text-sm font-mono text-text-primary mt-0.5">{truncatedAddress}</div>
-                    {session && (
-                      <div className="text-[10px] text-long mt-1">
-                        Session expires: {new Date(session.expiry * 1000).toLocaleTimeString()}
-                      </div>
-                    )}
                   </div>
                   <button
                     onClick={() => { disconnect(); setShowWalletMenu(false) }}
