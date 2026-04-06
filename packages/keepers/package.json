@@ -1,0 +1,18 @@
+{
+  "name": "@perp-dex/keepers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "liquidator": "tsx src/liquidator.ts",
+    "price-updater": "tsx src/price-updater.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

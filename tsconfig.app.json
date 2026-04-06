@@ -22,8 +22,17 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    "paths": {
+      "@chart-lib/library": ["./packages/library/src"],
+      "@chart-lib/library/*": ["./packages/library/src/*"],
+      "@chart-lib/core": ["./packages/core/src"],
+      "@chart-lib/core/*": ["./packages/core/src/*"],
+      "@chart-lib/commons": ["./packages/commons/src"],
+      "@chart-lib/commons/*": ["./packages/commons/src/*"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "packages/*/src"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

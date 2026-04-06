@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code
+.claude/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Foundry
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+packages/contracts/lib/
+
+# Contract build artifacts (generated)
+packages/contracts/abi/
+packages/contracts/deployments/
