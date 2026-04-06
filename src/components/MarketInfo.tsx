@@ -9,7 +9,7 @@
 import { usePrices } from '../hooks/usePrices'
 import { useVault } from '../hooks/useVault'
 import { useTradingStore } from '../store/tradingStore'
-import { cn } from '../lib/format'
+import { cn, formatUsd, formatCompact } from '../lib/format'
 
 export function MarketInfo() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
@@ -18,14 +18,7 @@ export function MarketInfo() {
 
   const currentPrice = prices.find(p => p.market === selectedMarket.symbol)
 
-  const formatUsd = (n: number) =>
-    n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  const formatCompact = (n: number) => {
-    if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`
-    if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`
-    return `$${n.toFixed(0)}`
-  }
+  const fmtCompactUsd = (n: number) => `$${formatCompact(n)}`
 
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
@@ -76,9 +69,9 @@ export function MarketInfo() {
         <div className="px-3 py-3 border-b border-border">
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Liquidity Pool</div>
           <div className="space-y-2">
-            <StatRow label="Total Pool" value={formatCompact(stats.poolAmount)} />
-            <StatRow label="Available" value={formatCompact(stats.availableLiquidity)} />
-            <StatRow label="Reserved" value={formatCompact(stats.reservedAmount)} />
+            <StatRow label="Total Pool" value={fmtCompactUsd(stats.poolAmount)} />
+            <StatRow label="Available" value={fmtCompactUsd(stats.availableLiquidity)} />
+            <StatRow label="Reserved" value={fmtCompactUsd(stats.reservedAmount)} />
 
             {/* Utilization bar */}
             <div className="mt-2">

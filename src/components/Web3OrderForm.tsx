@@ -2,10 +2,9 @@
  * Web3OrderForm — order entry with real on-chain execution via Router contract.
  *
  * Flow: Connect wallet → Enter size/leverage → Submit → Approve USDC → Confirm tx
- * No EIP-712 signing — this is an AMM model (trade directly against liquidity pool).
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useAccount, useChainId } from 'wagmi'
 import { Minus, Plus, Loader2, Check, X } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
@@ -13,10 +12,10 @@ import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution, type TradeStatus } from '../hooks/useTradeExecution'
 import { getContracts, getMarkets } from '../lib/contracts'
-import { cn } from '../lib/format'
+import { cn, formatUsd } from '../lib/format'
 
 export function Web3OrderForm() {
-  const { address, isConnected } = useAccount()
+  const { isConnected } = useAccount()
   const chainId = useChainId()
 
   const {
@@ -32,7 +31,6 @@ export function Web3OrderForm() {
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
 
-  // Get index token address for the selected market
   let indexToken: `0x${string}` | undefined
   try {
     const contracts = getContracts(chainId)
@@ -46,15 +44,23 @@ export function Web3OrderForm() {
   const priceNum = orderType === 'market' ? markPrice : (parseFloat(orderPrice) || markPrice)
   const notional = sizeNum * priceNum
   const margin = leverage > 0 ? notional / leverage : 0
-  const feeRate = 0.001 // 0.1% (10 bps)
+  const feeRate = 0.001
   const fee = notional * feeRate
 
   const leveragePresets = [1, 2, 5, 10, 20]
 
+  // Clear order size on successful trade (avoids stale closure)
+  const prevStatusRef = useRef(status)
+  useEffect(() => {
+    if (prevStatusRef.current !== 'success' && status === 'success') {
+      setOrderSize('')
+    }
+    prevStatusRef.current = status
+  }, [status, setOrderSize])
+
   const handleSubmitOrder = useCallback(async () => {
     if (!indexToken || !currentPrice || sizeNum === 0) return
 
-    // For market orders: collateral = notional / leverage, size = notional
     const collateralUsd = margin
     const sizeUsd = notional
 
@@ -65,13 +71,7 @@ export function Web3OrderForm() {
       isLong: orderSide === 'long',
       currentPriceRaw: currentPrice.raw,
     })
-
-    if (status === 'success') {
-      setOrderSize('')
-    }
-  }, [indexToken, currentPrice, sizeNum, margin, notional, orderSide, increasePosition, status, setOrderSize])
-
-  const formatUsd = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }, [indexToken, currentPrice, sizeNum, margin, notional, orderSide, increasePosition])
 
   const isSubmitting = status !== 'idle' && status !== 'success' && status !== 'error'
 
@@ -144,7 +144,7 @@ export function Web3OrderForm() {
           </div>
         )}
 
-        {/* Size Input — in USD collateral */}
+        {/* Size Input */}
         <div>
           <label className="text-[10px] text-text-muted uppercase tracking-wider mb-1 block">
             Collateral (USDC)
@@ -159,14 +159,12 @@ export function Web3OrderForm() {
             />
             <span className="text-xs text-text-muted pr-3">USDC</span>
           </div>
-          {/* Quick-fill percentage buttons */}
           <div className="flex gap-1 mt-1.5">
             {[10, 25, 50, 75, 100].map(pct => (
               <button
                 key={pct}
                 onClick={() => {
-                  const maxCollateral = usdcBalance
-                  setOrderSize(((maxCollateral * pct) / 100).toFixed(2))
+                  setOrderSize(((usdcBalance * pct) / 100).toFixed(2))
                 }}
                 className="flex-1 text-[10px] text-text-muted hover:text-text-primary bg-surface hover:bg-panel-light py-1 rounded transition-colors cursor-pointer"
               >

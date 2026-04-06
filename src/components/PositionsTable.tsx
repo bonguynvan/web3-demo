@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
-import { cn } from '../lib/format'
+import { cn, formatUsd } from '../lib/format'
 
 type Tab = 'positions' | 'orders' | 'history'
 
@@ -92,10 +92,8 @@ export function PositionsTable() {
 function PositionRow({ position }: { position: OnChainPosition }) {
   const { address } = useAccount()
   const { getPrice } = usePrices()
-  const { decreasePosition, status } = useTradeExecution()
+  const { decreasePosition } = useTradeExecution()
   const [closing, setClosing] = useState(false)
-
-  const formatUsd = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const handleClose = useCallback(async () => {
     if (!address) return

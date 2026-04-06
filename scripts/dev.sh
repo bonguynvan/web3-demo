@@ -2,7 +2,7 @@
 #
 # dev.sh — Start the entire Perp DEX stack for local development.
 #
-# Launches: Anvil → Deploy contracts → Price updater → Liquidator → Backend server → Vite
+# Launches: Anvil → Deploy contracts → Price updater → Liquidator → Vite
 # Kills everything on Ctrl+C.
 #
 # Usage:
@@ -62,14 +62,14 @@ pkill -f "anvil.*8545" 2>/dev/null || true
 sleep 1
 
 # ── 2. Start Anvil ──
-echo -e "${YELLOW}[1/6] Starting Anvil...${NC}"
+echo -e "${YELLOW}[1/5] Starting Anvil...${NC}"
 anvil --host 127.0.0.1 --port 8545 --block-time 1 > /dev/null 2>&1 &
 PIDS+=($!)
 wait_for_rpc
 echo -e "${GREEN}  ✓ Anvil running on :8545${NC}"
 
 # ── 3. Deploy contracts ──
-echo -e "${YELLOW}[2/6] Deploying contracts...${NC}"
+echo -e "${YELLOW}[2/5] Deploying contracts...${NC}"
 cd "$ROOT_DIR/packages/contracts"
 "$FORGE" script script/DeployLocal.s.sol \
   --rpc-url http://127.0.0.1:8545 \
@@ -79,28 +79,20 @@ cd "$ROOT_DIR/packages/contracts"
 echo -e "${GREEN}  ✓ Contracts deployed${NC}"
 
 # ── 4. Start price updater ──
-echo -e "${YELLOW}[3/6] Starting price updater...${NC}"
+echo -e "${YELLOW}[3/5] Starting price updater...${NC}"
 cd "$ROOT_DIR/packages/keepers"
 npx tsx src/price-updater.ts > /dev/null 2>&1 &
 PIDS+=($!)
 echo -e "${GREEN}  ✓ Price updater running (updates every 3s)${NC}"
 
 # ── 5. Start liquidator ──
-echo -e "${YELLOW}[4/6] Starting liquidator...${NC}"
+echo -e "${YELLOW}[4/5] Starting liquidator...${NC}"
 npx tsx src/liquidator.ts > /dev/null 2>&1 &
 PIDS+=($!)
 echo -e "${GREEN}  ✓ Liquidator running (polls every 2s)${NC}"
 
-# ── 6. Start backend server ──
-echo -e "${YELLOW}[5/6] Starting backend server...${NC}"
-cd "$ROOT_DIR/packages/server"
-npx tsx src/index.ts > /dev/null 2>&1 &
-PIDS+=($!)
-sleep 2
-echo -e "${GREEN}  ✓ Backend server on :3001 (HTTP) :3002 (WS)${NC}"
-
-# ── 7. Start Vite dev server ──
-echo -e "${YELLOW}[6/6] Starting Vite dev server...${NC}"
+# ── 6. Start Vite dev server ──
+echo -e "${YELLOW}[5/5] Starting Vite dev server...${NC}"
 cd "$ROOT_DIR"
 
 echo ""
@@ -108,8 +100,6 @@ echo -e "${CYAN}═════════════════════�
 echo -e "${GREEN}  All services running!${NC}"
 echo ""
 echo -e "  Frontend:   ${CYAN}http://localhost:5173${NC}"
-echo -e "  API:        ${CYAN}http://localhost:3001${NC}"
-echo -e "  WebSocket:  ${CYAN}ws://localhost:3002${NC}"
 echo -e "  Anvil RPC:  ${CYAN}http://localhost:8545${NC}"
 echo ""
 echo -e "  ${YELLOW}Anvil accounts pre-funded with USDC:${NC}"
