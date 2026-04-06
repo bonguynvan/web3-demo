@@ -135,29 +135,33 @@ async function main() {
   }
   console.log('\x1b[32m  ✓ Anvil running on :8545\x1b[0m')
 
-  // 3. Deploy contracts (clean caches to avoid stale nonce)
+  // 3. Deploy contracts
   console.log('\x1b[33m[2/6] Deploying contracts...\x1b[0m')
   try {
     const { rmSync } = await import('fs')
     rmSync(resolve(ROOT, 'packages/contracts/broadcast'), { recursive: true, force: true })
-    rmSync(resolve(ROOT, 'packages/contracts/cache'), { recursive: true, force: true })
+  } catch {}
+  // Pre-build so deploy is fast
+  try {
+    execSync(`"${FORGE}" build`, {
+      cwd: resolve(ROOT, 'packages/contracts'), stdio: ['pipe', 'pipe', 'pipe'], timeout: 120000,
+    })
   } catch {}
   try {
-    await runAndWait(FORGE, [
-      'script', 'script/DeployLocal.s.sol',
-      '--rpc-url', 'http://127.0.0.1:8545',
-      '--broadcast',
-      '--private-key', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-    ], { cwd: resolve(ROOT, 'packages/contracts') })
+    execSync(
+      `"${FORGE}" script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`,
+      { cwd: resolve(ROOT, 'packages/contracts'), stdio: ['pipe', 'pipe', 'pipe'], timeout: 120000 }
+    )
     console.log('\x1b[32m  ✓ Contracts deployed\x1b[0m')
   } catch (err) {
-    // forge script often exits non-zero on Windows due to nonce race conditions
-    // but the contracts are still deployed. Check if we can reach the deployer.
-    if (err.message.includes('nonce too low')) {
-      console.log('\x1b[33m  ⚠ Deploy completed with nonce warnings (normal on Windows)\x1b[0m')
+    const stdout = err.stdout?.toString() || ''
+    const stderr = err.stderr?.toString() || ''
+    const msg = stdout + stderr
+    if (msg.includes('ONCHAIN EXECUTION COMPLETE') || msg.includes('nonce too low')) {
+      console.log('\x1b[32m  ✓ Contracts deployed (with warnings)\x1b[0m')
     } else {
-      console.error('\x1b[31m  ✗ Deploy failed:', err.message.slice(0, 200), '\x1b[0m')
-      cleanup()
+      console.error('\x1b[31m  ✗ Deploy issue:', (stderr || err.message).slice(0, 300), '\x1b[0m')
+      console.log('\x1b[33m  Continuing anyway — contracts may be partially deployed\x1b[0m')
     }
   }
 
