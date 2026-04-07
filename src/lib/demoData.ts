@@ -92,11 +92,16 @@ export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
   return [...demoPositions]
 }
 
+// Change counter — hooks poll this to detect mutations
+let changeVersion = 0
+export function getDemoVersion(): number { return changeVersion }
+
 export function addDemoPosition(pos: Omit<DemoPosition, 'pnl' | 'pnlPercent' | 'markPrice'> & { tp?: number; sl?: number }) {
   // Deduct collateral from balance
   DEMO_ACCOUNT.balance -= pos.collateral
 
   demoPositions.push({ ...pos, markPrice: pos.entryPrice, pnl: 0, pnlPercent: 0 })
+  changeVersion++
 
   // Add TP/SL orders if provided
   if (pos.tp && pos.tp > 0) {
@@ -165,6 +170,7 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
     pos.collateralRaw = toRaw(pos.collateral)
   }
 
+  changeVersion++
   return { realizedPnl }
 }
 
@@ -189,7 +195,7 @@ export function getDemoOrders(): DemoOrder[] {
 
 export function cancelDemoOrder(id: string) {
   const idx = demoOrders.findIndex(o => o.id === id)
-  if (idx >= 0) demoOrders.splice(idx, 1)
+  if (idx >= 0) { demoOrders.splice(idx, 1); changeVersion++ }
 }
 
 // ─── Demo trade history ───

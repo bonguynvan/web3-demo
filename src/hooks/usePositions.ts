@@ -12,7 +12,7 @@ import { getContracts, getMarkets } from '../lib/contracts'
 import { internalToDollars, formatLeverage } from '../lib/precision'
 import { usePrices } from './usePrices'
 import { useIsDemo } from '../store/modeStore'
-import { getDemoPositions } from '../lib/demoData'
+import { getDemoPositions, getDemoPrices, getDemoVersion } from '../lib/demoData'
 
 export interface OnChainPosition {
   key: string
@@ -42,21 +42,50 @@ export function usePositions() {
   // ─── Demo path (always runs) ───
   const [demoPositions, setDemoPositions] = useState<OnChainPosition[]>([])
 
+  const [demoVersion, setDemoVersion] = useState(0)
+
+  useEffect(() => {
+    if (!isDemo) return
+    // Fast poll to detect changes (version-based)
+    const id = setInterval(() => {
+      const v = getDemoVersion()
+      if (v !== demoVersion) setDemoVersion(v)
+    }, 100)
+    return () => clearInterval(id)
+  }, [isDemo, demoVersion])
+
+  // Re-read positions when version changes or prices update
+  useEffect(() => {
+    if (!isDemo) return
+    const currentPrices = getDemoPrices()
+    const raw = getDemoPositions(currentPrices)
+    setDemoPositions(raw.map(d => ({
+      key: d.key, market: d.market, baseAsset: d.baseAsset, indexToken: d.indexToken,
+      side: d.side, size: d.size, sizeRaw: d.sizeRaw, collateral: d.collateral,
+      collateralRaw: d.collateralRaw, entryPrice: d.entryPrice, entryPriceRaw: d.entryPriceRaw,
+      markPrice: d.markPrice, leverage: d.leverage, pnl: d.pnl, pnlPercent: d.pnlPercent,
+      liquidationPrice: d.liquidationPrice,
+    })))
+  }, [isDemo, demoVersion])
+
+  // Also update PnL on price ticks (every second)
   useEffect(() => {
     if (!isDemo) return
     const id = setInterval(() => {
-      const demoPrices = prices.map(p => ({ symbol: '', market: p.market, price: p.price, raw: p.raw }))
-      const raw = getDemoPositions(demoPrices)
-      setDemoPositions(raw.map(d => ({
-        key: d.key, market: d.market, baseAsset: d.baseAsset, indexToken: d.indexToken,
-        side: d.side, size: d.size, sizeRaw: d.sizeRaw, collateral: d.collateral,
-        collateralRaw: d.collateralRaw, entryPrice: d.entryPrice, entryPriceRaw: d.entryPriceRaw,
-        markPrice: d.markPrice, leverage: d.leverage, pnl: d.pnl, pnlPercent: d.pnlPercent,
-        liquidationPrice: d.liquidationPrice,
-      })))
+      const currentPrices = getDemoPrices()
+      const raw = getDemoPositions(currentPrices)
+      if (raw.length > 0) {
+        setDemoPositions(raw.map(d => ({
+          key: d.key, market: d.market, baseAsset: d.baseAsset, indexToken: d.indexToken,
+          side: d.side, size: d.size, sizeRaw: d.sizeRaw, collateral: d.collateral,
+          collateralRaw: d.collateralRaw, entryPrice: d.entryPrice, entryPriceRaw: d.entryPriceRaw,
+          markPrice: d.markPrice, leverage: d.leverage, pnl: d.pnl, pnlPercent: d.pnlPercent,
+          liquidationPrice: d.liquidationPrice,
+        })))
+      }
     }, 1000)
     return () => clearInterval(id)
-  }, [isDemo, prices])
+  }, [isDemo])
 
   // ─── Live path (always runs, disabled when demo) ───
   let contracts: ReturnType<typeof getContracts> | null = null
