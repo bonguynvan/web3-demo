@@ -15,6 +15,7 @@ import { usePrices } from '../hooks/usePrices'
 import { PERP_THEME } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
 import { DrawToolsSidebar } from './DrawToolsSidebar'
+import { ChartSettings, DEFAULT_SETTINGS, type ChartSettingsState } from './ChartSettings'
 
 export function TradingChart({ loading }: { loading: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -31,6 +32,8 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const [magnetEnabled, setMagnetEnabled] = useState(true)
   const [activeIndicators, setActiveIndicators] = useState<{ instanceId: string; id: string; label: string }[]>([])
   const [availableIndicators, setAvailableIndicators] = useState<IndicatorDescriptor[]>([])
+  const [showSettings, setShowSettings] = useState(false)
+  const [chartSettings, setChartSettings] = useState<ChartSettingsState>(DEFAULT_SETTINGS)
 
   // Create chart only once, when container has dimensions
   useEffect(() => {
@@ -228,6 +231,40 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const handleScreenshot = useCallback(() => chartRef.current?.screenshot(), [])
   const handleClearDrawings = useCallback(() => chartRef.current?.clearDrawings(), [])
 
+  // Apply settings changes to the chart instance
+  const handleSettingsChange = useCallback((patch: Partial<ChartSettingsState>) => {
+    setChartSettings(prev => {
+      const next = { ...prev, ...patch }
+      const chart = chartRef.current
+      if (chart) {
+        // Apply theme changes
+        if (patch.candleUpColor || patch.candleDownColor || patch.candleUpWick || patch.candleDownWick || patch.backgroundColor || patch.gridColor) {
+          chart.setTheme({
+            ...PERP_THEME,
+            candleUp: next.candleUpColor,
+            candleDown: next.candleDownColor,
+            candleUpWick: next.candleUpWick,
+            candleDownWick: next.candleDownWick,
+            background: next.backgroundColor,
+            grid: next.gridColor,
+          })
+        }
+        if ('gridVisible' in patch) chart.setGridVisible(next.gridVisible)
+        if ('volumeVisible' in patch) chart.setVolumeVisible(next.volumeVisible)
+        if ('legendVisible' in patch) chart.setLegend({ visible: next.legendVisible })
+        if ('barCountdown' in patch) chart.setBarCountdownVisible(next.barCountdown)
+        if ('logScale' in patch) chart.setLogScale(next.logScale)
+        if ('autoScale' in patch) chart.setAutoScale(next.autoScale)
+        if ('crosshairMode' in patch) chart.setCrosshairMode(next.crosshairMode)
+      }
+      return next
+    })
+  }, [])
+
+  const handleSettingsReset = useCallback(() => {
+    handleSettingsChange(DEFAULT_SETTINGS)
+  }, [handleSettingsChange])
+
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
       <ChartToolbar
@@ -241,6 +278,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
         onAddIndicator={handleAddIndicator}
         onRemoveIndicator={handleRemoveIndicator}
         onScreenshot={handleScreenshot}
+        onSettings={() => setShowSettings(true)}
       />
 
       {/* Draw sidebar + Chart canvas */}
@@ -266,6 +304,15 @@ export function TradingChart({ loading }: { loading: boolean }) {
           )}
         </div>
       </div>
+
+      {/* Settings dialog */}
+      <ChartSettings
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        settings={chartSettings}
+        onChange={handleSettingsChange}
+        onReset={handleSettingsReset}
+      />
     </div>
   )
 }

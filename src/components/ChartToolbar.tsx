@@ -1,6 +1,6 @@
 import type { TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor } from '@chart-lib/library'
 import {
-  TrendingUp, BarChart3, ChevronDown, Camera, X,
+  TrendingUp, BarChart3, ChevronDown, Camera, X, Settings,
 } from 'lucide-react'
 import { cn } from '../lib/format'
 import { TIMEFRAMES, CHART_TYPES, POPULAR_INDICATORS } from '../lib/chartConfig'
@@ -17,13 +17,14 @@ interface ChartToolbarProps {
   onAddIndicator: (id: string) => void
   onRemoveIndicator: (instanceId: string) => void
   onScreenshot: () => void
+  onSettings: () => void
 }
 
 export function ChartToolbar({
   market, activeTimeframe, activeChartType,
   activeIndicators, availableIndicators,
   onTimeframe, onChartType,
-  onAddIndicator, onRemoveIndicator, onScreenshot,
+  onAddIndicator, onRemoveIndicator, onScreenshot, onSettings,
 }: ChartToolbarProps) {
   return (
     <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border text-xs shrink-0">
@@ -101,8 +102,9 @@ export function ChartToolbar({
         ))}
       </Dropdown>
 
-      {/* Screenshot */}
+      {/* Screenshot + Settings */}
       <ToolBtn onClick={onScreenshot} title="Screenshot"><Camera className="w-3.5 h-3.5" /></ToolBtn>
+      <ToolBtn onClick={onSettings} title="Chart Settings"><Settings className="w-3.5 h-3.5" /></ToolBtn>
 
       <div className="flex-1" />
 
