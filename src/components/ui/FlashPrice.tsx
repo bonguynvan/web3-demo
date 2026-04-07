@@ -55,8 +55,11 @@ export const FlashPrice = memo(function FlashPrice({
         className,
       )}
     >
-      {showArrow && flash === 'up' && '▲ '}
-      {showArrow && flash === 'down' && '▼ '}
+      {showArrow && (
+        <span className="inline-block w-[1em] text-center">
+          {flash === 'up' ? '▲' : flash === 'down' ? '▼' : '\u2007'}
+        </span>
+      )}
       {format(value)}
     </span>
   )
