@@ -45,7 +45,7 @@ export function DevOverlay({
   const fpsColor = stats.fps >= 55 ? 'text-long' : stats.fps >= 30 ? 'text-accent' : 'text-short'
 
   return (
-    <div className="fixed bottom-3 right-3 z-50 select-none">
+    <div className="fixed bottom-3 left-3 z-50 select-none">
       <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden min-w-[240px]">
         {/* Header — always visible */}
         <button
