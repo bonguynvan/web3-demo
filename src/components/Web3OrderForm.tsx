@@ -4,7 +4,7 @@
  * Flow: Connect wallet → Enter size/leverage → Submit → Approve USDC → Confirm tx
  */
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChainId } from 'wagmi'
 import { Minus, Plus, Loader2, Check, X } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
@@ -48,6 +48,24 @@ export function Web3OrderForm() {
   const fee = notional * feeRate
 
   const leveragePresets = [1, 2, 5, 10, 20]
+
+  // TP/SL state
+  const [showTpSl, setShowTpSl] = useState(false)
+  const [tpPrice, setTpPrice] = useState('')
+  const [slPrice, setSlPrice] = useState('')
+  const [reduceOnly, setReduceOnly] = useState(false)
+
+  // Estimated TP/SL PnL
+  const entryPrice = priceNum
+  const tpNum = parseFloat(tpPrice) || 0
+  const slNum = parseFloat(slPrice) || 0
+
+  const tpPnl = tpNum > 0 && entryPrice > 0 && notional > 0
+    ? (orderSide === 'long' ? (tpNum - entryPrice) / entryPrice : (entryPrice - tpNum) / entryPrice) * notional
+    : 0
+  const slPnl = slNum > 0 && entryPrice > 0 && notional > 0
+    ? (orderSide === 'long' ? (slNum - entryPrice) / entryPrice : (entryPrice - slNum) / entryPrice) * notional
+    : 0
 
   // Clear order size on successful trade (avoids stale closure)
   const prevStatusRef = useRef(status)
@@ -204,6 +222,77 @@ export function Web3OrderForm() {
           </div>
         </div>
 
+        {/* TP/SL Toggle + Reduce Only */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowTpSl(v => !v)}
+            className={cn(
+              'text-[11px] font-medium transition-colors cursor-pointer',
+              showTpSl ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+            )}
+          >
+            {showTpSl ? '▾' : '▸'} TP / SL
+          </button>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={reduceOnly}
+              onChange={e => setReduceOnly(e.target.checked)}
+              className="w-3 h-3 accent-accent cursor-pointer"
+            />
+            <span className="text-[10px] text-text-muted">Reduce Only</span>
+          </label>
+        </div>
+
+        {/* TP/SL Inputs */}
+        {showTpSl && (
+          <div className="space-y-2 bg-surface/50 rounded-lg p-2.5">
+            {/* Take Profit */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-long uppercase tracking-wider font-medium">Take Profit</label>
+                {tpPnl !== 0 && (
+                  <span className={cn('text-[10px] font-mono', tpPnl >= 0 ? 'text-long' : 'text-short')}>
+                    {tpPnl >= 0 ? '+' : ''}{formatUsd(tpPnl)} ({margin > 0 ? ((tpPnl / margin) * 100).toFixed(1) : '0'}%)
+                  </span>
+                )}
+              </div>
+              <input
+                type="number"
+                value={tpPrice}
+                onChange={e => setTpPrice(e.target.value)}
+                placeholder={orderSide === 'long'
+                  ? `Above ${entryPrice > 0 ? formatUsd(entryPrice * 1.05) : '---'}`
+                  : `Below ${entryPrice > 0 ? formatUsd(entryPrice * 0.95) : '---'}`
+                }
+                className="w-full bg-surface border border-long/20 rounded px-2.5 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-long/50 transition-colors"
+              />
+            </div>
+
+            {/* Stop Loss */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-short uppercase tracking-wider font-medium">Stop Loss</label>
+                {slPnl !== 0 && (
+                  <span className={cn('text-[10px] font-mono', slPnl >= 0 ? 'text-long' : 'text-short')}>
+                    {slPnl >= 0 ? '+' : ''}{formatUsd(slPnl)} ({margin > 0 ? ((slPnl / margin) * 100).toFixed(1) : '0'}%)
+                  </span>
+                )}
+              </div>
+              <input
+                type="number"
+                value={slPrice}
+                onChange={e => setSlPrice(e.target.value)}
+                placeholder={orderSide === 'long'
+                  ? `Below ${entryPrice > 0 ? formatUsd(entryPrice * 0.95) : '---'}`
+                  : `Above ${entryPrice > 0 ? formatUsd(entryPrice * 1.05) : '---'}`
+                }
+                className="w-full bg-surface border border-short/20 rounded px-2.5 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-short/50 transition-colors"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Order Summary */}
         {sizeNum > 0 && markPrice > 0 && (
           <div className="space-y-1.5 text-xs border-t border-border pt-3">
@@ -220,9 +309,30 @@ export function Web3OrderForm() {
               <span className="font-mono text-text-secondary">${formatUsd(fee)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-muted">Oracle Price</span>
-              <span className="font-mono text-text-secondary">${formatUsd(markPrice)}</span>
+              <span className="text-text-muted">Entry Price</span>
+              <span className="font-mono text-text-secondary">${formatUsd(priceNum)}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-text-muted">Liq. Price</span>
+              <span className="font-mono text-text-secondary">
+                ${formatUsd(orderSide === 'long'
+                  ? priceNum * (1 - 0.95 / leverage)
+                  : priceNum * (1 + 0.95 / leverage)
+                )}
+              </span>
+            </div>
+            {tpNum > 0 && (
+              <div className="flex justify-between">
+                <span className="text-long">Take Profit</span>
+                <span className="font-mono text-long">${formatUsd(tpNum)} ({tpPnl >= 0 ? '+' : ''}{formatUsd(tpPnl)})</span>
+              </div>
+            )}
+            {slNum > 0 && (
+              <div className="flex justify-between">
+                <span className="text-short">Stop Loss</span>
+                <span className="font-mono text-short">${formatUsd(slNum)} ({formatUsd(slPnl)})</span>
+              </div>
+            )}
           </div>
         )}
 

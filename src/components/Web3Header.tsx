@@ -9,7 +9,8 @@ import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
 import { useVault } from '../hooks/useVault'
 import { useFaucet } from '../hooks/useFaucet'
-import { cn, formatUsd, formatCompact } from '../lib/format'
+import { useMarketStats } from '../hooks/useMarketStats'
+import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
 
 const CHAIN_NAMES: Record<number, string> = {
@@ -31,6 +32,7 @@ export function Web3Header() {
   const { getPrice } = usePrices()
   const { stats: vaultStats } = useVault()
   const { mint, minting, isAvailable: faucetAvailable } = useFaucet()
+  const stats = useMarketStats()
 
   const currentPrice = getPrice(selectedMarket.symbol)
 
@@ -81,21 +83,61 @@ export function Web3Header() {
         })}
       </Dropdown>
 
-      {/* Market Stats */}
-      <div className="flex items-center gap-6 text-xs overflow-hidden">
+      {/* Market Stats Bar */}
+      <div className="flex items-center gap-4 text-xs overflow-hidden">
+        {/* Oracle Price */}
         <div>
-          <span className="text-text-muted">Oracle Price</span>
-          <span className="ml-1.5 font-mono text-text-primary font-medium">
+          <span className="text-text-muted text-[10px]">Oracle</span>
+          <div className="font-mono text-text-primary font-semibold">
             ${currentPrice ? formatUsd(currentPrice.price) : '---'}
-          </span>
+          </div>
         </div>
+
+        <div className="w-px h-6 bg-border" />
+
+        {/* 24h Change */}
         <div>
-          <span className="text-text-muted">Pool</span>
-          <span className="ml-1.5 font-mono text-text-primary">${formatCompact(vaultStats.poolAmount)}</span>
+          <span className="text-text-muted text-[10px]">24h Change</span>
+          <div className={cn('font-mono font-medium', stats.change24h >= 0 ? 'text-long' : 'text-short')}>
+            {stats.change24h >= 0 ? '+' : ''}{stats.change24h.toFixed(2)}%
+          </div>
         </div>
+
+        {/* 24h High */}
         <div>
-          <span className="text-text-muted">Utilization</span>
-          <span className="ml-1.5 font-mono text-text-primary">{vaultStats.utilizationPercent.toFixed(1)}%</span>
+          <span className="text-text-muted text-[10px]">24h High</span>
+          <div className="font-mono text-text-primary">${formatUsd(stats.high24h)}</div>
+        </div>
+
+        {/* 24h Low */}
+        <div>
+          <span className="text-text-muted text-[10px]">24h Low</span>
+          <div className="font-mono text-text-primary">${formatUsd(stats.low24h)}</div>
+        </div>
+
+        {/* 24h Volume */}
+        <div>
+          <span className="text-text-muted text-[10px]">24h Volume</span>
+          <div className="font-mono text-text-primary">${formatCompact(stats.volume24h)}</div>
+        </div>
+
+        {/* Open Interest */}
+        <div className="hidden xl:block">
+          <span className="text-text-muted text-[10px]">Open Interest</span>
+          <div className="font-mono text-text-primary">${formatCompact(stats.openInterest)}</div>
+        </div>
+
+        <div className="w-px h-6 bg-border" />
+
+        {/* Funding Rate + Countdown */}
+        <div>
+          <span className="text-text-muted text-[10px]">Funding / Countdown</span>
+          <div className="flex items-center gap-1.5">
+            <span className={cn('font-mono font-medium', stats.fundingRate >= 0 ? 'text-long' : 'text-short')}>
+              {stats.fundingRate >= 0 ? '+' : ''}{stats.fundingRate.toFixed(4)}%
+            </span>
+            <span className="text-text-muted font-mono">{formatCountdown(stats.nextFundingSec)}</span>
+          </div>
         </div>
       </div>
 

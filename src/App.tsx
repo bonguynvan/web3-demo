@@ -17,6 +17,7 @@ import { PositionsTable } from './components/PositionsTable'
 import { RecentTrades } from './components/RecentTrades'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DevOverlay } from './components/DevOverlay'
+import { ToastContainer } from './components/ToastContainer'
 import { useMarketWs } from './hooks/useMarketWs'
 import { useSimulator } from './hooks/useSimulator'
 import { useTradingStore } from './store/tradingStore'
@@ -86,6 +87,9 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Toast Notifications */}
+      <ToastContainer />
 
       {/* Dev Panel */}
       <DevOverlay
