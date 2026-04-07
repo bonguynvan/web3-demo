@@ -1,25 +1,26 @@
 /**
- * useSimulator — manages PriceSimulator lifecycle and feeds ticks into the store.
+ * useSimulator — manages PriceSimulator + TickEngine pipeline.
  *
- * Handles:
- * - Batching ticks per animation frame (avoids 100+ setState/sec)
- * - Building candles from raw ticks for the selected market
- * - Feeding the trade tape for the selected market
- * - Providing simulated prices for all pairs (for MarketInfo/Header)
- * - FPS and tick rate stats for the dev overlay
+ * Architecture:
+ *   PriceSimulator (1000+ ticks/s per pair)
+ *     → TickEngine (zero-alloc ring buffer + OHLCV aggregator)
+ *       → rAF flush (60/s) → Chart API (direct, no React)
+ *                           → Store (15/s for React components)
+ *
+ * The TickEngine eliminates per-tick array allocation and filtering.
+ * At 100 pairs × 100 ticks/s, only the selected market's ticks are
+ * aggregated. Other pairs' ticks are counted but not processed.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   PriceSimulator,
   buildPairList,
-  type PriceTick,
   type SimulatorConfig,
 } from '../lib/priceSimulator'
+import { TickEngine, type FlushPayload } from '../lib/tickEngine'
 import { useTradingStore, type MarketInfo } from '../store/tradingStore'
 import type { CandleData } from '../types/trading'
-
-const CANDLE_INTERVAL_MS = 5_000
 
 interface SimulatorState {
   loading: boolean
@@ -35,14 +36,19 @@ interface UseSimulatorOptions {
   intervalMs: number
 }
 
-/** Generate seed candles with random walk from a starting price */
-function generateSeedCandles(basePrice: number, count: number): CandleData[] {
-  const now = Math.floor(Date.now() / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS
+const TF_INTERVALS: Record<string, number> = {
+  '1m': 60_000, '3m': 180_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
+  '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000, '1w': 604_800_000,
+}
+
+function generateSeedCandles(basePrice: number, count: number, intervalMs: number): CandleData[] {
+  const now = Math.floor(Date.now() / intervalMs) * intervalMs
   const candles: CandleData[] = []
   let p = basePrice * (0.97 + Math.random() * 0.03)
+  const volScale = Math.sqrt(intervalMs / 60_000)
   for (let i = count - 1; i >= 0; i--) {
-    const time = now - i * CANDLE_INTERVAL_MS
-    const volatility = basePrice * 0.002
+    const time = now - i * intervalMs
+    const volatility = basePrice * 0.002 * volScale
     const change = (Math.random() - 0.48) * volatility
     const open = p
     p += change
@@ -56,129 +62,47 @@ function generateSeedCandles(basePrice: number, count: number): CandleData[] {
 
 export function useSimulator({ enabled, pairCount, intervalMs }: UseSimulatorOptions): SimulatorState {
   const simRef = useRef<PriceSimulator | null>(null)
-  const currentCandleRef = useRef<CandleData | null>(null)
+  const engineRef = useRef<TickEngine | null>(null)
   const seededMarketRef = useRef<string | null>(null)
-  const tickBufferRef = useRef<PriceTick[]>([])
-  const rafIdRef = useRef(0)
-  const fpsRef = useRef({ frames: 0, lastTime: Date.now(), value: 0 })
+  const tradeIdRef = useRef(0)
 
   const [state, setState] = useState<SimulatorState>({
-    loading: true,
-    running: false,
-    pairCount: 0,
-    ticksPerSecond: 0,
-    fps: 0,
+    loading: true, running: false, pairCount: 0, ticksPerSecond: 0, fps: 0,
   })
 
   const selectedMarket = useTradingStore(s => s.selectedMarket)
+  const timeframe = useTradingStore(s => s.timeframe)
   const setCandles = useTradingStore(s => s.setCandles)
   const addCandle = useTradingStore(s => s.addCandle)
   const addTrade = useTradingStore(s => s.addTrade)
+  const candleIntervalMs = TF_INTERVALS[timeframe] ?? 300_000
 
-  // Process buffered ticks on animation frame — this is the key optimization
-  const flushTicks = useCallback(() => {
-    rafIdRef.current = 0
-    const ticks = tickBufferRef.current
-    if (ticks.length === 0) return
-    tickBufferRef.current = []
-
-    // FPS tracking
-    const fps = fpsRef.current
-    fps.frames++
-    const now = Date.now()
-    if (now - fps.lastTime >= 1000) {
-      fps.value = fps.frames
-      fps.frames = 0
-      fps.lastTime = now
-    }
-
-    const market = useTradingStore.getState().selectedMarket.symbol
-
-    // Filter ticks for the selected market
-    const marketTicks = ticks.filter(t => t.symbol === market)
-    if (marketTicks.length === 0) return
-
-    // Use last tick as the "current price" for the candle
-    const lastTick = marketTicks[marketTicks.length - 1]
-
-    // Build/update candle
-    const bucketTime = Math.floor(now / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS
-    let current = currentCandleRef.current
-
-    if (!current || bucketTime > current.time) {
-      // New candle
-      const newCandle: CandleData = {
-        time: bucketTime,
-        open: lastTick.price,
-        high: lastTick.price,
-        low: lastTick.price,
-        close: lastTick.price,
-        volume: marketTicks.reduce((s, t) => s + t.size, 0),
-      }
-      currentCandleRef.current = newCandle
-      addCandle(newCandle)
-    } else {
-      // Merge all market ticks into current candle
-      for (const tick of marketTicks) {
-        current.high = Math.max(current.high, tick.price)
-        current.low = Math.min(current.low, tick.price)
-        current.close = tick.price
-        current.volume += tick.size
-      }
-      // Batch update — single setState
-      useTradingStore.setState(s => {
-        if (s.candles.length === 0) return s
-        const updated = [...s.candles]
-        updated[updated.length - 1] = { ...current! }
-        return { candles: updated }
-      })
-    }
-
-    // Feed trade tape (only last few ticks to avoid flooding)
-    const tradeTicks = marketTicks.slice(-3)
-    for (const tick of tradeTicks) {
-      addTrade({
-        id: `${tick.time}-${Math.random().toString(36).slice(2, 8)}`,
-        price: tick.price,
-        size: tick.size,
-        side: tick.side,
-        time: tick.time,
-      })
-    }
-  }, [addCandle, addTrade])
-
-  // Seed candles when market changes
+  // Seed candles on market change
   useEffect(() => {
     if (!enabled || !simRef.current) return
-
     const market = selectedMarket.symbol
-    if (seededMarketRef.current === market) return
-    seededMarketRef.current = market
-    currentCandleRef.current = null
+    const key = `${market}:${timeframe}`
+    if (seededMarketRef.current === key) return
+    seededMarketRef.current = key
 
     const price = simRef.current.getPrice(market)
     if (price === 0) return
 
-    const seed = generateSeedCandles(price, 60)
-    const now = Math.floor(Date.now() / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS
-    const current: CandleData = {
-      time: now,
-      open: price, high: price, low: price, close: price,
-      volume: 1,
-    }
-    seed.push(current)
-    currentCandleRef.current = current
+    const seed = generateSeedCandles(price, 300, candleIntervalMs)
     setCandles(seed)
     setState(s => ({ ...s, loading: false }))
-  }, [enabled, selectedMarket.symbol, setCandles])
 
-  // Create/destroy simulator
+    // Reset engine for new market
+    engineRef.current?.setInterval(candleIntervalMs)
+  }, [enabled, selectedMarket.symbol, timeframe, candleIntervalMs, setCandles])
+
+  // Create/destroy simulator + engine
   useEffect(() => {
     if (!enabled) {
-      if (simRef.current) {
-        simRef.current.destroy()
-        simRef.current = null
-      }
+      simRef.current?.destroy()
+      simRef.current = null
+      engineRef.current?.stop()
+      engineRef.current = null
       setState(s => ({ ...s, running: false, pairCount: 0, ticksPerSecond: 0 }))
       return
     }
@@ -189,44 +113,83 @@ export function useSimulator({ enabled, pairCount, intervalMs }: UseSimulatorOpt
     const sim = new PriceSimulator(pairs, config)
     simRef.current = sim
 
-    // Register available markets in the store
-    const markets: MarketInfo[] = pairs.map(p => ({
-      symbol: p.symbol,
-      baseAsset: p.baseAsset,
-    }))
+    // Register markets
+    const markets: MarketInfo[] = pairs.map(p => ({ symbol: p.symbol, baseAsset: p.baseAsset }))
     useTradingStore.setState({ markets, selectedMarket: markets[0] })
 
-    // Seed the first market immediately
-    seededMarketRef.current = null
+    // Create TickEngine
+    const engine = new TickEngine()
+    engineRef.current = engine
 
+    let frameCount = 0
+
+    engine.start(candleIntervalMs, (payload: FlushPayload) => {
+      frameCount++
+
+      // New completed candle → append to store
+      if (payload.newCandleStarted && payload.completed) {
+        addCandle({
+          time: payload.completed.time,
+          open: payload.completed.open,
+          high: payload.completed.high,
+          low: payload.completed.low,
+          close: payload.completed.close,
+          volume: payload.completed.volume,
+        })
+      }
+
+      // Update store's last candle (throttled to 15fps for React)
+      if (frameCount % 4 === 0) {
+        const c = payload.current
+        useTradingStore.setState(s => {
+          if (s.candles.length === 0) {
+            return { candles: [{ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }] }
+          }
+          const updated = [...s.candles]
+          updated[updated.length - 1] = { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }
+          return { candles: updated }
+        })
+      }
+
+      // Feed trade tape (max 2 per frame to avoid flooding)
+      if (frameCount % 2 === 0 && payload.lastPrice > 0) {
+        addTrade({
+          id: `sim-${++tradeIdRef.current}`,
+          price: +payload.lastPrice.toFixed(2),
+          size: +(payload.ticksSinceFlush * 0.01 + Math.random() * 0.5).toFixed(4),
+          side: payload.current.close >= payload.current.open ? 'long' : 'short',
+          time: Date.now(),
+        })
+      }
+    })
+
+    // Wire simulator ticks → engine (only selected market's ticks)
     sim.onTick((ticks) => {
-      tickBufferRef.current.push(...ticks)
-      if (!rafIdRef.current) {
-        rafIdRef.current = requestAnimationFrame(flushTicks)
+      const market = useTradingStore.getState().selectedMarket.symbol
+      for (let i = 0; i < ticks.length; i++) {
+        if (ticks[i].symbol === market) {
+          engine.ingestTick(ticks[i].price, ticks[i].size, ticks[i].time)
+        }
       }
     })
 
     sim.start()
     setState(s => ({ ...s, running: true, pairCount: pairs.length }))
 
-    // Seed initial candles after a brief delay for first ticks to flow
+    // Seed first market
+    seededMarketRef.current = null
+
     setTimeout(() => {
       const market = useTradingStore.getState().selectedMarket.symbol
       const price = sim.getPrice(market)
-      if (price > 0 && seededMarketRef.current !== market) {
-        seededMarketRef.current = market
-        currentCandleRef.current = null
-        const seed = generateSeedCandles(price, 60)
-        const now = Math.floor(Date.now() / CANDLE_INTERVAL_MS) * CANDLE_INTERVAL_MS
-        const current: CandleData = {
-          time: now,
-          open: price, high: price, low: price, close: price,
-          volume: 1,
+      if (price > 0) {
+        const key = `${market}:${useTradingStore.getState().timeframe}`
+        if (seededMarketRef.current !== key) {
+          seededMarketRef.current = key
+          const seed = generateSeedCandles(price, 300, candleIntervalMs)
+          useTradingStore.getState().setCandles(seed)
+          setState(s => ({ ...s, loading: false }))
         }
-        seed.push(current)
-        currentCandleRef.current = current
-        setCandles(seed)
-        setState(s => ({ ...s, loading: false }))
       }
     }, 50)
 
@@ -235,17 +198,19 @@ export function useSimulator({ enabled, pairCount, intervalMs }: UseSimulatorOpt
       setState(s => ({
         ...s,
         ticksPerSecond: Math.round(sim.getTicksPerSecond()),
-        fps: fpsRef.current.value,
+        fps: Math.min(60, engine.flushCount),
       }))
+      engine.flushCount = 0
     }, 1000)
 
     return () => {
       clearInterval(statsInterval)
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+      engine.stop()
       sim.destroy()
       simRef.current = null
+      engineRef.current = null
     }
-  }, [enabled, pairCount, intervalMs, flushTicks, setCandles])
+  }, [enabled, pairCount, intervalMs, candleIntervalMs, addCandle, addTrade])
 
   return state
 }
