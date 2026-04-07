@@ -52,7 +52,7 @@ export function ToastContainer() {
   const toasts = useToastStore(s => s.toasts)
 
   return (
-    <div className="fixed top-16 left-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} />
       ))}
@@ -115,8 +115,8 @@ function ToastItem({ toast }: { toast: Toast }) {
       className={cn(
         'pointer-events-auto w-[340px] rounded-lg border shadow-2xl cursor-pointer',
         'transition-all duration-200',
-        exiting ? 'opacity-0 -translate-x-4' : 'opacity-100 translate-x-0',
-        'animate-[slideInLeft_0.2s_ease-out]',
+        exiting ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0',
+        'animate-[slideIn_0.2s_ease-out]',
         colors.border,
         colors.bg,
       )}

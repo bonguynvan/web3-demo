@@ -103,20 +103,16 @@ export function Web3OrderForm() {
   const handleSubmitOrder = useCallback(async () => {
     if (collateralNum <= 0 || priceNum <= 0) return
 
-    // Try real execution if connected and contracts available
-    if (isConnected && indexToken && currentPrice) {
-      try {
-        await increasePosition({
-          indexToken,
-          collateralUsd: collateralNum,
-          sizeUsd: notional,
-          isLong: orderSide === 'long',
-          currentPriceRaw: currentPrice.raw,
-        })
-        return
-      } catch {
-        // Fall through to demo mode
-      }
+    // Live mode — real contract execution
+    if (!isDemo && isConnected && indexToken && currentPrice) {
+      await increasePosition({
+        indexToken,
+        collateralUsd: collateralNum,
+        sizeUsd: notional,
+        isLong: orderSide === 'long',
+        currentPriceRaw: currentPrice.raw,
+      })
+      return
     }
 
     // Demo mode — simulate trade and create demo position
