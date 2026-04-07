@@ -411,20 +411,27 @@ export class Chart {
 
   updateLastBar(bar: OHLCBar): void {
     this.dataManager.updateLastBar(bar);
-    this.displayDataCache = null;
-    // Auto-update current price line from close
     this.currentPriceLine.setPrice(bar.close);
-    // Only request render — skip full indicator recalc and layout resolve for streaming updates.
-    // Indicators are recalculated on the next full update cycle (appendBar/setData).
+    // For non-transform chart types, the displayDataCache still points to the
+    // same raw array (mutated in place), so no need to invalidate.
+    // Only invalidate for transform types that produce derived arrays.
+    if (this.options.chartType !== 'candlestick' && this.options.chartType !== 'line'
+        && this.options.chartType !== 'area' && this.options.chartType !== 'bar'
+        && this.options.chartType !== 'hollowCandle') {
+      this.displayDataCache = null;
+    }
     this.scheduleRender();
   }
 
   /** Merge a price tick into the current last bar (convenience for live feeds) */
   updateLastBarFromTick(tick: { price: number; volume?: number; time: number }): void {
     this.dataManager.updateLastBarFromTick(tick);
-    this.displayDataCache = null;
-    // Auto-update current price line
     this.currentPriceLine.setPrice(tick.price);
+    if (this.options.chartType !== 'candlestick' && this.options.chartType !== 'line'
+        && this.options.chartType !== 'area' && this.options.chartType !== 'bar'
+        && this.options.chartType !== 'hollowCandle') {
+      this.displayDataCache = null;
+    }
     this.scheduleRender();
   }
 

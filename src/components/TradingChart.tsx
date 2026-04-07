@@ -130,15 +130,22 @@ export function TradingChart({ loading }: { loading: boolean }) {
     })
   }, [selectedMarket.symbol])
 
-  // Sync candle data from store → chart
+  // Sync candle data from store → chart (rAF-throttled)
+  // At 100+ ticks/s, we only read the store once per animation frame.
   useEffect(() => {
     if (!chartReady) return
 
-    const unsub = useTradingStore.subscribe((state) => {
+    let rafId = 0
+    let dirty = false
+
+    const flush = () => {
+      rafId = 0
+      dirty = false
+
       const chart = chartRef.current
       if (!chart) return
 
-      const { candles } = state
+      const { candles } = useTradingStore.getState()
       if (candles.length === 0) {
         lastCandleCountRef.current = 0
         return
@@ -147,6 +154,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
       const prevCount = lastCandleCountRef.current
 
       if (prevCount === 0 || candles.length > prevCount + 5) {
+        // Bulk load — map to OHLCBar[]
         const bars: OHLCBar[] = candles.map(c => ({
           time: c.time, open: c.open, high: c.high,
           low: c.low, close: c.close, volume: c.volume,
@@ -154,6 +162,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
         chart.setData(bars)
         lastCandleCountRef.current = candles.length
       } else if (candles.length > prevCount) {
+        // New candle(s) — append only the latest
         const newCandle = candles[candles.length - 1]
         chart.appendBar({
           time: newCandle.time, open: newCandle.open, high: newCandle.high,
@@ -161,22 +170,39 @@ export function TradingChart({ loading }: { loading: boolean }) {
         })
         lastCandleCountRef.current = candles.length
       } else {
+        // Same candle count — just update the last bar (cheapest path)
         const last = candles[candles.length - 1]
         chart.updateLastBar({
           time: last.time, open: last.open, high: last.high,
           low: last.low, close: last.close, volume: last.volume,
         })
       }
+    }
+
+    // Subscribe to store but only schedule ONE rAF per frame
+    const unsub = useTradingStore.subscribe(() => {
+      if (!dirty) {
+        dirty = true
+        if (!rafId) rafId = requestAnimationFrame(flush)
+      }
     })
 
-    return unsub
+    return () => {
+      unsub()
+      if (rafId) cancelAnimationFrame(rafId)
+    }
   }, [chartReady])
 
-  // Live price line
+  // Live price line (also rAF-throttled)
   const currentPrice = getPrice(selectedMarket.symbol)
+  const lastPriceRef = useRef(0)
+
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !currentPrice || currentPrice.price === 0) return
+    // Skip if price hasn't changed (avoids redundant renders)
+    if (currentPrice.price === lastPriceRef.current) return
+    lastPriceRef.current = currentPrice.price
     chart.setCurrentPrice(currentPrice.price)
   }, [currentPrice])
 
