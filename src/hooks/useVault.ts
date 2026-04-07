@@ -1,8 +1,7 @@
 /**
  * useVault — vault statistics.
  *
- * Demo: returns static demo vault stats.
- * Live: reads Vault contract.
+ * Both paths always run (Rules of Hooks). Returns active mode's data.
  */
 
 import { useChainId, useReadContracts } from 'wagmi'
@@ -26,13 +25,13 @@ export function useVault() {
   let contracts: ReturnType<typeof getContracts> | null = null
   try { contracts = getContracts(chainId) } catch {}
 
-  const { data, ...query } = useReadContracts({
-    contracts: [
-      { ...contracts!.vault, functionName: 'getPoolAmount' as const },
-      { ...contracts!.vault, functionName: 'getReservedAmount' as const },
-      { ...contracts!.vault, functionName: 'getAvailableLiquidity' as const },
-      { ...contracts!.vault, functionName: 'getAum' as const },
-    ],
+  const { data } = useReadContracts({
+    contracts: contracts ? [
+      { ...contracts.vault, functionName: 'getPoolAmount' as const },
+      { ...contracts.vault, functionName: 'getReservedAmount' as const },
+      { ...contracts.vault, functionName: 'getAvailableLiquidity' as const },
+      { ...contracts.vault, functionName: 'getAum' as const },
+    ] : [],
     query: {
       enabled: !isDemo && !!contracts,
       refetchInterval: 10_000,
@@ -40,7 +39,10 @@ export function useVault() {
   })
 
   if (isDemo) {
-    return { stats: getDemoVaultStats(), raw: { poolAmount: 0n, reservedAmount: 0n, availableLiquidity: 0n, aum: 0n } }
+    return {
+      stats: getDemoVaultStats(),
+      raw: { poolAmount: 0n, reservedAmount: 0n, availableLiquidity: 0n, aum: 0n },
+    }
   }
 
   const poolAmount = data?.[0]?.status === 'success' ? (data[0].result as bigint) : 0n
@@ -57,6 +59,5 @@ export function useVault() {
       utilizationPercent: poolAmount > 0n ? Number((reservedAmount * 10000n) / poolAmount) / 100 : 0,
     },
     raw: { poolAmount, reservedAmount, availableLiquidity, aum },
-    ...query,
   }
 }
