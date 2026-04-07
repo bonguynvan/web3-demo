@@ -11,6 +11,7 @@ import { usePrices } from '../hooks/usePrices'
 import { useVault } from '../hooks/useVault'
 import { useFaucet } from '../hooks/useFaucet'
 import { useMarketStats } from '../hooks/useMarketStats'
+import { useModeStore, type AppMode } from '../store/modeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
 
@@ -34,6 +35,7 @@ export function Web3Header() {
   const { stats: vaultStats } = useVault()
   const { mint, minting, isAvailable: faucetAvailable } = useFaucet()
   const stats = useMarketStats()
+  const { mode, setMode } = useModeStore()
 
   const currentPrice = getPrice(selectedMarket.symbol)
 
@@ -147,6 +149,28 @@ export function Web3Header() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Mode Toggle */}
+      <div className="flex items-center bg-surface rounded-md p-0.5 gap-0.5">
+        <button
+          onClick={() => setMode('demo')}
+          className={cn(
+            'px-3 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer',
+            mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
+          )}
+        >
+          Demo
+        </button>
+        <button
+          onClick={() => setMode('live')}
+          className={cn(
+            'px-3 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer',
+            mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary'
+          )}
+        >
+          Live
+        </button>
+      </div>
 
       {/* Wallet Section */}
       {isConnected ? (

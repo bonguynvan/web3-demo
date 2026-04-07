@@ -16,14 +16,16 @@ import { useTradeExecution, type TradeStatus } from '../hooks/useTradeExecution'
 import { getContracts, getMarkets } from '../lib/contracts'
 import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
+import { useIsDemo } from '../store/modeStore'
+import { addDemoPosition, DEMO_ACCOUNT } from '../lib/demoData'
 
-// Demo balance when wallet not connected or balance is 0
-const DEMO_BALANCE = 100_000
+const PRICE_PRECISION = 10n ** 30n
 
 export function Web3OrderForm() {
   const { isConnected } = useAccount()
   const chainId = useChainId()
   const toast = useToast()
+  const isDemo = useIsDemo()
 
   const {
     orderSide, orderType, leverage, orderPrice, orderSize,
@@ -38,8 +40,7 @@ export function Web3OrderForm() {
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
 
-  // Use on-chain balance if > 0, otherwise demo balance
-  const balance = onChainBalance > 0 ? onChainBalance : DEMO_BALANCE
+  const balance = isDemo ? DEMO_ACCOUNT.balance : (onChainBalance > 0 ? onChainBalance : DEMO_ACCOUNT.balance)
 
   // Resolve index token (may fail if chain not configured)
   let indexToken: `0x${string}` | undefined
@@ -118,12 +119,29 @@ export function Web3OrderForm() {
       }
     }
 
-    // Demo mode — simulate success
+    // Demo mode — simulate trade and create demo position
     setDemoSubmitting(true)
-    await new Promise(r => setTimeout(r, 1200))
+    await new Promise(r => setTimeout(r, 800))
+
+    addDemoPosition({
+      key: `${selectedMarket.symbol}-${orderSide}-${Date.now()}`,
+      market: selectedMarket.symbol,
+      baseAsset: selectedMarket.baseAsset,
+      indexToken: '0x0' as `0x${string}`,
+      side: orderSide,
+      size: notional,
+      sizeRaw: BigInt(Math.round(notional * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
+      collateral: collateralNum,
+      collateralRaw: BigInt(Math.round(collateralNum * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
+      entryPrice: priceNum,
+      entryPriceRaw: BigInt(Math.round(priceNum * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
+      leverage: `${leverage.toFixed(1)}x`,
+      liquidationPrice: liqPrice,
+    })
+
     toast.success(
       `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`,
-      `$${formatUsd(notional)} at ${leverage}x leverage (demo)`
+      `$${formatUsd(notional)} at ${leverage}x leverage`
     )
     setOrderSize('')
     setDemoSubmitting(false)

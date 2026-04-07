@@ -5,12 +5,16 @@ import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
 import { cn, formatUsd } from '../lib/format'
+import { useIsDemo } from '../store/modeStore'
+import { closeDemoPosition } from '../lib/demoData'
+import { useToast } from '../store/toastStore'
 
 type Tab = 'positions' | 'orders' | 'history'
 
 export function PositionsTable() {
   const { isConnected } = useAccount()
   const { positions } = usePositions()
+  const isDemo = useIsDemo()
   const [activeTab, setActiveTab] = useState<Tab>('positions')
 
   return (
@@ -41,7 +45,7 @@ export function PositionsTable() {
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'positions' && (
-          !isConnected ? (
+          !isConnected && !isDemo ? (
             <div className="flex items-center justify-center h-full text-text-muted text-xs">
               Connect wallet to view positions
             </div>
@@ -89,34 +93,49 @@ function PositionRow({ position }: { position: OnChainPosition }) {
   const { address } = useAccount()
   const { getPrice } = usePrices()
   const { decreasePosition } = useTradeExecution()
+  const isDemo = useIsDemo()
+  const toast = useToast()
   const [closing, setClosing] = useState(false)
   const [showClose, setShowClose] = useState(false)
   const [closePct, setClosePct] = useState(100)
 
   const handleClose = useCallback(async () => {
-    if (!address) return
-    const currentPrice = getPrice(position.market)
-    if (!currentPrice) return
-
     setClosing(true)
     try {
-      const sizeDelta = closePct === 100
-        ? position.sizeRaw
-        : (position.sizeRaw * BigInt(closePct)) / 100n
+      if (isDemo) {
+        // Demo mode — close from demo store
+        await new Promise(r => setTimeout(r, 500))
+        const result = closeDemoPosition(position.key, closePct)
+        if (result) {
+          toast.success(
+            `Closed ${closePct}% of ${position.market}`,
+            `Realized P&L: ${result.realizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(result.realizedPnl))}`
+          )
+        }
+      } else {
+        // Live mode
+        if (!address) return
+        const currentPrice = getPrice(position.market)
+        if (!currentPrice) return
 
-      await decreasePosition({
-        indexToken: position.indexToken,
-        collateralDelta: 0n,
-        sizeDelta,
-        isLong: position.side === 'long',
-        currentPriceRaw: currentPrice.raw,
-        receiver: address,
-      })
+        const sizeDelta = closePct === 100
+          ? position.sizeRaw
+          : (position.sizeRaw * BigInt(closePct)) / 100n
+
+        await decreasePosition({
+          indexToken: position.indexToken,
+          collateralDelta: 0n,
+          sizeDelta,
+          isLong: position.side === 'long',
+          currentPriceRaw: currentPrice.raw,
+          receiver: address,
+        })
+      }
       setShowClose(false)
     } finally {
       setClosing(false)
     }
-  }, [address, position, getPrice, decreasePosition, closePct])
+  }, [isDemo, address, position, getPrice, decreasePosition, closePct, toast])
 
   const closeSize = position.size * closePct / 100
   const closePnl = position.pnl * closePct / 100
