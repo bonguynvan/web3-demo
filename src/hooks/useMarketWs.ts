@@ -121,8 +121,8 @@ export function useMarketWs({ wsUrl: _wsUrl, market, disabled }: UseMarketWsOpti
     if (seededRef.current === seedKey) return
     seededRef.current = seedKey
 
-    // More candles for smaller timeframes, fewer for larger
-    const candleCount = intervalMs < 60_000 ? 120 : intervalMs < 3_600_000 ? 80 : 60
+    // Seed enough candles to fill the chart width (~300 is typical screen width in bars)
+    const candleCount = 300
     const seed = generateSeedCandles(price, candleCount, intervalMs)
 
     // Add current candle

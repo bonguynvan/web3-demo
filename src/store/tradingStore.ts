@@ -71,7 +71,7 @@ export const useTradingStore = create<TradingState>((set) => ({
   // Candles
   candles: [],
   addCandle: (candle) => {
-    set(state => ({ candles: [...state.candles.slice(-199), candle] }))
+    set(state => ({ candles: [...state.candles.slice(-499), candle] }))
   },
   setCandles: (candles) => set({ candles }),
 
