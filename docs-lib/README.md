@@ -1169,3 +1169,124 @@ The library is optimized for 60fps rendering with large datasets (100K+ bars):
 | React/Vue/Svelte/Angular | Framework-agnostic — `new Chart(element, opts)` |
 
 **Browser requirements:** Canvas 2D, ResizeObserver, requestAnimationFrame, ES2022+.
+
+---
+
+## Recent Changes (Perp DEX Integration)
+
+Changes made while integrating the chart library into the Perp DEX trading platform:
+
+### New: `updateLastBarFromTick()` Method
+
+Convenience method for live price feeds — merges a raw tick into the current last bar without constructing a full `OHLCBar`:
+
+```typescript
+// Before: had to build the full bar yourself
+chart.updateLastBar({
+  time: last.time, open: last.open,
+  high: Math.max(last.high, price),
+  low: Math.min(last.low, price),
+  close: price, volume: last.volume + 1,
+});
+
+// After: just pass the tick
+chart.updateLastBarFromTick({ price: 3498.50, volume: 1, time: Date.now() });
+```
+
+Delegates to `DataManager.updateLastBarFromTick()` which was already implemented but not exposed on the `Chart` class.
+
+### New: Standalone Current Price Line
+
+The `CurrentPriceLine` (dashed line + badge showing the latest price) previously only worked when using `StreamManager.connect()`. Now it works in all data modes:
+
+```typescript
+// Explicit control
+chart.setCurrentPrice(3498.50);  // Shows dashed line + badge on price axis
+
+// Auto-updated by:
+chart.setData(bars);             // Sets price from last bar's close
+chart.updateLastBar(bar);        // Updates from bar.close
+chart.updateLastBarFromTick(t);  // Updates from tick.price
+```
+
+The price line renders on the **Overlay** layer (same as crosshair) — redraws independently without touching the main chart canvas.
+
+### Changed: Chart Legend
+
+The legend overlay (top-left OHLCV display) no longer shows the chart type name. Before: `ETH-PERP · 5m · candlestick`. After: `ETH-PERP · 5m`. Matches TradingView behavior where chart type is shown in the toolbar, not on the chart.
+
+### Performance: Streaming Optimization
+
+For high-frequency data feeds (1000+ ticks/sec), two optimizations were added:
+
+**1. Skip `displayDataCache` invalidation for standard chart types**
+
+`updateLastBar()` and `updateLastBarFromTick()` no longer set `displayDataCache = null` when the chart type is `candlestick`, `line`, `area`, `bar`, or `hollowCandle`. These types use the raw data array directly (no transform), so the cache reference remains valid after in-place mutation.
+
+For transform types (heikinAshi, renko, kagi, lineBreak, pointAndFigure), the cache is still invalidated since the derived array needs recomputation.
+
+**2. `scheduleRender()` coalescing**
+
+Already existed but documented here: multiple calls to `scheduleRender()` within the same frame collapse into a single `requestAnimationFrame` callback. The `renderScheduled` flag prevents duplicate scheduling.
+
+```
+1000 ticks/sec → 1000 updateLastBar() calls → 1000 scheduleRender() calls
+                                              → 1 rAF callback (60fps)
+                                              → 1 canvas redraw
+```
+
+### Integration Pattern: React + Zustand + Chart
+
+Recommended pattern for connecting a Zustand store to the chart at high frequency:
+
+```typescript
+// ❌ Bad: useEffect with store data as dependency
+useEffect(() => {
+  chart.setData(candles); // Full redraw on every tick!
+}, [candles]);
+
+// ✅ Good: rAF-throttled store subscription
+useEffect(() => {
+  let rafId = 0;
+  let dirty = false;
+
+  const unsub = store.subscribe(() => {
+    dirty = true;
+    if (!rafId) rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      if (!dirty) return;
+      dirty = false;
+      const { candles } = store.getState();
+      // Differentiate: setData vs appendBar vs updateLastBar
+      if (candles.length > prevCount) chart.appendBar(last);
+      else chart.updateLastBar(last);
+    });
+  });
+
+  return () => { unsub(); cancelAnimationFrame(rafId); };
+}, []);
+```
+
+### Integration Pattern: TickEngine → Chart (Zero-Alloc)
+
+For maximum throughput (10,000+ ticks/sec), bypass React entirely:
+
+```typescript
+import { TickEngine } from './tickEngine';
+
+const engine = new TickEngine();
+engine.start(candleIntervalMs, (payload) => {
+  if (payload.newCandleStarted && payload.completed) {
+    chart.appendBar(payload.completed);
+  }
+  chart.updateLastBar(payload.current);
+  chart.setCurrentPrice(payload.lastPrice);
+});
+
+// Hot path — called 1000+/s, zero allocation
+websocket.onmessage = (msg) => {
+  engine.ingestTick(msg.price, msg.volume, msg.timestamp);
+};
+```
+
+The `TickEngine` uses a pre-allocated `Float64Array` ring buffer (2048 entries) and aggregates OHLCV in place — zero GC pressure in the hot path.
