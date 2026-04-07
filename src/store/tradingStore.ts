@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { OrderSide, OrderType, CandleData, Trade } from '../types/trading'
+import type { TimeFrame } from '@chart-lib/library'
 
 /**
  * Trading store — holds UI state only.
@@ -25,6 +26,10 @@ interface TradingState {
   markets: MarketInfo[]
   selectedMarket: MarketInfo
   setSelectedMarket: (symbol: string) => void
+
+  // Timeframe
+  timeframe: TimeFrame
+  setTimeframe: (tf: TimeFrame) => void
 
   // Candles (fed by price hook or backend API)
   candles: CandleData[]
@@ -58,6 +63,10 @@ export const useTradingStore = create<TradingState>((set) => ({
       set({ selectedMarket: market, candles: [], orderPrice: '' })
     }
   },
+
+  // Timeframe
+  timeframe: '5m' as TimeFrame,
+  setTimeframe: (tf: TimeFrame) => set({ timeframe: tf, candles: [] }),
 
   // Candles
   candles: [],

@@ -23,7 +23,8 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const { getPrice } = usePrices()
   const [chartReady, setChartReady] = useState(false)
 
-  const [activeTimeframe, setActiveTimeframe] = useState<TimeFrame>('5m')
+  const activeTimeframe = useTradingStore(s => s.timeframe)
+  const setActiveTimeframe = useTradingStore(s => s.setTimeframe)
   const [activeChartType, setActiveChartType] = useState<ChartType>('candlestick')
   const [activeTool, setActiveTool] = useState<DrawingToolType | null>(null)
   const [magnetEnabled, setMagnetEnabled] = useState(true)
@@ -179,7 +180,9 @@ export function TradingChart({ loading }: { loading: boolean }) {
 
   const handleTimeframe = useCallback((tf: TimeFrame) => {
     setActiveTimeframe(tf)
-  }, [])
+    // Reset chart data counter so setData fires on next candle seed
+    lastCandleCountRef.current = 0
+  }, [setActiveTimeframe])
 
   const handleChartType = useCallback((type: ChartType) => {
     setActiveChartType(type)
