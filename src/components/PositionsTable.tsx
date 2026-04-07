@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { Loader2 } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
@@ -6,7 +6,7 @@ import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
 import { cn, formatUsd } from '../lib/format'
 import { useIsDemo } from '../store/modeStore'
-import { closeDemoPosition } from '../lib/demoData'
+import { closeDemoPosition, getDemoOrders, cancelDemoOrder, getDemoHistory, type DemoOrder, type DemoTradeHistory } from '../lib/demoData'
 import { useToast } from '../store/toastStore'
 
 type Tab = 'positions' | 'orders' | 'history'
@@ -241,15 +241,23 @@ function PositionRow({ position }: { position: OnChainPosition }) {
   )
 }
 
-// ─── Orders Tab (TP/SL pending orders) ───
+// ─── Orders Tab (live from demo store) ───
 
 function OrdersTab() {
-  // Demo: show some pending TP/SL orders
-  const demoOrders = useMemo(() => [
-    { id: '1', market: 'ETH-PERP', side: 'long' as const, type: 'Take Profit', triggerPrice: 3650, size: 5000, createdAt: Date.now() - 3600000 },
-    { id: '2', market: 'ETH-PERP', side: 'long' as const, type: 'Stop Loss', triggerPrice: 3280, size: 5000, createdAt: Date.now() - 3600000 },
-    { id: '3', market: 'BTC-PERP', side: 'short' as const, type: 'Take Profit', triggerPrice: 64500, size: 12000, createdAt: Date.now() - 7200000 },
-  ], [])
+  const [orders, setOrders] = useState<DemoOrder[]>([])
+
+  useEffect(() => {
+    const id = setInterval(() => setOrders(getDemoOrders()), 500)
+    return () => clearInterval(id)
+  }, [])
+
+  if (orders.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-xs">
+        No open orders — set TP/SL when opening a position
+      </div>
+    )
+  }
 
   return (
     <table className="w-full text-xs">
@@ -264,7 +272,7 @@ function OrdersTab() {
         </tr>
       </thead>
       <tbody>
-        {demoOrders.map(order => (
+        {orders.map(order => (
           <tr key={order.id} className="border-b border-border/50 hover:bg-panel-light transition-colors">
             <td className="px-3 py-2.5 font-medium text-text-primary">{order.market}</td>
             <td className="px-3 py-2.5">
@@ -279,7 +287,10 @@ function OrdersTab() {
             <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(order.size)}</td>
             <td className="px-3 py-2.5 text-right text-text-muted">{new Date(order.createdAt).toLocaleTimeString()}</td>
             <td className="px-3 py-2.5 text-center">
-              <button className="text-[10px] text-text-muted hover:text-short border border-border hover:border-short/30 px-2 py-1 rounded transition-colors cursor-pointer">
+              <button
+                onClick={() => cancelDemoOrder(order.id)}
+                className="text-[10px] text-text-muted hover:text-short border border-border hover:border-short/30 px-2 py-1 rounded transition-colors cursor-pointer"
+              >
                 Cancel
               </button>
             </td>
@@ -290,34 +301,18 @@ function OrdersTab() {
   )
 }
 
-// ─── Trade History Tab ───
-
-interface TradeHistory {
-  id: string
-  market: string
-  side: 'long' | 'short'
-  action: 'Open' | 'Close' | 'Liquidated'
-  size: number
-  entryPrice: number
-  closePrice: number
-  realizedPnl: number
-  fee: number
-  time: number
-}
+// ─── Trade History Tab (live from demo store) ───
 
 function TradeHistoryTab() {
-  const demoHistory: TradeHistory[] = useMemo(() => [
-    { id: '1', market: 'ETH-PERP', side: 'long', action: 'Close', size: 8500, entryPrice: 3412.50, closePrice: 3498.20, realizedPnl: 213.45, fee: 8.50, time: Date.now() - 1800000 },
-    { id: '2', market: 'BTC-PERP', side: 'short', action: 'Close', size: 15000, entryPrice: 68950, closePrice: 68200, realizedPnl: 163.20, fee: 15.00, time: Date.now() - 5400000 },
-    { id: '3', market: 'ETH-PERP', side: 'long', action: 'Liquidated', size: 3200, entryPrice: 3520.80, closePrice: 3388.15, realizedPnl: -1206.40, fee: 5.00, time: Date.now() - 14400000 },
-    { id: '4', market: 'ETH-PERP', side: 'short', action: 'Close', size: 6000, entryPrice: 3455.00, closePrice: 3390.50, realizedPnl: 112.08, fee: 6.00, time: Date.now() - 28800000 },
-    { id: '5', market: 'BTC-PERP', side: 'long', action: 'Close', size: 22000, entryPrice: 67800, closePrice: 68450, realizedPnl: 210.91, fee: 22.00, time: Date.now() - 43200000 },
-    { id: '6', market: 'ETH-PERP', side: 'long', action: 'Close', size: 4500, entryPrice: 3380.25, closePrice: 3412.75, realizedPnl: 43.28, fee: 4.50, time: Date.now() - 64800000 },
-    { id: '7', market: 'BTC-PERP', side: 'short', action: 'Close', size: 9000, entryPrice: 69100, closePrice: 69350, realizedPnl: -32.56, fee: 9.00, time: Date.now() - 86400000 },
-  ], [])
+  const [history, setHistory] = useState<DemoTradeHistory[]>([])
 
-  const totalPnl = demoHistory.reduce((sum, t) => sum + t.realizedPnl, 0)
-  const totalFees = demoHistory.reduce((sum, t) => sum + t.fee, 0)
+  useEffect(() => {
+    const id = setInterval(() => setHistory(getDemoHistory()), 500)
+    return () => clearInterval(id)
+  }, [])
+
+  const totalPnl = history.reduce((sum, t) => sum + t.realizedPnl, 0)
+  const totalFees = history.reduce((sum, t) => sum + t.fee, 0)
 
   return (
     <div>
@@ -341,58 +336,55 @@ function TradeHistoryTab() {
         </div>
         <div>
           <span className="text-text-muted">Trades:</span>
-          <span className="ml-1 font-mono text-text-primary">{demoHistory.length}</span>
+          <span className="ml-1 font-mono text-text-primary">{history.length}</span>
         </div>
       </div>
 
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-border">
-            <th className="text-left px-3 py-2 font-medium">Time</th>
-            <th className="text-left px-3 py-2 font-medium">Market</th>
-            <th className="text-left px-3 py-2 font-medium">Side</th>
-            <th className="text-left px-3 py-2 font-medium">Action</th>
-            <th className="text-right px-3 py-2 font-medium">Size</th>
-            <th className="text-right px-3 py-2 font-medium">Entry</th>
-            <th className="text-right px-3 py-2 font-medium">Close</th>
-            <th className="text-right px-3 py-2 font-medium">P&L</th>
-            <th className="text-right px-3 py-2 font-medium">Fee</th>
-          </tr>
-        </thead>
-        <tbody>
-          {demoHistory.map(trade => (
-            <tr key={trade.id} className="border-b border-border/50 hover:bg-panel-light transition-colors">
-              <td className="px-3 py-2.5 text-text-muted">{formatTimeAgo(trade.time)}</td>
-              <td className="px-3 py-2.5 font-medium text-text-primary">{trade.market}</td>
-              <td className="px-3 py-2.5">
-                <span className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
-                  trade.side === 'long' ? 'bg-long-dim text-long' : 'bg-short-dim text-short'
-                )}>
-                  {trade.side}
-                </span>
-              </td>
-              <td className="px-3 py-2.5">
-                <span className={cn(
-                  'text-[10px]',
-                  trade.action === 'Liquidated' ? 'text-short font-medium' : 'text-text-secondary'
-                )}>
-                  {trade.action}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.size)}</td>
-              <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.entryPrice)}</td>
-              <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.closePrice)}</td>
-              <td className="px-3 py-2.5 text-right">
-                <span className={cn('font-mono font-medium', trade.realizedPnl >= 0 ? 'text-long' : 'text-short')}>
-                  {trade.realizedPnl >= 0 ? '+' : ''}${formatUsd(trade.realizedPnl)}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-right font-mono text-text-muted">${formatUsd(trade.fee)}</td>
+      {history.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-text-muted text-xs">
+          No trade history yet — close a position to see it here
+        </div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-border">
+              <th className="text-left px-3 py-2 font-medium">Time</th>
+              <th className="text-left px-3 py-2 font-medium">Market</th>
+              <th className="text-left px-3 py-2 font-medium">Side</th>
+              <th className="text-right px-3 py-2 font-medium">Size</th>
+              <th className="text-right px-3 py-2 font-medium">Entry</th>
+              <th className="text-right px-3 py-2 font-medium">Close</th>
+              <th className="text-right px-3 py-2 font-medium">P&L</th>
+              <th className="text-right px-3 py-2 font-medium">Fee</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {history.map(trade => (
+              <tr key={trade.id} className="border-b border-border/50 hover:bg-panel-light transition-colors">
+                <td className="px-3 py-2.5 text-text-muted">{formatTimeAgo(trade.time)}</td>
+                <td className="px-3 py-2.5 font-medium text-text-primary">{trade.market}</td>
+                <td className="px-3 py-2.5">
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
+                    trade.side === 'long' ? 'bg-long-dim text-long' : 'bg-short-dim text-short'
+                  )}>
+                    {trade.side}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.size)}</td>
+                <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.entryPrice)}</td>
+                <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(trade.closePrice)}</td>
+                <td className="px-3 py-2.5 text-right">
+                  <span className={cn('font-mono font-medium', trade.realizedPnl >= 0 ? 'text-long' : 'text-short')}>
+                    {trade.realizedPnl >= 0 ? '+' : ''}${formatUsd(trade.realizedPnl)}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-right font-mono text-text-muted">${formatUsd(trade.fee)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

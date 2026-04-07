@@ -1,10 +1,11 @@
 /**
  * useTokenBalance — USDC and PLP balances.
  *
- * Demo: returns static demo balance.
+ * Demo: polls mutable DEMO_ACCOUNT.balance every 500ms.
  * Live: reads ERC20.balanceOf from chain.
  */
 
+import { useState, useEffect } from 'react'
 import { useAccount, useChainId, useReadContract } from 'wagmi'
 import { getContracts } from '../lib/contracts'
 import { usdcToDollars } from '../lib/precision'
@@ -16,6 +17,15 @@ export function useUsdcBalance() {
   const { address } = useAccount()
   const chainId = useChainId()
 
+  // Demo: poll mutable balance
+  const [demoBalance, setDemoBalance] = useState(DEMO_ACCOUNT.balance)
+  useEffect(() => {
+    if (!isDemo) return
+    const id = setInterval(() => setDemoBalance(DEMO_ACCOUNT.balance), 500)
+    return () => clearInterval(id)
+  }, [isDemo])
+
+  // Live: read from chain
   let contracts: ReturnType<typeof getContracts> | null = null
   try { contracts = getContracts(chainId) } catch {}
 
@@ -30,7 +40,7 @@ export function useUsdcBalance() {
   })
 
   if (isDemo) {
-    return { raw: 0n, dollars: DEMO_ACCOUNT.balance, isLoading: false }
+    return { raw: 0n, dollars: demoBalance, isLoading: false }
   }
 
   const balance = rawBalance as bigint | undefined

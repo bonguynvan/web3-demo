@@ -1,19 +1,31 @@
 /**
- * Demo data generators — provides realistic fake data for demo mode.
- * All hooks use these when mode === 'demo'.
+ * Demo data — mutable state for demo mode.
+ *
+ * All state lives here as plain JS (not React state) so it can be read
+ * from any hook. Hooks poll this data on intervals to trigger re-renders.
  */
 
 import type { Trade } from '../types/trading'
 
-// ─── Demo account ───
+const PRICE_PRECISION = 10n ** 30n
+
+// ─── Demo account (mutable balance) ───
 
 export const DEMO_ACCOUNT = {
   address: '0xDe7o...Ac3t' as const,
-  balance: 100_000,       // USDC
+  initialBalance: 100_000,
+  balance: 100_000,
   plpBalance: 0,
 }
 
-// ─── Demo prices (updated by simulation) ───
+export function resetDemoAccount() {
+  DEMO_ACCOUNT.balance = DEMO_ACCOUNT.initialBalance
+  demoPositions.length = 0
+  demoOrders.length = 0
+  demoHistory.length = 0
+}
+
+// ─── Demo prices ───
 
 export interface DemoPrice {
   symbol: string
@@ -22,23 +34,23 @@ export interface DemoPrice {
   raw: bigint
 }
 
-const PRICE_PRECISION = 10n ** 30n
-
 let ethPrice = 3480 + Math.random() * 40
 let btcPrice = 68200 + Math.random() * 600
 
+function toRaw(price: number): bigint {
+  return BigInt(Math.round(price * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
+}
+
 export function getDemoPrices(): DemoPrice[] {
   return [
-    { symbol: 'ETH', market: 'ETH-PERP', price: ethPrice, raw: BigInt(Math.round(ethPrice * 1e6)) * (PRICE_PRECISION / 10n ** 6n) },
-    { symbol: 'BTC', market: 'BTC-PERP', price: btcPrice, raw: BigInt(Math.round(btcPrice * 1e6)) * (PRICE_PRECISION / 10n ** 6n) },
+    { symbol: 'ETH', market: 'ETH-PERP', price: ethPrice, raw: toRaw(ethPrice) },
+    { symbol: 'BTC', market: 'BTC-PERP', price: btcPrice, raw: toRaw(btcPrice) },
   ]
 }
 
 export function tickDemoPrices(): DemoPrice[] {
-  const ethVol = ethPrice * 0.0003
-  const btcVol = btcPrice * 0.0003
-  ethPrice += (Math.random() - 0.48) * ethVol
-  btcPrice += (Math.random() - 0.48) * btcVol
+  ethPrice += (Math.random() - 0.48) * ethPrice * 0.0003
+  btcPrice += (Math.random() - 0.48) * btcPrice * 0.0003
   return getDemoPrices()
 }
 
@@ -66,7 +78,6 @@ export interface DemoPosition {
 const demoPositions: DemoPosition[] = []
 
 export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
-  // Update PnL with current prices
   for (const pos of demoPositions) {
     const price = prices.find(p => p.market === pos.market)
     if (price) {
@@ -81,13 +92,37 @@ export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
   return [...demoPositions]
 }
 
-export function addDemoPosition(pos: Omit<DemoPosition, 'pnl' | 'pnlPercent' | 'markPrice'>) {
-  demoPositions.push({ ...pos, markPrice: pos.entryPrice, pnl: 0, pnlPercent: 0 })
-}
+export function addDemoPosition(pos: Omit<DemoPosition, 'pnl' | 'pnlPercent' | 'markPrice'> & { tp?: number; sl?: number }) {
+  // Deduct collateral from balance
+  DEMO_ACCOUNT.balance -= pos.collateral
 
-export function removeDemoPosition(key: string) {
-  const idx = demoPositions.findIndex(p => p.key === key)
-  if (idx >= 0) demoPositions.splice(idx, 1)
+  demoPositions.push({ ...pos, markPrice: pos.entryPrice, pnl: 0, pnlPercent: 0 })
+
+  // Add TP/SL orders if provided
+  if (pos.tp && pos.tp > 0) {
+    demoOrders.push({
+      id: `o-${Date.now()}-tp`,
+      market: pos.market,
+      side: pos.side,
+      type: 'Take Profit',
+      triggerPrice: pos.tp,
+      size: pos.size,
+      positionKey: pos.key,
+      createdAt: Date.now(),
+    })
+  }
+  if (pos.sl && pos.sl > 0) {
+    demoOrders.push({
+      id: `o-${Date.now()}-sl`,
+      market: pos.market,
+      side: pos.side,
+      type: 'Stop Loss',
+      triggerPrice: pos.sl,
+      size: pos.size,
+      positionKey: pos.key,
+      createdAt: Date.now(),
+    })
+  }
 }
 
 export function closeDemoPosition(key: string, closePct: number): { realizedPnl: number } | null {
@@ -95,17 +130,87 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
   if (!pos) return null
 
   const realizedPnl = pos.pnl * (closePct / 100)
+  const closedSize = pos.size * (closePct / 100)
+  const returnedCollateral = pos.collateral * (closePct / 100)
+
+  // Return collateral + PnL to balance
+  DEMO_ACCOUNT.balance += returnedCollateral + realizedPnl
+
+  // Add to trade history
+  demoHistory.unshift({
+    id: `h-${Date.now()}`,
+    market: pos.market,
+    side: pos.side,
+    action: 'Close',
+    size: closedSize,
+    entryPrice: pos.entryPrice,
+    closePrice: pos.markPrice,
+    realizedPnl,
+    fee: closedSize * 0.001,
+    time: Date.now(),
+  })
 
   if (closePct >= 100) {
-    removeDemoPosition(key)
+    // Remove position and associated orders
+    const idx = demoPositions.findIndex(p => p.key === key)
+    if (idx >= 0) demoPositions.splice(idx, 1)
+    // Remove TP/SL orders for this position
+    for (let i = demoOrders.length - 1; i >= 0; i--) {
+      if (demoOrders[i].positionKey === key) demoOrders.splice(i, 1)
+    }
   } else {
     pos.size *= (1 - closePct / 100)
     pos.collateral *= (1 - closePct / 100)
-    pos.sizeRaw = BigInt(Math.round(pos.size * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
-    pos.collateralRaw = BigInt(Math.round(pos.collateral * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
+    pos.sizeRaw = toRaw(pos.size)
+    pos.collateralRaw = toRaw(pos.collateral)
   }
 
   return { realizedPnl }
+}
+
+// ─── Demo orders (TP/SL) ───
+
+export interface DemoOrder {
+  id: string
+  market: string
+  side: 'long' | 'short'
+  type: 'Take Profit' | 'Stop Loss'
+  triggerPrice: number
+  size: number
+  positionKey: string
+  createdAt: number
+}
+
+const demoOrders: DemoOrder[] = []
+
+export function getDemoOrders(): DemoOrder[] {
+  return [...demoOrders]
+}
+
+export function cancelDemoOrder(id: string) {
+  const idx = demoOrders.findIndex(o => o.id === id)
+  if (idx >= 0) demoOrders.splice(idx, 1)
+}
+
+// ─── Demo trade history ───
+
+export interface DemoTradeHistory {
+  id: string
+  market: string
+  side: 'long' | 'short'
+  action: 'Open' | 'Close' | 'Liquidated'
+  size: number
+  entryPrice: number
+  closePrice: number
+  realizedPnl: number
+  fee: number
+  time: number
+}
+
+const demoHistory: DemoTradeHistory[] = []
+
+export function getDemoHistory(): DemoTradeHistory[] {
+  return [...demoHistory]
 }
 
 // ─── Demo vault stats ───

@@ -133,6 +133,8 @@ export function Web3OrderForm() {
       entryPriceRaw: BigInt(Math.round(priceNum * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
       leverage: `${leverage.toFixed(1)}x`,
       liquidationPrice: liqPrice,
+      tp: tpNum > 0 ? tpNum : undefined,
+      sl: slNum > 0 ? slNum : undefined,
     })
 
     toast.success(
