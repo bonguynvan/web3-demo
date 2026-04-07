@@ -1,39 +1,29 @@
 import type { TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor } from '@chart-lib/library'
 import {
-  TrendingUp, Pencil, BarChart3, ChevronDown,
-  Undo2, Redo2, Camera, Trash2, X, Magnet,
+  TrendingUp, BarChart3, ChevronDown, Camera, X,
 } from 'lucide-react'
 import { cn } from '../lib/format'
-import { TIMEFRAMES, CHART_TYPES, DRAWING_TOOL_GROUPS, POPULAR_INDICATORS } from '../lib/chartConfig'
+import { TIMEFRAMES, CHART_TYPES, POPULAR_INDICATORS } from '../lib/chartConfig'
 import { Dropdown, DropdownItem, DropdownLabel } from './ui/Dropdown'
 
 interface ChartToolbarProps {
   market: string
   activeTimeframe: TimeFrame
   activeChartType: ChartType
-  activeTool: DrawingToolType | null
-  magnetEnabled: boolean
   activeIndicators: { instanceId: string; id: string; label: string }[]
   availableIndicators: IndicatorDescriptor[]
   onTimeframe: (tf: TimeFrame) => void
   onChartType: (type: ChartType) => void
-  onDrawingTool: (tool: DrawingToolType) => void
-  onCancelDrawing: () => void
-  onToggleMagnet: () => void
   onAddIndicator: (id: string) => void
   onRemoveIndicator: (instanceId: string) => void
-  onUndo: () => void
-  onRedo: () => void
   onScreenshot: () => void
-  onClearDrawings: () => void
 }
 
 export function ChartToolbar({
-  market, activeTimeframe, activeChartType, activeTool, magnetEnabled,
+  market, activeTimeframe, activeChartType,
   activeIndicators, availableIndicators,
-  onTimeframe, onChartType, onDrawingTool, onCancelDrawing,
-  onToggleMagnet, onAddIndicator, onRemoveIndicator,
-  onUndo, onRedo, onScreenshot, onClearDrawings,
+  onTimeframe, onChartType,
+  onAddIndicator, onRemoveIndicator, onScreenshot,
 }: ChartToolbarProps) {
   return (
     <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border text-xs shrink-0">
@@ -111,47 +101,7 @@ export function ChartToolbar({
         ))}
       </Dropdown>
 
-      {/* Drawing tools */}
-      <Dropdown
-        trigger={
-          <>
-            <Pencil className="w-3.5 h-3.5" />
-            {activeTool ? DRAWING_TOOL_GROUPS.flatMap(g => g.tools).find(t => t.value === activeTool)?.label ?? 'Drawing' : 'Draw'}
-          </>
-        }
-        active={!!activeTool}
-        width="w-[200px]"
-        maxHeight="max-h-[400px]"
-      >
-        {DRAWING_TOOL_GROUPS.map(group => (
-          <div key={group.label}>
-            <DropdownLabel>{group.label}</DropdownLabel>
-            {group.tools.map(tool => (
-              <DropdownItem key={tool.value} onClick={() => onDrawingTool(tool.value)} active={activeTool === tool.value}>
-                {tool.label}
-              </DropdownItem>
-            ))}
-          </div>
-        ))}
-      </Dropdown>
-
-      {activeTool && (
-        <button onClick={onCancelDrawing}
-          className="px-1.5 py-1 rounded text-short hover:bg-short-dim transition-colors cursor-pointer" title="Cancel drawing">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      )}
-      <Sep />
-
-      {/* Tool buttons */}
-      <ToolBtn onClick={onToggleMagnet} active={magnetEnabled} title={magnetEnabled ? 'Magnet ON' : 'Magnet OFF'}>
-        <Magnet className="w-3.5 h-3.5" />
-      </ToolBtn>
-      <ToolBtn onClick={onUndo} title="Undo"><Undo2 className="w-3.5 h-3.5" /></ToolBtn>
-      <ToolBtn onClick={onRedo} title="Redo"><Redo2 className="w-3.5 h-3.5" /></ToolBtn>
-      <ToolBtn onClick={onClearDrawings} title="Clear drawings" danger>
-        <Trash2 className="w-3.5 h-3.5" />
-      </ToolBtn>
+      {/* Screenshot */}
       <ToolBtn onClick={onScreenshot} title="Screenshot"><Camera className="w-3.5 h-3.5" /></ToolBtn>
 
       <div className="flex-1" />

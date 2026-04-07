@@ -14,6 +14,7 @@ import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'
 import { PERP_THEME } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
+import { DrawToolsSidebar } from './DrawToolsSidebar'
 
 export function TradingChart({ loading }: { loading: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -233,32 +234,37 @@ export function TradingChart({ loading }: { loading: boolean }) {
         market={selectedMarket.symbol}
         activeTimeframe={activeTimeframe}
         activeChartType={activeChartType}
-        activeTool={activeTool}
-        magnetEnabled={magnetEnabled}
         activeIndicators={activeIndicators}
         availableIndicators={availableIndicators}
         onTimeframe={handleTimeframe}
         onChartType={handleChartType}
-        onDrawingTool={handleDrawingTool}
-        onCancelDrawing={handleCancelDrawing}
-        onToggleMagnet={handleToggleMagnet}
         onAddIndicator={handleAddIndicator}
         onRemoveIndicator={handleRemoveIndicator}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
         onScreenshot={handleScreenshot}
-        onClearDrawings={handleClearDrawings}
       />
 
-      {/* Chart canvas + loading overlay */}
-      <div className="relative flex-1 min-h-0">
-        <div ref={containerRef} className="w-full h-full" />
+      {/* Draw sidebar + Chart canvas */}
+      <div className="flex flex-1 min-h-0">
+        <DrawToolsSidebar
+          activeTool={activeTool}
+          magnetEnabled={magnetEnabled}
+          onDrawingTool={handleDrawingTool}
+          onCancelDrawing={handleCancelDrawing}
+          onToggleMagnet={handleToggleMagnet}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onClearDrawings={handleClearDrawings}
+        />
 
-        {loading && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-panel/90 backdrop-blur-sm">
-            <ChartLoadingSpinner market={selectedMarket.symbol} />
-          </div>
-        )}
+        <div className="relative flex-1 min-h-0">
+          <div ref={containerRef} className="w-full h-full" />
+
+          {loading && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-panel/90 backdrop-blur-sm">
+              <ChartLoadingSpinner market={selectedMarket.symbol} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
