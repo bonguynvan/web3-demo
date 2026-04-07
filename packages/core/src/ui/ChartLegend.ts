@@ -76,7 +76,7 @@ export class ChartLegend {
     if (this.config.showSymbol) {
       ctx.font = `bold ${fs + 2}px ${theme.font.family}`;
       ctx.fillStyle = theme.text;
-      const symbolText = [this.symbol, this.timeframe, this.chartType].filter(Boolean).join(' · ');
+      const symbolText = [this.symbol, this.timeframe].filter(Boolean).join(' · ');
       ctx.fillText(symbolText, x, y);
       y += fs + 6;
     }
