@@ -17,9 +17,7 @@ import { getContracts, getMarkets } from '../lib/contracts'
 import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
 import { useIsDemo } from '../store/modeStore'
-import { addDemoPosition, DEMO_ACCOUNT } from '../lib/demoData'
-
-const PRICE_PRECISION = 10n ** 30n
+import { addDemoPosition, DEMO_ACCOUNT, FEES } from '../lib/demoData'
 
 export function Web3OrderForm() {
   const { isConnected } = useAccount()
@@ -56,12 +54,16 @@ export function Web3OrderForm() {
   const collateralNum = parseFloat(orderSize) || 0
   const priceNum = orderType === 'market' ? markPrice : (parseFloat(orderPrice) || markPrice)
   const notional = collateralNum * leverage
-  const feeRate = 0.001
-  const fee = notional * feeRate
-  const liqPrice = priceNum > 0 && leverage > 0
+
+  // Fee breakdown
+  const openFee = notional * FEES.openFeeBps / 10_000
+  const spreadCost = priceNum * FEES.spreadBps / 10_000
+  const effectiveEntry = orderSide === 'long' ? priceNum + spreadCost : priceNum - spreadCost
+  const netCollateral = collateralNum - openFee
+  const liqPrice = effectiveEntry > 0 && leverage > 0
     ? orderSide === 'long'
-      ? priceNum * (1 - 0.95 / leverage)
-      : priceNum * (1 + 0.95 / leverage)
+      ? effectiveEntry * (1 - 0.95 / leverage)
+      : effectiveEntry * (1 + 0.95 / leverage)
     : 0
 
   const leveragePresets = [1, 2, 5, 10, 20]
@@ -115,31 +117,25 @@ export function Web3OrderForm() {
       return
     }
 
-    // Demo mode — simulate trade and create demo position
+    // Demo mode — simulate trade with fees
     setDemoSubmitting(true)
     await new Promise(r => setTimeout(r, 800))
 
-    addDemoPosition({
+    const result = addDemoPosition({
       key: `${selectedMarket.symbol}-${orderSide}-${Date.now()}`,
       market: selectedMarket.symbol,
       baseAsset: selectedMarket.baseAsset,
-      indexToken: '0x0' as `0x${string}`,
       side: orderSide,
-      size: notional,
-      sizeRaw: BigInt(Math.round(notional * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
       collateral: collateralNum,
-      collateralRaw: BigInt(Math.round(collateralNum * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
+      leverage,
       entryPrice: priceNum,
-      entryPriceRaw: BigInt(Math.round(priceNum * 1e6)) * (PRICE_PRECISION / 10n ** 6n),
-      leverage: `${leverage.toFixed(1)}x`,
-      liquidationPrice: liqPrice,
       tp: tpNum > 0 ? tpNum : undefined,
       sl: slNum > 0 ? slNum : undefined,
     })
 
     toast.success(
       `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`,
-      `$${formatUsd(notional)} at ${leverage}x leverage`
+      `$${formatUsd(notional)} at ${leverage}x • Entry $${formatUsd(result.effectiveEntry)} • Fee $${formatUsd(result.openFee)}`
     )
     setOrderSize('')
     setDemoSubmitting(false)
@@ -349,8 +345,11 @@ export function Web3OrderForm() {
           <div className="space-y-1.5 text-xs border-t border-border pt-3">
             <SummaryRow label="Position Size" value={`$${formatUsd(notional)}`} />
             <SummaryRow label="Collateral" value={`$${formatUsd(collateralNum)}`} />
-            <SummaryRow label="Fee (0.1%)" value={`$${formatUsd(fee)}`} />
-            <SummaryRow label="Entry Price" value={`$${formatUsd(priceNum)}`} />
+            <SummaryRow label="Open Fee (0.1%)" value={`-$${formatUsd(openFee)}`} className="text-short" />
+            <SummaryRow label="Net Collateral" value={`$${formatUsd(netCollateral)}`} />
+            <SummaryRow label="Spread (0.05%)" value={`$${formatUsd(spreadCost)}`} muted />
+            <SummaryRow label="Entry Price" value={`$${formatUsd(effectiveEntry)}`} />
+            <SummaryRow label="Oracle Price" value={`$${formatUsd(priceNum)}`} muted />
             <SummaryRow label="Liq. Price" value={`$${formatUsd(liqPrice)}`} muted />
             {tpNum > 0 && (
               <SummaryRow label="Take Profit" value={`$${formatUsd(tpNum)}`} className="text-long" />

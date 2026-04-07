@@ -1,13 +1,33 @@
 /**
- * Demo data — mutable state for demo mode.
+ * Demo data — mutable state for demo mode with realistic fee structure.
  *
- * All state lives here as plain JS (not React state) so it can be read
- * from any hook. Hooks poll this data on intervals to trigger re-renders.
+ * Fee model (mirrors real perp DEXs):
+ * - Open fee: 0.1% of position size (deducted from collateral)
+ * - Close fee: 0.1% of position size (deducted from payout)
+ * - Spread: 0.05% applied to entry price (longs pay higher, shorts lower)
+ * - Funding: 0.01% per 8h cycle (deducted from collateral)
+ * - Price impact: 0-0.05% based on size vs pool
  */
 
 import type { Trade } from '../types/trading'
 
 const PRICE_PRECISION = 10n ** 30n
+
+// ─── Fee config ───
+
+export const FEES = {
+  openFeeBps: 10,       // 0.1% of position size
+  closeFeeBps: 10,      // 0.1% of position size
+  spreadBps: 5,         // 0.05% applied to entry price
+  fundingRatePerH: 0.00125, // ~0.01% per 8h
+  liquidationFee: 5,    // $5 flat
+  maxPriceImpactBps: 5, // 0.05% max
+  poolSize: 2_500_000,  // for price impact calculation
+} as const
+
+function bps(amount: number, bps: number): number {
+  return amount * bps / 10_000
+}
 
 // ─── Demo account (mutable balance) ───
 
@@ -23,6 +43,7 @@ export function resetDemoAccount() {
   demoPositions.length = 0
   demoOrders.length = 0
   demoHistory.length = 0
+  changeVersion++
 }
 
 // ─── Demo prices ───
@@ -73,69 +94,152 @@ export interface DemoPosition {
   pnl: number
   pnlPercent: number
   liquidationPrice: number
+  // Fee tracking
+  openFee: number
+  accumulatedFunding: number
+  openedAt: number
 }
 
 const demoPositions: DemoPosition[] = []
 
+// Change counter — hooks poll this to detect mutations
+let changeVersion = 0
+export function getDemoVersion(): number { return changeVersion }
+
 export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
+  const now = Date.now()
+
   for (const pos of demoPositions) {
     const price = prices.find(p => p.market === pos.market)
     if (price) {
       pos.markPrice = price.price
+
+      // PnL from price movement
       const priceDelta = pos.side === 'long'
         ? (price.price - pos.entryPrice) / pos.entryPrice
         : (pos.entryPrice - price.price) / pos.entryPrice
-      pos.pnl = priceDelta * pos.size
+      const rawPnl = priceDelta * pos.size
+
+      // Accumulate funding over time (continuous, not just every 8h)
+      const hoursOpen = (now - pos.openedAt) / 3_600_000
+      pos.accumulatedFunding = pos.size * FEES.fundingRatePerH * hoursOpen
+
+      // Net PnL = price PnL - accumulated funding
+      pos.pnl = rawPnl - pos.accumulatedFunding
       pos.pnlPercent = pos.collateral > 0 ? (pos.pnl / pos.collateral) * 100 : 0
     }
   }
   return [...demoPositions]
 }
 
-// Change counter — hooks poll this to detect mutations
-let changeVersion = 0
-export function getDemoVersion(): number { return changeVersion }
-
-export function addDemoPosition(pos: Omit<DemoPosition, 'pnl' | 'pnlPercent' | 'markPrice'> & { tp?: number; sl?: number }) {
-  // Deduct collateral from balance
-  DEMO_ACCOUNT.balance -= pos.collateral
-
-  demoPositions.push({ ...pos, markPrice: pos.entryPrice, pnl: 0, pnlPercent: 0 })
-  changeVersion++
-
-  // Add TP/SL orders if provided
-  if (pos.tp && pos.tp > 0) {
-    demoOrders.push({
-      id: `o-${Date.now()}-tp`,
-      market: pos.market,
-      side: pos.side,
-      type: 'Take Profit',
-      triggerPrice: pos.tp,
-      size: pos.size,
-      positionKey: pos.key,
-      createdAt: Date.now(),
-    })
-  }
-  if (pos.sl && pos.sl > 0) {
-    demoOrders.push({
-      id: `o-${Date.now()}-sl`,
-      market: pos.market,
-      side: pos.side,
-      type: 'Stop Loss',
-      triggerPrice: pos.sl,
-      size: pos.size,
-      positionKey: pos.key,
-      createdAt: Date.now(),
-    })
-  }
+export interface OpenPositionParams {
+  key: string
+  market: string
+  baseAsset: string
+  side: 'long' | 'short'
+  collateral: number
+  leverage: number
+  entryPrice: number
+  tp?: number
+  sl?: number
 }
 
-export function closeDemoPosition(key: string, closePct: number): { realizedPnl: number } | null {
+/** Open a demo position with realistic fees and spread */
+export function addDemoPosition(params: OpenPositionParams): {
+  effectiveEntry: number
+  openFee: number
+  priceImpact: number
+  netCollateral: number
+} {
+  const { key, market, baseAsset, side, collateral, leverage, entryPrice, tp, sl } = params
+  const size = collateral * leverage
+
+  // Calculate fees
+  const openFee = bps(size, FEES.openFeeBps)
+  const priceImpact = bps(size, Math.min(FEES.maxPriceImpactBps, Math.round(size / FEES.poolSize * 100)))
+
+  // Apply spread to entry price
+  const spreadAmount = entryPrice * FEES.spreadBps / 10_000
+  const effectiveEntry = side === 'long'
+    ? entryPrice + spreadAmount // longs pay higher
+    : entryPrice - spreadAmount // shorts pay lower
+
+  // Net collateral after open fee
+  const netCollateral = collateral - openFee
+
+  // Liquidation price
+  const liqPrice = side === 'long'
+    ? effectiveEntry * (1 - 0.95 / leverage)
+    : effectiveEntry * (1 + 0.95 / leverage)
+
+  // Deduct from balance
+  DEMO_ACCOUNT.balance -= collateral
+
+  demoPositions.push({
+    key,
+    market,
+    baseAsset,
+    indexToken: '0x0' as `0x${string}`,
+    side,
+    size,
+    sizeRaw: toRaw(size),
+    collateral: netCollateral,
+    collateralRaw: toRaw(netCollateral),
+    entryPrice: effectiveEntry,
+    entryPriceRaw: toRaw(effectiveEntry),
+    markPrice: effectiveEntry,
+    leverage: `${leverage.toFixed(1)}x`,
+    pnl: 0,
+    pnlPercent: 0,
+    liquidationPrice: Math.max(0, liqPrice),
+    openFee,
+    accumulatedFunding: 0,
+    openedAt: Date.now(),
+  })
+  changeVersion++
+
+  // Add to history as "Open"
+  demoHistory.unshift({
+    id: `h-${Date.now()}-open`,
+    market,
+    side,
+    action: 'Open',
+    size,
+    entryPrice: effectiveEntry,
+    closePrice: effectiveEntry,
+    realizedPnl: -openFee, // open fee is a cost
+    fee: openFee,
+    time: Date.now(),
+  })
+
+  // TP/SL orders
+  if (tp && tp > 0) {
+    demoOrders.push({
+      id: `o-${Date.now()}-tp`, market, side,
+      type: 'Take Profit', triggerPrice: tp, size, positionKey: key,
+      createdAt: Date.now(),
+    })
+  }
+  if (sl && sl > 0) {
+    demoOrders.push({
+      id: `o-${Date.now()}-sl`, market, side,
+      type: 'Stop Loss', triggerPrice: sl, size, positionKey: key,
+      createdAt: Date.now(),
+    })
+  }
+
+  return { effectiveEntry, openFee, priceImpact, netCollateral }
+}
+
+export function closeDemoPosition(key: string, closePct: number): { realizedPnl: number; closeFee: number } | null {
   const pos = demoPositions.find(p => p.key === key)
   if (!pos) return null
 
-  const realizedPnl = pos.pnl * (closePct / 100)
   const closedSize = pos.size * (closePct / 100)
+  const closeFee = bps(closedSize, FEES.closeFeeBps)
+  const grossPnl = pos.pnl * (closePct / 100)
+  const fundingCost = pos.accumulatedFunding * (closePct / 100)
+  const realizedPnl = grossPnl - closeFee
   const returnedCollateral = pos.collateral * (closePct / 100)
 
   // Return collateral + PnL to balance
@@ -143,7 +247,7 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
 
   // Add to trade history
   demoHistory.unshift({
-    id: `h-${Date.now()}`,
+    id: `h-${Date.now()}-close`,
     market: pos.market,
     side: pos.side,
     action: 'Close',
@@ -151,15 +255,13 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
     entryPrice: pos.entryPrice,
     closePrice: pos.markPrice,
     realizedPnl,
-    fee: closedSize * 0.001,
+    fee: closeFee + fundingCost,
     time: Date.now(),
   })
 
   if (closePct >= 100) {
-    // Remove position and associated orders
     const idx = demoPositions.findIndex(p => p.key === key)
     if (idx >= 0) demoPositions.splice(idx, 1)
-    // Remove TP/SL orders for this position
     for (let i = demoOrders.length - 1; i >= 0; i--) {
       if (demoOrders[i].positionKey === key) demoOrders.splice(i, 1)
     }
@@ -171,7 +273,7 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
   }
 
   changeVersion++
-  return { realizedPnl }
+  return { realizedPnl, closeFee }
 }
 
 // ─── Demo orders (TP/SL) ───
@@ -222,12 +324,13 @@ export function getDemoHistory(): DemoTradeHistory[] {
 // ─── Demo vault stats ───
 
 export function getDemoVaultStats() {
+  const totalReserved = demoPositions.reduce((s, p) => s + p.size, 0)
   return {
-    poolAmount: 2_500_000,
-    reservedAmount: 450_000,
-    availableLiquidity: 2_050_000,
-    aum: 2_500_000,
-    utilizationPercent: 18,
+    poolAmount: FEES.poolSize,
+    reservedAmount: totalReserved,
+    availableLiquidity: FEES.poolSize - totalReserved,
+    aum: FEES.poolSize,
+    utilizationPercent: FEES.poolSize > 0 ? (totalReserved / FEES.poolSize) * 100 : 0,
   }
 }
 

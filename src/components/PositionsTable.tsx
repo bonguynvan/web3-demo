@@ -109,7 +109,7 @@ function PositionRow({ position }: { position: OnChainPosition }) {
         if (result) {
           toast.success(
             `Closed ${closePct}% of ${position.market}`,
-            `Realized P&L: ${result.realizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(result.realizedPnl))}`
+            `P&L: ${result.realizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(result.realizedPnl))} • Fee: $${formatUsd(result.closeFee)}`
           )
         }
       } else {
