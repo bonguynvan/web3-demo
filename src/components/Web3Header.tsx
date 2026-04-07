@@ -21,7 +21,8 @@ const CHAIN_NAMES: Record<number, string> = {
 export function Web3Header() {
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
 
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, connector } = useAccount()
+  const isDemoAccount = connector?.type === 'demo'
   const chainId = useChainId()
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
@@ -121,8 +122,12 @@ export function Web3Header() {
           <Dropdown
             trigger={
               <>
-                <Wallet className="w-3.5 h-3.5" />
+                {isDemoAccount
+                  ? <div className="w-4 h-4 rounded-full bg-long/20 flex items-center justify-center text-[8px] text-long font-bold">D</div>
+                  : <Wallet className="w-3.5 h-3.5" />
+                }
                 <span className="font-mono">{truncatedAddress}</span>
+                {isDemoAccount && <span className="text-[9px] bg-long/20 text-long px-1 rounded">DEMO</span>}
                 <span className="text-[10px] text-accent/60">{CHAIN_NAMES[chainId] || `Chain ${chainId}`}</span>
               </>
             }
@@ -153,17 +158,36 @@ export function Web3Header() {
           align="right"
           width="min-w-[220px]"
         >
+          {/* Demo accounts */}
           <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-            Choose Wallet
+            Demo Accounts (No Wallet Needed)
           </div>
-          {connectors.map(connector => (
+          {connectors.filter(c => c.type === 'demo').map(connector => (
             <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-accent" />
-                {connector.name}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-long/20 flex items-center justify-center text-[10px] text-long font-bold">D</div>
+                  <span>{connector.name}</span>
+                </div>
               </div>
             </DropdownItem>
           ))}
+          {/* Real wallets */}
+          {connectors.some(c => c.type !== 'demo') && (
+            <>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1 mt-1 border-t border-border" onClick={e => e.stopPropagation()}>
+                External Wallet
+              </div>
+              {connectors.filter(c => c.type !== 'demo').map(connector => (
+                <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-accent" />
+                    {connector.name}
+                  </div>
+                </DropdownItem>
+              ))}
+            </>
+          )}
         </Dropdown>
       )}
     </header>
