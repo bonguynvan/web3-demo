@@ -66,6 +66,8 @@ export function demoConnector(params: { account: DemoAccount }) {
   const { account: demoAccount } = params
   const viemAccount = privateKeyToAccount(demoAccount.privateKey)
 
+  let cachedProvider: any = null
+
   return createConnector((config) => ({
     id: `demo-${demoAccount.address.slice(0, 8)}`,
     name: demoAccount.label,
@@ -100,75 +102,71 @@ export function demoConnector(params: { account: DemoAccount }) {
     onDisconnect() {},
 
     async getProvider(): Promise<any> {
-      // Create an EIP-1193 provider that routes through viem
-      const walletClient = createWalletClient({
-        account: viemAccount,
-        chain: foundry,
-        transport: http(RPC_URL),
-      })
+      // Cache the wallet client so we don't create new instances on every call
+      if (!cachedProvider) {
+        const wc = createWalletClient({
+          account: viemAccount,
+          chain: foundry,
+          transport: http(RPC_URL),
+        })
 
-      const publicClient = createPublicClient({
-        chain: foundry,
-        transport: http(RPC_URL),
-      })
+        cachedProvider = {
+          request: async ({ method, params }: { method: string; params?: any[] }) => {
+            switch (method) {
+              case 'eth_accounts':
+              case 'eth_requestAccounts':
+                return [viemAccount.address]
 
-      // Minimal EIP-1193 provider
-      const provider = {
-        request: async ({ method, params }: { method: string; params?: any[] }) => {
-          switch (method) {
-            case 'eth_accounts':
-            case 'eth_requestAccounts':
-              return [viemAccount.address]
+              case 'eth_chainId':
+                return `0x${foundry.id.toString(16)}`
 
-            case 'eth_chainId':
-              return `0x${foundry.id.toString(16)}`
+              case 'personal_sign':
+              case 'eth_sign': {
+                const [message] = params as [string]
+                return wc.signMessage({ message: { raw: message as `0x${string}` } })
+              }
 
-            case 'personal_sign':
-            case 'eth_sign': {
-              const [message] = params as [string]
-              return walletClient.signMessage({ message: { raw: message as `0x${string}` } })
+              case 'eth_signTypedData_v4': {
+                const [, typedData] = params as [string, string]
+                const parsed = JSON.parse(typedData)
+                return wc.signTypedData({
+                  domain: parsed.domain,
+                  types: parsed.types,
+                  primaryType: parsed.primaryType,
+                  message: parsed.message,
+                })
+              }
+
+              case 'eth_sendTransaction': {
+                const [tx] = params as [any]
+                const hash = await wc.sendTransaction({
+                  to: tx.to,
+                  data: tx.data,
+                  value: tx.value ? BigInt(tx.value) : undefined,
+                  // Let viem auto-estimate gas if not provided
+                  ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
+                })
+                return hash
+              }
+
+              default: {
+                // Forward everything else to Anvil RPC
+                const res = await fetch(RPC_URL, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+                })
+                const json = await res.json()
+                if (json.error) throw new Error(json.error.message)
+                return json.result
+              }
             }
-
-            case 'eth_signTypedData_v4': {
-              const [, typedData] = params as [string, string]
-              const parsed = JSON.parse(typedData)
-              return walletClient.signTypedData({
-                domain: parsed.domain,
-                types: parsed.types,
-                primaryType: parsed.primaryType,
-                message: parsed.message,
-              })
-            }
-
-            case 'eth_sendTransaction': {
-              const [tx] = params as [any]
-              const hash = await walletClient.sendTransaction({
-                to: tx.to,
-                data: tx.data,
-                value: tx.value ? BigInt(tx.value) : undefined,
-                gas: tx.gas ? BigInt(tx.gas) : undefined,
-              })
-              return hash
-            }
-
-            default: {
-              // Forward everything else to the RPC
-              const res = await fetch(RPC_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-              })
-              const json = await res.json()
-              if (json.error) throw new Error(json.error.message)
-              return json.result
-            }
-          }
-        },
-        on: () => {},
-        removeListener: () => {},
+          },
+          on: () => {},
+          removeListener: () => {},
+        }
       }
-
-      return provider
+      return cachedProvider
     },
   }))
 }

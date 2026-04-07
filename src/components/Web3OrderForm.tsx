@@ -13,6 +13,7 @@ import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution, type TradeStatus } from '../hooks/useTradeExecution'
 import { getContracts, getMarkets } from '../lib/contracts'
 import { cn, formatUsd } from '../lib/format'
+import { useToast } from '../store/toastStore'
 
 export function Web3OrderForm() {
   const { isConnected } = useAccount()
@@ -27,6 +28,7 @@ export function Web3OrderForm() {
   const { dollars: usdcBalance } = useUsdcBalance()
   const { getPrice } = usePrices()
   const { status, error, increasePosition } = useTradeExecution()
+  const toast = useToast()
 
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
@@ -40,12 +42,16 @@ export function Web3OrderForm() {
     // Chain not configured
   }
 
-  const sizeNum = parseFloat(orderSize) || 0
+  // orderSize = collateral in USDC (what the user puts up)
+  // notional = collateral × leverage (total position size)
+  const collateralNum = parseFloat(orderSize) || 0
   const priceNum = orderType === 'market' ? markPrice : (parseFloat(orderPrice) || markPrice)
-  const notional = sizeNum * priceNum
-  const margin = leverage > 0 ? notional / leverage : 0
+  const notional = collateralNum * leverage
+  const margin = collateralNum
   const feeRate = 0.001
   const fee = notional * feeRate
+  // For the submit button disable check
+  const sizeNum = collateralNum
 
   const leveragePresets = [1, 2, 5, 10, 20]
 
@@ -67,14 +73,22 @@ export function Web3OrderForm() {
     ? (orderSide === 'long' ? (slNum - entryPrice) / entryPrice : (entryPrice - slNum) / entryPrice) * notional
     : 0
 
-  // Clear order size on successful trade (avoids stale closure)
+  // React to trade status changes
   const prevStatusRef = useRef(status)
   useEffect(() => {
-    if (prevStatusRef.current !== 'success' && status === 'success') {
-      setOrderSize('')
+    if (prevStatusRef.current !== status) {
+      if (status === 'success') {
+        toast.success(
+          `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`,
+          `$${formatUsd(notional)} at ${leverage}x leverage`
+        )
+        setOrderSize('')
+      } else if (status === 'error' && error) {
+        toast.error('Trade failed', error)
+      }
     }
     prevStatusRef.current = status
-  }, [status, setOrderSize])
+  }, [status, error, orderSide, selectedMarket.baseAsset, notional, leverage, setOrderSize, toast])
 
   const handleSubmitOrder = useCallback(async () => {
     if (!indexToken || !currentPrice || sizeNum === 0) return
