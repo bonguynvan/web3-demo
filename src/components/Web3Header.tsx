@@ -4,6 +4,7 @@
 
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { ChevronDown, Wallet, Zap, LogOut } from 'lucide-react'
+import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
@@ -88,8 +89,12 @@ export function Web3Header() {
         {/* Oracle Price */}
         <div>
           <span className="text-text-muted text-[10px]">Oracle</span>
-          <div className="font-mono text-text-primary font-semibold">
-            ${currentPrice ? formatUsd(currentPrice.price) : '---'}
+          <div className="font-semibold">
+            {currentPrice ? (
+              <FlashPrice value={currentPrice.price} size="md" showArrow format={n => `$${formatUsd(n)}`} />
+            ) : (
+              <span className="font-mono text-text-muted">$---</span>
+            )}
           </div>
         </div>
 

@@ -15,6 +15,7 @@ import { usePrices } from '../hooks/usePrices'
 import { useVault } from '../hooks/useVault'
 import { useTradingStore } from '../store/tradingStore'
 import { cn, formatUsd } from '../lib/format'
+import { FlashPrice } from './ui/FlashPrice'
 
 const LEVELS = 15 // price levels per side
 const SPREAD_BPS = 10 // 0.1% spread (matches PriceFeed config)
@@ -143,11 +144,13 @@ export function DepthBook() {
           />
         ))}
 
-        {/* Spread */}
+        {/* Spread — pulsing center price */}
         <div className="flex items-center justify-center px-3 py-1.5 border-y border-border bg-surface/50">
-          <span className="text-sm font-mono font-bold text-text-primary">
-            {midPrice > 0 ? midPrice.toFixed(decimals) : '---'}
-          </span>
+          {midPrice > 0 ? (
+            <FlashPrice value={midPrice} size="lg" showArrow format={n => n.toFixed(decimals)} />
+          ) : (
+            <span className="text-sm font-mono text-text-muted">---</span>
+          )}
           {spread > 0 && (
             <span className="text-[10px] text-text-muted ml-2">
               Spread: {spread.toFixed(decimals)} ({spreadPercent.toFixed(3)}%)

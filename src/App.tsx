@@ -10,6 +10,7 @@
 
 import { useState } from 'react'
 import { Web3Header } from './components/Web3Header'
+import { AccountBar } from './components/AccountBar'
 import { TradingChart } from './components/TradingChart'
 import { DepthBook } from './components/DepthBook'
 import { Web3OrderForm } from './components/Web3OrderForm'
@@ -19,6 +20,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { DevOverlay } from './components/DevOverlay'
 import { ToastContainer } from './components/ToastContainer'
 import { useMarketWs } from './hooks/useMarketWs'
+import { useTradeFeed } from './hooks/useTradeFeed'
 import { useSimulator } from './hooks/useSimulator'
 import { useTradingStore } from './store/tradingStore'
 
@@ -44,11 +46,15 @@ function App() {
     intervalMs,
   })
 
+  // Stream fake trades into the trade tape
+  useTradeFeed()
+
   const chartLoading = simEnabled ? simState.loading : normalWs.loading
 
   return (
     <div className="flex flex-col h-screen bg-surface">
       <Web3Header />
+      <AccountBar />
 
       {/* Main Trading Layout */}
       <div className="flex-1 flex flex-col xl:flex-row gap-1 p-1 min-h-0">
