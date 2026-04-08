@@ -2,6 +2,7 @@
  * Web3Header — market bar with real wallet connection and on-chain data.
  */
 
+import { useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { ChevronDown, Wallet, Zap, LogOut } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
@@ -39,7 +40,20 @@ export function Web3Header() {
   const { mode, setMode } = useModeStore()
   const { theme: appTheme, toggleTheme } = useThemeStore()
 
+  // Auto-disconnect when mode changes if connector type doesn't match
+  // Demo mode → disconnect external wallets
+  // Live mode → disconnect demo accounts
+  useEffect(() => {
+    if (!isConnected) return
+    if (mode === 'live' && isDemoAccount) {
+      disconnect()
+    } else if (mode === 'demo' && connector && connector.type !== 'demo') {
+      disconnect()
+    }
+  }, [mode, isConnected, isDemoAccount, connector, disconnect])
+
   const currentPrice = getPrice(selectedMarket.symbol)
+  const priceLabel = mode === 'demo' ? 'Binance' : 'Oracle'
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -90,11 +104,11 @@ export function Web3Header() {
 
       {/* Market Stats Bar */}
       <div className="flex items-center gap-4 text-xs overflow-hidden">
-        {/* Oracle Price */}
+        {/* Price Source */}
         <div>
-          <span className="text-text-muted text-[10px]">Oracle</span>
+          <span className="text-text-muted text-[10px]">{priceLabel}</span>
           <div className="font-semibold">
-            {currentPrice ? (
+            {currentPrice && currentPrice.price > 0 ? (
               <FlashPrice value={currentPrice.price} size="md" showArrow format={n => `$${formatUsd(n)}`} />
             ) : (
               <span className="font-mono text-text-muted">$---</span>
@@ -194,7 +208,7 @@ export function Web3Header() {
       {/* Wallet Section */}
       {isConnected ? (
         <div className="flex items-center gap-3">
-          {faucetAvailable && (
+          {mode === 'demo' && faucetAvailable && (
             <button
               onClick={() => mint(10_000)}
               disabled={minting}
@@ -248,25 +262,27 @@ export function Web3Header() {
           align="right"
           width="min-w-[220px]"
         >
-          {/* Demo accounts */}
-          <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-            Demo Accounts (No Wallet Needed)
-          </div>
-          {connectors.filter(c => c.type === 'demo').map(connector => (
-            <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-long/20 flex items-center justify-center text-[10px] text-long font-bold">D</div>
-                  <span>{connector.name}</span>
-                </div>
-              </div>
-            </DropdownItem>
-          ))}
-          {/* Real wallets */}
-          {connectors.some(c => c.type !== 'demo') && (
+          {mode === 'demo' ? (
             <>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1 mt-1 border-t border-border" onClick={e => e.stopPropagation()}>
-                External Wallet
+              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
+                Demo Accounts
+              </div>
+              {connectors.filter(c => c.type === 'demo').map(connector => (
+                <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-long/20 flex items-center justify-center text-[10px] text-long font-bold">D</div>
+                    <span>{connector.name}</span>
+                  </div>
+                </DropdownItem>
+              ))}
+              <div className="text-[10px] text-text-muted px-3 py-2 border-t border-border" onClick={e => e.stopPropagation()}>
+                No real wallet needed in Demo mode
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
+                Connect Wallet
               </div>
               {connectors.filter(c => c.type !== 'demo').map(connector => (
                 <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
@@ -276,6 +292,11 @@ export function Web3Header() {
                   </div>
                 </DropdownItem>
               ))}
+              {connectors.filter(c => c.type !== 'demo').length === 0 && (
+                <div className="text-[10px] text-text-muted px-3 py-2" onClick={e => e.stopPropagation()}>
+                  No wallet detected. Install MetaMask.
+                </div>
+              )}
             </>
           )}
         </Dropdown>
