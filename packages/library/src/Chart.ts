@@ -737,13 +737,13 @@ export class Chart {
 
     this.streamManager.on('barUpdate', (bar) => {
       this.dataManager.updateLastBar(bar);
-      // Skip indicator recalc on every tick — indicators recalculate on barClose only.
-      // This prevents O(indicators × dataLength) work on each price update.
-      this.updateViewportAndRender();
+      this.currentPriceLine.setPrice(bar.close);
+      this.scheduleRender();
     });
 
     this.streamManager.on('priceChange', ({ price }) => {
       this.tradingManager.setCurrentPrice(price);
+      this.currentPriceLine.setPrice(price);
       this.engine.requestRender(LayerType.Overlay);
       this.engine.requestRender(LayerType.UI);
     });

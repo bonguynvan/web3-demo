@@ -7,15 +7,23 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Chart } from '@chart-lib/library'
+import { Chart, BinanceAdapter } from '@chart-lib/library'
 import type { OHLCBar, TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor } from '@chart-lib/library'
 import { Loader2 } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'
+import { useModeStore } from '../store/modeStore'
 import { PERP_THEME } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
 import { DrawToolsSidebar } from './DrawToolsSidebar'
 import { ChartSettings, DEFAULT_SETTINGS, type ChartSettingsState } from './ChartSettings'
+
+// Map our market symbols to Binance symbols
+const BINANCE_SYMBOLS: Record<string, string> = {
+  'ETH-PERP': 'ETHUSDT',
+  'BTC-PERP': 'BTCUSDT',
+}
+
 
 export function TradingChart({ loading }: { loading: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -130,8 +138,60 @@ export function TradingChart({ loading }: { loading: boolean }) {
     })
   }, [selectedMarket.symbol])
 
+  // ─── Binance live data connection ───
+  // In demo mode: connect to Binance for real candles (free, no key needed)
+  // In live mode: data comes from on-chain oracle (handled by store sync below)
+  const mode = useModeStore(s => s.mode)
+  const binanceConnectedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+
+    const binanceSymbol = BINANCE_SYMBOLS[selectedMarket.symbol]
+    const streamKey = `${binanceSymbol}:${activeTimeframe}`
+
+    // Only connect in demo mode with a valid Binance symbol
+    if (mode === 'demo' && binanceSymbol) {
+      // Skip if already connected to this exact stream
+      if (binanceConnectedRef.current === streamKey) return
+
+      // Connect to Binance
+      const adapter = new BinanceAdapter()
+      chart.connect({
+        adapter,
+        symbol: binanceSymbol,
+        timeframe: activeTimeframe,
+        historyLimit: 300,
+      }).then(() => {
+        binanceConnectedRef.current = streamKey
+        // Update watermark with real symbol
+        chart.setWatermark(`${selectedMarket.symbol}`, {
+          fontSize: 48,
+          color: 'rgba(255, 255, 255, 0.03)',
+        })
+      }).catch(() => {
+        // Binance failed (CORS, offline, etc.) — fall through to store data
+        binanceConnectedRef.current = null
+      })
+    } else {
+      // Live mode or no Binance symbol — disconnect stream, use store data
+      if (binanceConnectedRef.current) {
+        chart.disconnectStream()
+        binanceConnectedRef.current = null
+      }
+    }
+  }, [chartReady, mode, selectedMarket.symbol, activeTimeframe])
+
+  // Cleanup Binance on unmount
+  useEffect(() => {
+    return () => {
+      binanceConnectedRef.current = null
+    }
+  }, [])
+
   // Sync candle data from store → chart (rAF-throttled)
-  // At 100+ ticks/s, we only read the store once per animation frame.
+  // Skip when Binance is providing data directly to the chart.
   useEffect(() => {
     if (!chartReady) return
 
@@ -141,6 +201,9 @@ export function TradingChart({ loading }: { loading: boolean }) {
     const flush = () => {
       rafId = 0
       dirty = false
+
+      // Skip store sync when Binance is feeding data directly
+      if (binanceConnectedRef.current) return
 
       const chart = chartRef.current
       if (!chart) return
@@ -198,9 +261,10 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const lastPriceRef = useRef(0)
 
   useEffect(() => {
+    // Skip when Binance handles price line
+    if (binanceConnectedRef.current) return
     const chart = chartRef.current
     if (!chart || !currentPrice || currentPrice.price === 0) return
-    // Skip if price hasn't changed (avoids redundant renders)
     if (currentPrice.price === lastPriceRef.current) return
     lastPriceRef.current = currentPrice.price
     chart.setCurrentPrice(currentPrice.price)
