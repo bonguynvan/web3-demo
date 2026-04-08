@@ -1,7 +1,18 @@
 /**
  * Server configuration — shared viem client and contract references.
+ *
+ * ABIs and default addresses are imported from `@perp-dex/contracts/typechain`
+ * (the source of truth that the frontend also uses) so the indexer cannot
+ * drift when the contracts change.
+ *
+ * Env vars override the typechain defaults when deploying to a non-Anvil
+ * chain (e.g. Arbitrum Sepolia). RPC_URL is the only var that's typically
+ * needed locally.
  */
 
+import { readFileSync, existsSync } from 'fs'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 import {
   createPublicClient,
   http,
@@ -9,6 +20,26 @@ import {
   type Address,
 } from 'viem'
 import { foundry } from 'viem/chains'
+// Import the leaf files directly with explicit .ts extensions.
+//
+// Why not the barrel: `index.ts` re-exports `from "./addresses"` (no file
+// extension), which Node 24 strict-ESM cannot resolve. Vite handles it for
+// the frontend but tsx-on-Node-24 doesn't.
+//
+// Why .ts and not .js: tsx 4.21's `.js → .ts` runtime rewrite is broken on
+// Node 24 — it finds the file but the named exports come back empty
+// (probably an interaction with Node's native --experimental-strip-types).
+// Explicit `.ts` extensions sidestep the rewrite path entirely and load
+// correctly. tsc accepts them via `allowImportingTsExtensions`.
+import {
+  PositionManagerABI as PositionManagerHumanABI,
+  PriceFeedABI as PriceFeedHumanABI,
+  VaultABI as VaultHumanABI,
+} from '../../contracts/typechain/abis.ts'
+import {
+  LOCALHOST_ADDRESSES,
+  type ContractAddresses,
+} from '../../contracts/typechain/addresses.ts'
 
 const RPC_URL = process.env.RPC_URL ?? 'http://127.0.0.1:8545'
 const HTTP_PORT = parseInt(process.env.PORT ?? '3001', 10)
@@ -25,53 +56,97 @@ export const publicClient = createPublicClient({
   transport: http(RPC_URL),
 })
 
-// Contract addresses (from Anvil deploy — update after each fresh deploy)
-export interface Addresses {
-  usdc: Address
-  weth: Address
-  wbtc: Address
-  ethOracle: Address
-  btcOracle: Address
-  priceFeed: Address
-  vault: Address
-  positionManager: Address
-  router: Address
+// Re-export the typechain shape so consumers don't need a second import.
+export type Addresses = ContractAddresses
+
+/**
+ * Resolve contract addresses for the current environment.
+ *
+ * Resolution order (first match wins):
+ *   1. Per-address env var (e.g. ROUTER_ADDRESS) — used for testnet deploys
+ *   2. `src/addresses.json` at the repo root — written by `scripts/export-addresses.mjs`
+ *      after every fresh `forge script DeployLocal`. This is the same file the
+ *      frontend reads, so the server cannot drift from the deployed contracts.
+ *   3. Typechain `LOCALHOST_ADDRESSES` — fallback for CI / first-time setup
+ *      before a deploy has happened.
+ *
+ * The file is read once at module load. If you redeploy the contracts mid-
+ * session you'll need to restart the server to pick up the new addresses
+ * (tsx watch will do this automatically when addresses.json changes if
+ * you're running `pnpm dev`).
+ */
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const ADDRESSES_JSON_PATH = resolve(__dirname, '../../../src/addresses.json')
+
+interface AddressesJsonShape {
+  usdc?: string
+  weth?: string
+  wbtc?: string
+  ethOracle?: string
+  btcOracle?: string
+  plp?: string
+  priceFeed?: string
+  vault?: string
+  positionManager?: string
+  router?: string
+}
+
+function loadAddressesFromJson(): AddressesJsonShape | null {
+  try {
+    if (!existsSync(ADDRESSES_JSON_PATH)) return null
+    const raw = readFileSync(ADDRESSES_JSON_PATH, 'utf-8')
+    return JSON.parse(raw) as AddressesJsonShape
+  } catch (err: unknown) {
+    console.warn(
+      `[config] Failed to read ${ADDRESSES_JSON_PATH}, falling back to typechain defaults:`,
+      err instanceof Error ? err.message : String(err),
+    )
+    return null
+  }
+}
+
+const ADDRESSES_FROM_JSON = loadAddressesFromJson()
+if (ADDRESSES_FROM_JSON) {
+  console.log('[config] Loaded contract addresses from src/addresses.json')
+} else {
+  console.log('[config] Using typechain LOCALHOST_ADDRESSES (no addresses.json found)')
+}
+
+function pickAddress(envKey: string, jsonKey: keyof AddressesJsonShape, fallback: string): Address {
+  return (
+    process.env[envKey] ??
+    ADDRESSES_FROM_JSON?.[jsonKey] ??
+    fallback
+  ) as Address
 }
 
 export function getAddresses(): Addresses {
   return {
-    usdc: (process.env.USDC_ADDRESS ?? '0x5FbDB2315678afecb367f032d93F642f64180aa3') as Address,
-    weth: (process.env.WETH_ADDRESS ?? '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512') as Address,
-    wbtc: (process.env.WBTC_ADDRESS ?? '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0') as Address,
-    ethOracle: (process.env.ETH_ORACLE_ADDRESS ?? '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9') as Address,
-    btcOracle: (process.env.BTC_ORACLE_ADDRESS ?? '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9') as Address,
-    priceFeed: (process.env.PRICE_FEED_ADDRESS ?? '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6') as Address,
-    vault: (process.env.VAULT_ADDRESS ?? '0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82') as Address,
-    positionManager: (process.env.POSITION_MANAGER_ADDRESS ?? '0x0B306BF915C4d645ff596e518fAf3F9669b97016') as Address,
-    router: (process.env.ROUTER_ADDRESS ?? '0x3Aa5ebB10DC797CAC828524e59A333d0A371443c') as Address,
+    usdc: pickAddress('USDC_ADDRESS', 'usdc', LOCALHOST_ADDRESSES.usdc),
+    weth: pickAddress('WETH_ADDRESS', 'weth', LOCALHOST_ADDRESSES.weth),
+    wbtc: pickAddress('WBTC_ADDRESS', 'wbtc', LOCALHOST_ADDRESSES.wbtc),
+    ethOracle: pickAddress('ETH_ORACLE_ADDRESS', 'ethOracle', LOCALHOST_ADDRESSES.ethOracle),
+    btcOracle: pickAddress('BTC_ORACLE_ADDRESS', 'btcOracle', LOCALHOST_ADDRESSES.btcOracle),
+    plp: pickAddress('PLP_ADDRESS', 'plp', LOCALHOST_ADDRESSES.plp),
+    priceFeed: pickAddress('PRICE_FEED_ADDRESS', 'priceFeed', LOCALHOST_ADDRESSES.priceFeed),
+    vault: pickAddress('VAULT_ADDRESS', 'vault', LOCALHOST_ADDRESSES.vault),
+    positionManager: pickAddress('POSITION_MANAGER_ADDRESS', 'positionManager', LOCALHOST_ADDRESSES.positionManager),
+    router: pickAddress('ROUTER_ADDRESS', 'router', LOCALHOST_ADDRESSES.router),
   }
 }
 
-// ABIs
-export const PositionManagerABI = parseAbi([
-  'event IncreasePosition(address indexed account, address indexed indexToken, bool isLong, uint256 sizeDelta, uint256 collateralDelta, uint256 price, uint256 fee)',
-  'event DecreasePosition(address indexed account, address indexed indexToken, bool isLong, uint256 sizeDelta, uint256 collateralDelta, uint256 price, uint256 fee, uint256 usdcOut)',
-  'event LiquidatePosition(address indexed account, address indexed indexToken, bool isLong, uint256 size, uint256 collateral, uint256 markPrice, address feeReceiver, uint256 liquidationFee)',
-  'function getPosition(address account, address indexToken, bool isLong) external view returns (uint256 size, uint256 collateral, uint256 averagePrice, uint256 entryFundingRate, uint256 lastUpdatedTime)',
-])
+// ABIs are stored as string arrays in the typechain barrel; viem needs them
+// parsed once at startup. parseAbi is the cheapest way to do this.
+export const PositionManagerABI = parseAbi(PositionManagerHumanABI)
+export const PriceFeedABI = parseAbi(PriceFeedHumanABI)
+export const VaultABI = parseAbi(VaultHumanABI)
 
-export const PriceFeedABI = parseAbi([
-  'function getLatestPrice(address token) external view returns (uint256 price)',
-])
+// ─── Token symbol mapping ───────────────────────────────────────────────────
 
-export const VaultABI = parseAbi([
-  'event Deposit(address indexed account, uint256 usdcAmount, uint256 plpAmount)',
-  'event Withdraw(address indexed account, uint256 plpAmount, uint256 usdcAmount)',
-])
-
-// Token label mapping
 export const TOKEN_SYMBOLS: Record<string, string> = {}
-export function initTokenSymbols() {
+
+export function initTokenSymbols(): void {
   const addr = getAddresses()
   TOKEN_SYMBOLS[addr.weth.toLowerCase()] = 'ETH'
   TOKEN_SYMBOLS[addr.wbtc.toLowerCase()] = 'BTC'
@@ -81,9 +156,34 @@ export function tokenSymbol(address: string): string {
   return TOKEN_SYMBOLS[address.toLowerCase()] ?? address.slice(0, 10)
 }
 
-export const PRICE_PRECISION = 10n ** 30n
+// ─── Market metadata ────────────────────────────────────────────────────────
 
+export interface MarketMeta {
+  symbol: string
+  baseAsset: string
+  indexToken: Address
+}
+
+/** Markets exposed via REST/WS. Mirrors `getMarkets()` in the frontend. */
+export function getMarkets(): MarketMeta[] {
+  const addr = getAddresses()
+  return [
+    { symbol: 'ETH-PERP', baseAsset: 'ETH', indexToken: addr.weth },
+    { symbol: 'BTC-PERP', baseAsset: 'BTC', indexToken: addr.wbtc },
+  ]
+}
+
+export function marketBySymbol(symbol: string): MarketMeta | null {
+  return getMarkets().find(m => m.symbol === symbol) ?? null
+}
+
+// ─── Precision helpers ──────────────────────────────────────────────────────
+
+export const PRICE_PRECISION = 10n ** 30n
+export const USDC_DENOM = PRICE_PRECISION / 10n ** 6n // 10^24
+
+/** Convert a 30-dec internal amount to a display dollar number. */
 export function formatUsd(amount: bigint): number {
-  const usdc = amount / (PRICE_PRECISION / 10n ** 6n)
+  const usdc = amount / USDC_DENOM
   return Number(usdc) / 1e6
 }
