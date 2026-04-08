@@ -2,7 +2,7 @@
  * Chart layout persistence — wraps the chart-libs save/load with indicator
  * support that the underlying ChartStateManager doesn't currently include.
  *
- * Background: Chart.saveState() at packages/library/src/Chart.ts:1091-1104
+ * Background: Chart.saveState() in @chart-lib/library (../chart-lib/packages/library/src/Chart.ts)
  * does NOT pass `getIndicators` to ChartStateManager.capture(). So indicators
  * (added via chart.addIndicator(...)) survive a `getDrawings` snapshot but
  * are dropped on the floor. We work around it by bundling the indicator list

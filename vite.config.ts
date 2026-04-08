@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@chart-lib/library': path.resolve(__dirname, 'packages/library/src'),
-      '@chart-lib/core': path.resolve(__dirname, 'packages/core/src'),
-      '@chart-lib/commons': path.resolve(__dirname, 'packages/commons/src'),
+      '@chart-lib/library': path.resolve(__dirname, '../chart-lib/packages/library/src'),
+      '@chart-lib/core': path.resolve(__dirname, '../chart-lib/packages/core/src'),
+      '@chart-lib/commons': path.resolve(__dirname, '../chart-lib/packages/commons/src'),
     },
   },
   build: {
@@ -24,8 +24,8 @@ export default defineConfig({
           if (id.includes('node_modules/wagmi') || id.includes('node_modules/viem') || id.includes('node_modules/@tanstack')) {
             return 'web3'
           }
-          // Chart library
-          if (id.includes('packages/core/') || id.includes('packages/library/') || id.includes('packages/commons/')) {
+          // Chart library (now a sibling repo)
+          if (id.includes('chart-lib/packages/')) {
             return 'chart'
           }
         },
