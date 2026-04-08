@@ -1,14 +1,7 @@
 /**
  * App.tsx — Main trading layout for the Perp DEX.
- *
- * Two data modes:
- * 1. Normal: useMarketWs (oracle prices or basic simulation)
- * 2. Stress test: useSimulator (N pairs, configurable tick rate)
- *
- * Toggle via the DevOverlay panel (bottom-right).
  */
 
-import { useState } from 'react'
 import { Web3Header } from './components/Web3Header'
 import { AccountBar } from './components/AccountBar'
 import { TradingChart } from './components/TradingChart'
@@ -17,39 +10,22 @@ import { Web3OrderForm } from './components/Web3OrderForm'
 import { PositionsTable } from './components/PositionsTable'
 import { RecentTrades } from './components/RecentTrades'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { DevOverlay } from './components/DevOverlay'
 import { ToastContainer } from './components/ToastContainer'
 import { useMarketWs } from './hooks/useMarketWs'
 import { useTradeFeed } from './hooks/useTradeFeed'
-import { useSimulator } from './hooks/useSimulator'
 import { useTradingStore } from './store/tradingStore'
 
 function App() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
 
-  // Simulator controls
-  const [simEnabled, setSimEnabled] = useState(false)
-  const [pairCount, setPairCount] = useState(10)
-  const [intervalMs, setIntervalMs] = useState(50)
-
-  // Normal mode: oracle + basic simulation
-  const normalWs = useMarketWs({
+  // Price data → candle generation
+  const { loading: chartLoading } = useMarketWs({
     wsUrl: null,
     market: selectedMarket.symbol,
-    disabled: simEnabled,
   })
 
-  // Stress test mode: PriceSimulator
-  const simState = useSimulator({
-    enabled: simEnabled,
-    pairCount,
-    intervalMs,
-  })
-
-  // Stream fake trades into the trade tape
+  // Stream trades into the trade tape
   useTradeFeed()
-
-  const chartLoading = simEnabled ? simState.loading : normalWs.loading
 
   return (
     <div className="flex flex-col h-screen bg-surface">
@@ -72,7 +48,7 @@ function App() {
           </div>
         </div>
 
-        {/* Right: MarketInfo + Trades + OrderForm */}
+        {/* Right: DepthBook + Trades + OrderForm */}
         <div className="xl:w-[600px] flex flex-col xl:flex-row gap-1 shrink-0">
           <div className="flex-1 flex flex-col gap-1 min-h-0">
             <div className="flex-[2] min-h-[200px] xl:min-h-0">
@@ -94,19 +70,7 @@ function App() {
         </div>
       </div>
 
-      {/* Toast Notifications */}
       <ToastContainer />
-
-      {/* Dev Panel */}
-      <DevOverlay
-        simEnabled={simEnabled}
-        onToggleSim={() => setSimEnabled(v => !v)}
-        pairCount={pairCount}
-        onPairCount={setPairCount}
-        intervalMs={intervalMs}
-        onIntervalMs={setIntervalMs}
-        stats={simState}
-      />
     </div>
   )
 }
