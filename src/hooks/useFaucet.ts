@@ -1,8 +1,8 @@
 /**
- * useFaucet — mint test USDC on Anvil (dev only).
+ * useFaucet — mint test USDC.
  *
- * The MockERC20 contract deployed on Anvil has a public `mint()` function.
- * This hook lets the developer get test USDC without running scripts.
+ * Demo mode: directly increases the in-memory demo balance.
+ * Live mode (Anvil): calls MockERC20.mint() on-chain.
  */
 
 import { useState, useCallback } from 'react'
@@ -10,41 +10,48 @@ import { useAccount, useChainId, useWriteContract } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import { getContracts } from '../lib/contracts'
 import { dollarsToUsdc } from '../lib/precision'
+import { useIsDemo } from '../store/modeStore'
+import { DEMO_ACCOUNT, bumpDemoVersion } from '../lib/demoData'
 
 export function useFaucet() {
   const { address } = useAccount()
   const chainId = useChainId()
+  const isDemo = useIsDemo()
   const queryClient = useQueryClient()
   const [minting, setMinting] = useState(false)
 
   let contracts: ReturnType<typeof getContracts> | null = null
-  try {
-    contracts = getContracts(chainId)
-  } catch {
-    // Chain not configured
-  }
+  try { contracts = getContracts(chainId) } catch {}
 
   const { writeContractAsync } = useWriteContract()
 
-  /** Only available on Anvil (chainId 31337) */
-  const isAvailable = chainId === 31337
+  // Available in demo mode (always) or live mode on Anvil only
+  const isAvailable = isDemo || chainId === 31337
 
   const mint = useCallback(async (usdAmount = 10_000) => {
-    if (!contracts || !address || !isAvailable) return
+    if (!isAvailable) return
     setMinting(true)
     try {
-      const amount = dollarsToUsdc(usdAmount)
-      await writeContractAsync({
-        ...contracts.usdcMock,
-        functionName: 'mint',
-        args: [address, amount],
-      })
-      // Invalidate balance cache
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
+      if (isDemo) {
+        // Demo mode — just bump the in-memory balance
+        await new Promise(r => setTimeout(r, 300)) // small UX delay
+        DEMO_ACCOUNT.balance += usdAmount
+        bumpDemoVersion()
+      } else {
+        // Live mode — call on-chain mint
+        if (!contracts || !address) return
+        const amount = dollarsToUsdc(usdAmount)
+        await writeContractAsync({
+          ...contracts.usdcMock,
+          functionName: 'mint',
+          args: [address, amount],
+        })
+        queryClient.invalidateQueries({ queryKey: ['readContract'] })
+      }
     } finally {
       setMinting(false)
     }
-  }, [contracts, address, isAvailable, writeContractAsync, queryClient])
+  }, [isDemo, isAvailable, contracts, address, writeContractAsync, queryClient])
 
   return { mint, minting, isAvailable }
 }

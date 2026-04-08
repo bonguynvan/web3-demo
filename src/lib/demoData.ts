@@ -105,6 +105,7 @@ const demoPositions: DemoPosition[] = []
 // Change counter — hooks poll this to detect mutations
 let changeVersion = 0
 export function getDemoVersion(): number { return changeVersion }
+export function bumpDemoVersion(): void { changeVersion++ }
 
 export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
   const now = Date.now()
