@@ -1,14 +1,27 @@
 /**
  * Web3OrderForm — order entry with on-chain execution or demo mode.
  *
- * Works in two modes:
- * 1. Connected + Anvil running: real contract calls via Router
- * 2. Demo / no Anvil: simulates trade success with toast notification
+ * Layout:
+ *  [Long] [Short]                  ← side toggle
+ *  [Market] [Limit]                ← order type
+ *  [Limit Price input]             ← only for limit
+ *  Pay with [USDC] [ETH]           ← amount unit
+ *  [Amount input]      Bal: $X
+ *  [10] [25] [50] [75] [Max]       ← quick fill
+ *  Leverage  ●━━━━━━  10x          ← slider
+ *  [1x] [2x] [5x] [10x] [20x]      ← presets
+ *  ▾ Advanced (TP/SL, Reduce Only) ← collapsed by default
+ *  ─────────────────────────────────
+ *  Position Size       $10,000
+ *  Entry / Liq Price   $3,500/3,150
+ *  Fee                 -$10.00
+ *  ─────────────────────────────────
+ *  [    Long ETH    ]              ← submit button
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChainId } from 'wagmi'
-import { Minus, Plus, Loader2, Check, X } from 'lucide-react'
+import { Loader2, Check, X, ChevronDown } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
@@ -18,6 +31,8 @@ import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
 import { useIsDemo } from '../store/modeStore'
 import { addDemoPosition, DEMO_ACCOUNT, FEES } from '../lib/demoData'
+
+type AmountUnit = 'usdc' | 'coin'
 
 export function Web3OrderForm() {
   const { isConnected } = useAccount()
@@ -37,29 +52,37 @@ export function Web3OrderForm() {
 
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
-
   const balance = isDemo ? DEMO_ACCOUNT.balance : (onChainBalance > 0 ? onChainBalance : DEMO_ACCOUNT.balance)
 
-  // Resolve index token (may fail if chain not configured)
+  // Resolve index token (live mode)
   let indexToken: `0x${string}` | undefined
   try {
     const contracts = getContracts(chainId)
     const markets = getMarkets(contracts.addresses)
     indexToken = markets.find(m => m.symbol === selectedMarket.symbol)?.indexToken
-  } catch {
-    // Not configured — demo mode
-  }
+  } catch {}
+
+  // ─── Amount unit toggle ───
+  const [amountUnit, setAmountUnit] = useState<AmountUnit>('usdc')
 
   // ─── Computed values ───
-  const collateralNum = parseFloat(orderSize) || 0
+  const inputNum = parseFloat(orderSize) || 0
   const priceNum = orderType === 'market' ? markPrice : (parseFloat(orderPrice) || markPrice)
+
+  // Convert input to collateral USD based on unit
+  // USDC: input is collateral directly
+  // COIN: input is the coin amount → collateral = (input × price) / leverage
+  const collateralNum = amountUnit === 'usdc'
+    ? inputNum
+    : (priceNum > 0 && leverage > 0 ? (inputNum * priceNum) / leverage : 0)
+
   const notional = collateralNum * leverage
+  const coinAmount = priceNum > 0 ? notional / priceNum : 0
 
   // Fee breakdown
   const openFee = notional * FEES.openFeeBps / 10_000
   const spreadCost = priceNum * FEES.spreadBps / 10_000
   const effectiveEntry = orderSide === 'long' ? priceNum + spreadCost : priceNum - spreadCost
-  const netCollateral = collateralNum - openFee
   const liqPrice = effectiveEntry > 0 && leverage > 0
     ? orderSide === 'long'
       ? effectiveEntry * (1 - 0.95 / leverage)
@@ -68,8 +91,8 @@ export function Web3OrderForm() {
 
   const leveragePresets = [1, 2, 5, 10, 20]
 
-  // ─── TP/SL ───
-  const [showTpSl, setShowTpSl] = useState(false)
+  // ─── Advanced (TP/SL, Reduce Only) ───
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [tpPrice, setTpPrice] = useState('')
   const [slPrice, setSlPrice] = useState('')
   const [reduceOnly, setReduceOnly] = useState(false)
@@ -83,6 +106,8 @@ export function Web3OrderForm() {
   const slPnl = slNum > 0 && priceNum > 0 && notional > 0
     ? (orderSide === 'long' ? (slNum - priceNum) / priceNum : (priceNum - slNum) / priceNum) * notional
     : 0
+  const tpRoi = collateralNum > 0 ? (tpPnl / collateralNum) * 100 : 0
+  const slRoi = collateralNum > 0 ? (slPnl / collateralNum) * 100 : 0
 
   // ─── Status tracking ───
   const prevStatusRef = useRef(status)
@@ -105,7 +130,6 @@ export function Web3OrderForm() {
   const handleSubmitOrder = useCallback(async () => {
     if (collateralNum <= 0 || priceNum <= 0) return
 
-    // Live mode — real contract execution
     if (!isDemo && isConnected && indexToken && currentPrice) {
       await increasePosition({
         indexToken,
@@ -117,9 +141,9 @@ export function Web3OrderForm() {
       return
     }
 
-    // Demo mode — simulate trade with fees
+    // Demo mode
     setDemoSubmitting(true)
-    await new Promise(r => setTimeout(r, 800))
+    await new Promise(r => setTimeout(r, 500))
 
     const result = addDemoPosition({
       key: `${selectedMarket.symbol}-${orderSide}-${Date.now()}`,
@@ -135,18 +159,33 @@ export function Web3OrderForm() {
 
     toast.success(
       `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`,
-      `$${formatUsd(notional)} at ${leverage}x • Entry $${formatUsd(result.effectiveEntry)} • Fee $${formatUsd(result.openFee)}`
+      `$${formatUsd(notional)} at ${leverage}x • Entry $${formatUsd(result.effectiveEntry)}`
     )
     setOrderSize('')
+    setTpPrice('')
+    setSlPrice('')
     setDemoSubmitting(false)
-  }, [collateralNum, priceNum, isConnected, indexToken, currentPrice, increasePosition, notional, orderSide, selectedMarket.baseAsset, leverage, setOrderSize, toast])
+  }, [collateralNum, priceNum, isDemo, isConnected, indexToken, currentPrice, increasePosition, notional, orderSide, selectedMarket.symbol, selectedMarket.baseAsset, leverage, tpNum, slNum, setOrderSize, toast])
 
   const isSubmitting = demoSubmitting || (status !== 'idle' && status !== 'success' && status !== 'error')
 
   // ─── Validation ───
-  const canSubmit = collateralNum > 0 && priceNum > 0 && !isSubmitting
-  const validationMsg = collateralNum <= 0 ? 'Enter collateral amount' :
+  const canSubmit = collateralNum > 0 && priceNum > 0 && !isSubmitting && collateralNum <= balance
+  const validationMsg =
+    collateralNum <= 0 ? 'Enter amount' :
+    collateralNum > balance ? 'Insufficient balance' :
     priceNum <= 0 ? 'Waiting for price...' : null
+
+  // Quick-fill: set input value based on percentage of balance
+  const handleQuickFill = (pct: number) => {
+    if (amountUnit === 'usdc') {
+      setOrderSize(((balance * pct) / 100).toFixed(2))
+    } else {
+      // For coin mode: max coin amount = (balance × leverage) / price
+      const maxCoin = priceNum > 0 ? (balance * leverage) / priceNum : 0
+      setOrderSize(((maxCoin * pct) / 100).toFixed(4))
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
@@ -155,8 +194,10 @@ export function Web3OrderForm() {
         <button
           onClick={() => setOrderSide('long')}
           className={cn(
-            'flex-1 py-2 text-sm font-medium rounded transition-colors cursor-pointer',
-            orderSide === 'long' ? 'bg-long text-white' : 'text-text-muted hover:text-text-secondary'
+            'flex-1 py-2 text-sm font-semibold rounded transition-all cursor-pointer',
+            orderSide === 'long'
+              ? 'bg-long text-white shadow-sm'
+              : 'text-text-muted hover:text-text-secondary hover:bg-panel-light'
           )}
         >
           Long
@@ -164,8 +205,10 @@ export function Web3OrderForm() {
         <button
           onClick={() => setOrderSide('short')}
           className={cn(
-            'flex-1 py-2 text-sm font-medium rounded transition-colors cursor-pointer',
-            orderSide === 'short' ? 'bg-short text-white' : 'text-text-muted hover:text-text-secondary'
+            'flex-1 py-2 text-sm font-semibold rounded transition-all cursor-pointer',
+            orderSide === 'short'
+              ? 'bg-short text-white shadow-sm'
+              : 'text-text-muted hover:text-text-secondary hover:bg-panel-light'
           )}
         >
           Short
@@ -189,71 +232,93 @@ export function Web3OrderForm() {
           ))}
         </div>
 
-        {/* Price Input (limit orders only) */}
+        {/* Limit Price */}
         {orderType === 'limit' && (
-          <div>
-            <label className="text-[10px] text-text-muted uppercase tracking-wider mb-1 block">Price (USD)</label>
-            <div className="flex items-center bg-surface border border-border rounded">
-              <button
-                onClick={() => setOrderPrice(((parseFloat(orderPrice) || markPrice) - 1).toFixed(2))}
-                className="p-2 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
+          <FieldGroup label="Limit Price">
+            <div className="flex items-center bg-surface border border-border rounded-md focus-within:border-accent/40 transition-colors">
               <input
                 type="number"
-                value={orderPrice || (markPrice > 0 ? markPrice.toFixed(2) : '')}
+                value={orderPrice}
                 onChange={e => setOrderPrice(e.target.value)}
                 placeholder={markPrice > 0 ? markPrice.toFixed(2) : '0.00'}
-                className="flex-1 bg-transparent text-center font-mono text-sm text-text-primary outline-none py-2"
+                className="flex-1 min-w-0 bg-transparent font-mono text-sm text-text-primary outline-none px-3 py-2"
               />
-              <button
-                onClick={() => setOrderPrice(((parseFloat(orderPrice) || markPrice) + 1).toFixed(2))}
-                className="p-2 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+              <span className="text-[10px] text-text-muted pr-3 shrink-0">USD</span>
             </div>
-          </div>
+          </FieldGroup>
         )}
 
-        {/* Collateral Input */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-muted uppercase tracking-wider">Collateral (USDC)</label>
-            <span className="text-[10px] text-text-muted font-mono">
+        {/* Pay With Toggle */}
+        <FieldGroup
+          label="Pay with"
+          right={
+            <span className="text-[10px] text-text-muted font-mono truncate">
               Bal: ${formatUsd(balance)}
             </span>
+          }
+        >
+          <div className="flex gap-1 bg-surface rounded p-0.5 mb-2">
+            <button
+              onClick={() => { setAmountUnit('usdc'); setOrderSize('') }}
+              className={cn(
+                'flex-1 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer',
+                amountUnit === 'usdc' ? 'bg-panel-light text-text-primary' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              USDC
+            </button>
+            <button
+              onClick={() => { setAmountUnit('coin'); setOrderSize('') }}
+              className={cn(
+                'flex-1 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer',
+                amountUnit === 'coin' ? 'bg-panel-light text-text-primary' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              {selectedMarket.baseAsset}
+            </button>
           </div>
-          <div className="flex items-center bg-surface border border-border rounded">
+
+          <div className="flex items-center bg-surface border border-border rounded-md focus-within:border-accent/40 transition-colors">
             <input
               type="number"
               value={orderSize}
               onChange={e => setOrderSize(e.target.value)}
               placeholder="0.00"
-              className="flex-1 bg-transparent font-mono text-sm text-text-primary outline-none px-3 py-2"
+              className="flex-1 min-w-0 bg-transparent font-mono text-sm text-text-primary outline-none px-3 py-2"
             />
-            <span className="text-xs text-text-muted pr-3">USDC</span>
+            <span className="text-[10px] text-text-muted pr-3 shrink-0">
+              {amountUnit === 'usdc' ? 'USDC' : selectedMarket.baseAsset}
+            </span>
           </div>
-          <div className="flex gap-1 mt-1.5">
+
+          {/* Quick fill buttons */}
+          <div className="grid grid-cols-5 gap-1 mt-2">
             {[10, 25, 50, 75, 100].map(pct => (
               <button
                 key={pct}
-                onClick={() => setOrderSize(((balance * pct) / 100).toFixed(2))}
-                className="flex-1 text-[10px] text-text-muted hover:text-text-primary bg-surface hover:bg-panel-light py-1 rounded transition-colors cursor-pointer"
+                onClick={() => handleQuickFill(pct)}
+                className="text-[10px] text-text-muted hover:text-text-primary bg-surface hover:bg-panel-light py-1.5 rounded transition-colors cursor-pointer"
               >
-                {pct}%
+                {pct === 100 ? 'Max' : `${pct}%`}
               </button>
             ))}
           </div>
-        </div>
+
+          {/* Conversion preview */}
+          {inputNum > 0 && priceNum > 0 && (
+            <div className="text-[10px] text-text-muted mt-1.5 font-mono">
+              {amountUnit === 'usdc'
+                ? `≈ ${coinAmount.toFixed(4)} ${selectedMarket.baseAsset}`
+                : `≈ $${formatUsd(collateralNum)} collateral`}
+            </div>
+          )}
+        </FieldGroup>
 
         {/* Leverage */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[10px] text-text-muted uppercase tracking-wider">Leverage</label>
-            <span className="text-sm font-mono text-accent font-medium">{leverage}x</span>
-          </div>
+        <FieldGroup
+          label="Leverage"
+          right={<span className="text-sm font-mono text-accent font-semibold">{leverage}x</span>}
+        >
           <input
             type="range"
             min={1}
@@ -262,53 +327,57 @@ export function Web3OrderForm() {
             onChange={e => setLeverage(Number(e.target.value))}
             className="w-full accent-accent h-1 cursor-pointer"
           />
-          <div className="flex gap-1 mt-1.5">
+          <div className="grid grid-cols-5 gap-1 mt-2">
             {leveragePresets.map(l => (
               <button
                 key={l}
                 onClick={() => setLeverage(l)}
                 className={cn(
-                  'flex-1 text-[10px] py-1 rounded transition-colors cursor-pointer',
-                  leverage === l ? 'bg-accent-dim text-accent' : 'text-text-muted bg-surface hover:bg-panel-light'
+                  'text-[10px] py-1.5 rounded transition-colors cursor-pointer font-medium',
+                  leverage === l
+                    ? 'bg-accent-dim text-accent'
+                    : 'text-text-muted bg-surface hover:bg-panel-light'
                 )}
               >
                 {l}x
               </button>
             ))}
           </div>
-        </div>
+        </FieldGroup>
 
-        {/* TP/SL Toggle + Reduce Only */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setShowTpSl(v => !v)}
-            className={cn(
-              'text-[11px] font-medium transition-colors cursor-pointer',
-              showTpSl ? 'text-accent' : 'text-text-muted hover:text-text-primary'
-            )}
-          >
-            {showTpSl ? '▾' : '▸'} TP / SL
-          </button>
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={reduceOnly}
-              onChange={e => setReduceOnly(e.target.checked)}
-              className="w-3 h-3 accent-accent cursor-pointer"
-            />
-            <span className="text-[10px] text-text-muted">Reduce Only</span>
-          </label>
-        </div>
+        {/* Advanced toggle */}
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          className={cn(
+            'flex items-center gap-1 text-[11px] font-medium transition-colors cursor-pointer w-full',
+            showAdvanced ? 'text-accent' : 'text-text-muted hover:text-text-primary'
+          )}
+        >
+          <ChevronDown className={cn('w-3 h-3 transition-transform', showAdvanced && 'rotate-180')} />
+          Advanced
+        </button>
 
-        {/* TP/SL Inputs */}
-        {showTpSl && (
-          <div className="space-y-2 bg-surface/50 rounded-lg p-2.5">
+        {/* Advanced section */}
+        {showAdvanced && (
+          <div className="space-y-2.5 bg-surface/50 rounded-lg p-3">
+            {/* Reduce Only */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-[11px] text-text-secondary">Reduce Only</span>
+              <input
+                type="checkbox"
+                checked={reduceOnly}
+                onChange={e => setReduceOnly(e.target.checked)}
+                className="w-3.5 h-3.5 accent-accent cursor-pointer"
+              />
+            </label>
+
+            {/* Take Profit */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-long uppercase tracking-wider font-medium">Take Profit</label>
+                <label className="text-[10px] text-long uppercase tracking-wider font-semibold">Take Profit</label>
                 {tpPnl !== 0 && (
                   <span className={cn('text-[10px] font-mono', tpPnl >= 0 ? 'text-long' : 'text-short')}>
-                    {tpPnl >= 0 ? '+' : ''}{formatUsd(tpPnl)} ({collateralNum > 0 ? ((tpPnl / collateralNum) * 100).toFixed(1) : '0'}%)
+                    {tpPnl >= 0 ? '+' : ''}${formatUsd(tpPnl)} ({tpRoi >= 0 ? '+' : ''}{tpRoi.toFixed(1)}%)
                   </span>
                 )}
               </div>
@@ -316,16 +385,18 @@ export function Web3OrderForm() {
                 type="number"
                 value={tpPrice}
                 onChange={e => setTpPrice(e.target.value)}
-                placeholder={orderSide === 'long' ? `e.g. ${priceNum > 0 ? formatUsd(priceNum * 1.05) : '---'}` : `e.g. ${priceNum > 0 ? formatUsd(priceNum * 0.95) : '---'}`}
-                className="w-full bg-surface border border-long/20 rounded px-2.5 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-long/50 transition-colors"
+                placeholder={priceNum > 0 ? formatUsd(priceNum * (orderSide === 'long' ? 1.05 : 0.95)) : '0.00'}
+                className="w-full bg-surface border border-long/20 rounded-md px-3 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-long/50 transition-colors"
               />
             </div>
+
+            {/* Stop Loss */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-short uppercase tracking-wider font-medium">Stop Loss</label>
+                <label className="text-[10px] text-short uppercase tracking-wider font-semibold">Stop Loss</label>
                 {slPnl !== 0 && (
                   <span className={cn('text-[10px] font-mono', slPnl >= 0 ? 'text-long' : 'text-short')}>
-                    {slPnl >= 0 ? '+' : ''}{formatUsd(slPnl)} ({collateralNum > 0 ? ((slPnl / collateralNum) * 100).toFixed(1) : '0'}%)
+                    {slPnl >= 0 ? '+' : ''}${formatUsd(slPnl)} ({slRoi >= 0 ? '+' : ''}{slRoi.toFixed(1)}%)
                   </span>
                 )}
               </div>
@@ -333,34 +404,25 @@ export function Web3OrderForm() {
                 type="number"
                 value={slPrice}
                 onChange={e => setSlPrice(e.target.value)}
-                placeholder={orderSide === 'long' ? `e.g. ${priceNum > 0 ? formatUsd(priceNum * 0.95) : '---'}` : `e.g. ${priceNum > 0 ? formatUsd(priceNum * 1.05) : '---'}`}
-                className="w-full bg-surface border border-short/20 rounded px-2.5 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-short/50 transition-colors"
+                placeholder={priceNum > 0 ? formatUsd(priceNum * (orderSide === 'long' ? 0.95 : 1.05)) : '0.00'}
+                className="w-full bg-surface border border-short/20 rounded-md px-3 py-1.5 font-mono text-xs text-text-primary outline-none focus:border-short/50 transition-colors"
               />
             </div>
           </div>
         )}
 
-        {/* Order Summary */}
+        {/* Order Summary — compact */}
         {collateralNum > 0 && priceNum > 0 && (
-          <div className="space-y-1.5 text-xs border-t border-border pt-3">
-            <SummaryRow label="Position Size" value={`$${formatUsd(notional)}`} />
+          <div className="space-y-1 text-[11px] border-t border-border pt-2.5">
+            <SummaryRow label="Position Size" value={`$${formatUsd(notional)}`} bold />
             <SummaryRow label="Collateral" value={`$${formatUsd(collateralNum)}`} />
-            <SummaryRow label="Open Fee (0.1%)" value={`-$${formatUsd(openFee)}`} className="text-short" />
-            <SummaryRow label="Net Collateral" value={`$${formatUsd(netCollateral)}`} />
-            <SummaryRow label="Spread (0.05%)" value={`$${formatUsd(spreadCost)}`} muted />
             <SummaryRow label="Entry Price" value={`$${formatUsd(effectiveEntry)}`} />
-            <SummaryRow label="Oracle Price" value={`$${formatUsd(priceNum)}`} muted />
-            <SummaryRow label="Liq. Price" value={`$${formatUsd(liqPrice)}`} muted />
-            {tpNum > 0 && (
-              <SummaryRow label="Take Profit" value={`$${formatUsd(tpNum)}`} className="text-long" />
-            )}
-            {slNum > 0 && (
-              <SummaryRow label="Stop Loss" value={`$${formatUsd(slNum)}`} className="text-short" />
-            )}
+            <SummaryRow label="Liq. Price" value={`$${formatUsd(liqPrice)}`} className="text-short" />
+            <SummaryRow label="Fee" value={`-$${formatUsd(openFee)}`} muted />
           </div>
         )}
 
-        {/* Trade Status (real execution only) */}
+        {/* Trade Status */}
         {status !== 'idle' && status !== 'success' && status !== 'error' && (
           <TradeStatusDisplay status={status} error={error} />
         )}
@@ -372,42 +434,64 @@ export function Web3OrderForm() {
           onClick={handleSubmitOrder}
           disabled={!canSubmit}
           className={cn(
-            'w-full py-3 rounded-lg font-medium text-sm text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
+            'w-full py-3 rounded-lg font-semibold text-sm text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
             orderSide === 'long'
-              ? 'bg-long hover:bg-long/80'
-              : 'bg-short hover:bg-short/80'
+              ? 'bg-long hover:bg-long/90 disabled:hover:bg-long'
+              : 'bg-short hover:bg-short/90 disabled:hover:bg-short'
           )}
         >
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
               {demoSubmitting ? 'Executing...' :
-               status === 'approving' ? 'Approving USDC...' :
+               status === 'approving' ? 'Approving...' :
                status === 'submitting' ? 'Submitting...' :
-               status === 'confirming' ? 'Confirming...' :
-               'Processing...'}
+               status === 'confirming' ? 'Confirming...' : 'Processing...'}
             </span>
           ) : validationMsg ? (
-            <span className="text-text-muted">{validationMsg}</span>
+            <span className="opacity-80">{validationMsg}</span>
           ) : (
             `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset}`
           )}
         </button>
-        {!isConnected && (
-          <div className="text-[10px] text-text-muted text-center mt-1.5">
-            Connect wallet for real trades • Demo mode active
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
-function SummaryRow({ label, value, muted, className }: { label: string; value: string; muted?: boolean; className?: string }) {
+// ─── Helper components ───
+
+function FieldGroup({ label, right, children }: {
+  label: string
+  right?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex justify-between">
-      <span className={cn('text-text-muted', className)}>{label}</span>
-      <span className={cn('font-mono', muted ? 'text-text-muted' : 'text-text-secondary', className)}>{value}</span>
+    <div>
+      <div className="flex items-center justify-between mb-1.5 gap-2">
+        <label className="text-[10px] text-text-muted uppercase tracking-wider font-medium shrink-0">{label}</label>
+        {right && <div className="min-w-0 truncate">{right}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function SummaryRow({ label, value, muted, bold, className }: {
+  label: string
+  value: string
+  muted?: boolean
+  bold?: boolean
+  className?: string
+}) {
+  return (
+    <div className="flex justify-between items-center gap-2">
+      <span className={cn('text-text-muted text-[10px] uppercase tracking-wider', className)}>{label}</span>
+      <span className={cn(
+        'font-mono tabular-nums truncate',
+        bold ? 'text-text-primary font-semibold' : muted ? 'text-text-muted' : 'text-text-secondary',
+        className
+      )}>{value}</span>
     </div>
   )
 }
@@ -435,11 +519,9 @@ function TradeStatusDisplay({ status, error }: { status: TradeStatus; error: str
             {isDone ? (
               <Check className="w-3.5 h-3.5 text-long shrink-0" />
             ) : isCurrent ? (
-              status === 'error' ? (
-                <X className="w-3.5 h-3.5 text-short shrink-0" />
-              ) : (
-                <Loader2 className="w-3.5 h-3.5 text-accent animate-spin shrink-0" />
-              )
+              status === 'error'
+                ? <X className="w-3.5 h-3.5 text-short shrink-0" />
+                : <Loader2 className="w-3.5 h-3.5 text-accent animate-spin shrink-0" />
             ) : (
               <div className="w-3.5 h-3.5 rounded-full border border-border-light shrink-0" />
             )}
@@ -454,7 +536,7 @@ function TradeStatusDisplay({ status, error }: { status: TradeStatus; error: str
         )
       })}
       {error && (
-        <div className="text-xs text-short bg-short-dim px-2 py-1.5 rounded mt-2">{error}</div>
+        <div className="text-xs text-short bg-short-dim px-2 py-1.5 rounded mt-2 break-words">{error}</div>
       )}
     </div>
   )
