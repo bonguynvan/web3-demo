@@ -1,32 +1,43 @@
 /**
- * GET /api/prices/:token — OHLC candle data from indexed price history.
+ * GET /api/prices/:token — OHLC candle data from indexed price snapshots.
+ *
+ * Path:
+ *   - token: short symbol (eth | weth | btc | wbtc)
  *
  * Query params:
- *   - interval: candle interval in seconds (default 300 = 5 min)
+ *   - interval: candle interval in seconds (default 300 = 5 min, max 86400)
  *   - limit: max candles (default 200, max 1000)
+ *
+ * NOTE: This aggregates oracle price snapshots, not trades. For true trade-
+ * volume candles use /api/markets/:symbol/candles.
  */
 
 import { Hono } from 'hono'
 import { getPriceHistory } from '../db.js'
 import { getAddresses, PRICE_PRECISION } from '../config.js'
+import { parsePositiveInt, parseEnum, badRequest } from '../lib/validation.js'
 
 export const pricesRouter = new Hono()
 
-// Map token symbol to address
-function resolveToken(token: string): string | null {
+const TOKEN_KEYS = ['eth', 'weth', 'btc', 'wbtc'] as const
+type TokenKey = typeof TOKEN_KEYS[number]
+
+function resolveToken(token: TokenKey): string {
   const addr = getAddresses()
-  const map: Record<string, string> = {
-    eth: addr.weth.toLowerCase(),
-    weth: addr.weth.toLowerCase(),
-    btc: addr.wbtc.toLowerCase(),
-    wbtc: addr.wbtc.toLowerCase(),
+  switch (token) {
+    case 'eth':
+    case 'weth':
+      return addr.weth.toLowerCase()
+    case 'btc':
+    case 'wbtc':
+      return addr.wbtc.toLowerCase()
   }
-  return map[token.toLowerCase()] ?? null
 }
 
+const USDC_DENOM = PRICE_PRECISION / 10n ** 6n
+
 function rawToNumber(raw: string): number {
-  const usdc = BigInt(raw) / (PRICE_PRECISION / 10n ** 6n)
-  return Number(usdc) / 1e6
+  return Number(BigInt(raw) / USDC_DENOM) / 1e6
 }
 
 interface Candle {
@@ -39,38 +50,34 @@ interface Candle {
 }
 
 pricesRouter.get('/:token', (c) => {
-  const tokenParam = c.req.param('token')
-  const interval = parseInt(c.req.query('interval') ?? '300', 10) // 5 min default
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '200', 10), 1000)
-
-  const tokenAddr = resolveToken(tokenParam)
-  if (!tokenAddr) {
-    return c.json({ success: false, error: `Unknown token: ${tokenParam}` }, 400)
+  const tokenParam = parseEnum(c.req.param('token').toLowerCase(), TOKEN_KEYS)
+  if (!tokenParam) {
+    return c.json(badRequest(`Unknown token. Use one of: ${TOKEN_KEYS.join(', ')}`), 400)
   }
 
-  // Fetch raw price history (newest first)
+  const interval = parsePositiveInt(c.req.query('interval'), 300, 86_400)
+  const limit = parsePositiveInt(c.req.query('limit'), 200, 1000)
+
+  const tokenAddr = resolveToken(tokenParam)
   const rawPrices = getPriceHistory(tokenAddr, limit * 20) // oversample for aggregation
   if (rawPrices.length === 0) {
     return c.json({ success: true, data: [] })
   }
 
-  // Reverse to oldest-first for aggregation
-  const prices = rawPrices.reverse()
+  // Reverse to oldest-first for sequential bucketing.
+  const prices = rawPrices.slice().reverse()
 
-  // Aggregate into OHLC candles
   const candles: Candle[] = []
-  let currentBucket = 0
   let candle: Candle | null = null
 
   for (const row of prices) {
     const price = rawToNumber(row.price)
     const bucket = Math.floor(row.timestamp / interval) * interval
 
-    if (bucket !== currentBucket) {
+    if (!candle || candle.time !== bucket) {
       if (candle) candles.push(candle)
       candle = { time: bucket, open: price, high: price, low: price, close: price, volume: 1 }
-      currentBucket = bucket
-    } else if (candle) {
+    } else {
       candle.high = Math.max(candle.high, price)
       candle.low = Math.min(candle.low, price)
       candle.close = price
@@ -79,8 +86,5 @@ pricesRouter.get('/:token', (c) => {
   }
   if (candle) candles.push(candle)
 
-  // Return last N candles
-  const result = candles.slice(-limit)
-
-  return c.json({ success: true, data: result })
+  return c.json({ success: true, data: candles.slice(-limit) })
 })

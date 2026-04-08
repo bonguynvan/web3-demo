@@ -2,23 +2,33 @@
  * GET /api/trades — recent trade events from indexed data.
  *
  * Query params:
- *   - token: filter by index token address (optional)
- *   - limit: max results (default 50, max 200)
+ *   - token:  filter by index token address (optional, lowercased)
+ *   - limit:  max results (default 50, max 200)
  */
 
 import { Hono } from 'hono'
 import { getRecentTrades } from '../db.js'
-import { tokenSymbol, formatUsd, PRICE_PRECISION } from '../config.js'
+import { tokenSymbol, formatUsd } from '../config.js'
+import { parsePositiveInt, parseAddress, badRequest } from '../lib/validation.js'
 
 export const tradesRouter = new Hono()
 
 tradesRouter.get('/', (c) => {
-  const token = c.req.query('token')
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200)
+  const limit = parsePositiveInt(c.req.query('limit'), 50, 200)
 
-  const rows = getRecentTrades(limit, token || undefined)
+  const tokenRaw = c.req.query('token')
+  let tokenFilter: string | undefined
+  if (tokenRaw) {
+    const parsed = parseAddress(tokenRaw)
+    if (!parsed) {
+      return c.json(badRequest('Invalid token address'), 400)
+    }
+    tokenFilter = parsed
+  }
 
-  const trades = rows.map((row, i) => ({
+  const rows = getRecentTrades(limit, tokenFilter)
+
+  const trades = rows.map(row => ({
     id: `${row.tx_hash}-${row.log_index}`,
     blockNumber: row.block_number,
     txHash: row.tx_hash,

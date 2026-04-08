@@ -18,6 +18,7 @@ import { startIndexer } from './indexer.js'
 import { tradesRouter } from './routes/trades.js'
 import { positionsRouter } from './routes/positions.js'
 import { pricesRouter } from './routes/prices.js'
+import { marketsRouter } from './routes/markets.js'
 import { setupPriceFeed, getPriceSubscriberCount } from './ws/price-feed.js'
 import { setupEventFeed } from './ws/events.js'
 
@@ -44,12 +45,16 @@ async function main() {
     name: 'perp-dex-server',
     version: '0.0.1',
     endpoints: [
-      'GET /api/trades',
+      'GET /api/markets',
+      'GET /api/markets/:symbol/stats',
+      'GET /api/markets/:symbol/candles?timeframe=5m&limit=200',
+      'GET /api/trades?token=&limit=',
       'GET /api/positions/:address',
-      'GET /api/prices/:token',
+      'GET /api/prices/:token?interval=300&limit=200',
     ],
   }))
 
+  app.route('/api/markets', marketsRouter)
   app.route('/api/trades', tradesRouter)
   app.route('/api/positions', positionsRouter)
   app.route('/api/prices', pricesRouter)
