@@ -225,9 +225,9 @@ export function Web3Header() {
             <button
               onClick={() => mint(10_000)}
               disabled={minting}
-              className="text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-[72px] text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50 text-center"
             >
-              {minting ? 'Minting...' : '+ 10K USDC'}
+              {minting ? '...' : '+ 10K USDC'}
             </button>
           )}
 
