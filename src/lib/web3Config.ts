@@ -20,8 +20,16 @@ export const wagmiConfig = createConfig({
     injected(),
   ],
   transports: {
-    [foundry.id]: http('http://127.0.0.1:8545'),
+    // Long polling interval — we don't need wagmi's block tracker.
+    // Hooks that need data have their own refetchInterval.
+    [foundry.id]: http('http://127.0.0.1:8545', {
+      retryCount: 0,
+      timeout: 5_000,
+    }),
   },
+  // Disable wagmi's auto block-number polling (was 4s by default)
+  // Components that need fresh data poll independently.
+  pollingInterval: 60_000, // 1 minute
 })
 
 // Re-export for convenience

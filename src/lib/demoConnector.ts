@@ -149,16 +149,60 @@ export function demoConnector(params: { account: DemoAccount }) {
                 return hash
               }
 
+              // ─── Fake responses for read methods (no Anvil call) ───
+              case 'eth_blockNumber':
+                // Return a fake block number that increments slowly
+                return `0x${Math.floor(Date.now() / 12000).toString(16)}`
+
+              case 'eth_getBlockByNumber':
+              case 'eth_getBlockByHash':
+                return {
+                  number: `0x${Math.floor(Date.now() / 12000).toString(16)}`,
+                  hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+                  timestamp: `0x${Math.floor(Date.now() / 1000).toString(16)}`,
+                  parentHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+                  baseFeePerGas: '0x3b9aca00',
+                  gasLimit: '0x1c9c380',
+                  gasUsed: '0x0',
+                  transactions: [],
+                }
+
+              case 'eth_getBalance':
+                // Fake ETH balance (10 ETH for gas)
+                return '0x8ac7230489e80000'
+
+              case 'eth_gasPrice':
+              case 'eth_maxPriorityFeePerGas':
+                return '0x3b9aca00' // 1 gwei
+
+              case 'eth_estimateGas':
+                return '0x5208' // 21000
+
+              case 'eth_getCode':
+                // Pretend any address has code (so contract checks pass)
+                return '0x60'
+
+              case 'eth_call':
+                // Reads from contracts — return empty (hooks should be disabled in demo)
+                return '0x'
+
+              case 'net_version':
+                return foundry.id.toString()
+
               default: {
-                // Forward everything else to Anvil RPC
-                const res = await fetch(RPC_URL, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-                })
-                const json = await res.json()
-                if (json.error) throw new Error(json.error.message)
-                return json.result
+                // For anything else, try Anvil but don't crash if it fails
+                try {
+                  const res = await fetch(RPC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+                  })
+                  const json = await res.json()
+                  if (json.error) throw new Error(json.error.message)
+                  return json.result
+                } catch {
+                  return null
+                }
               }
             }
           },
