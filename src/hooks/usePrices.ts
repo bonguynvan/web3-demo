@@ -1,18 +1,20 @@
 /**
- * usePrices — oracle prices.
+ * usePrices — price data for the entire app (header, depth, order form, positions).
  *
- * Demo mode: simulated prices that tick every 500ms.
+ * Demo mode: fetches real prices from Binance public API every 2s.
+ *            Falls back to simulated prices if Binance is unreachable.
  * Live mode: reads PriceFeed contract every 3 seconds.
- *
- * Both paths always execute (Rules of Hooks), but only the active one's data is returned.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useChainId, useReadContracts } from 'wagmi'
 import { getContracts, getMarkets } from '../lib/contracts'
 import { priceToNumber } from '../lib/precision'
 import { useIsDemo } from '../store/modeStore'
 import { tickDemoPrices, getDemoPrices } from '../lib/demoData'
+import { fetchBinancePrices } from '../lib/binancePrices'
+
+const PRICE_PRECISION = 10n ** 30n
 
 export interface TokenPrice {
   symbol: string
@@ -21,26 +23,58 @@ export interface TokenPrice {
   price: number
 }
 
+function priceToRaw(price: number): bigint {
+  return BigInt(Math.round(price * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
+}
+
 export function usePrices() {
   const isDemo = useIsDemo()
   const chainId = useChainId()
 
-  // ─── Demo path (always runs) ───
+  // ─── Demo path: try Binance, fall back to simulation ───
   const [demoPrices, setDemoPrices] = useState<TokenPrice[]>(() =>
     getDemoPrices().map(d => ({ symbol: d.symbol, market: d.market, raw: d.raw, price: d.price }))
   )
+  const binanceOkRef = useRef(false)
 
   useEffect(() => {
     if (!isDemo) return
-    const id = setInterval(() => {
+    let active = true
+
+    // Poll Binance every 2s
+    const poll = async () => {
+      if (!active) return
+      try {
+        const bp = await fetchBinancePrices()
+        if (bp.length > 0 && active) {
+          binanceOkRef.current = true
+          setDemoPrices(bp.map(p => ({
+            symbol: p.symbol, market: p.market,
+            raw: priceToRaw(p.price), price: p.price,
+          })))
+        }
+      } catch {
+        binanceOkRef.current = false
+      }
+    }
+    poll()
+    const binanceId = setInterval(poll, 2000)
+
+    // Simulation fallback — only updates state if Binance is down
+    const simId = setInterval(() => {
+      if (!active || binanceOkRef.current) {
+        tickDemoPrices() // keep demoData in sync even when not displayed
+        return
+      }
       setDemoPrices(tickDemoPrices().map(d => ({
         symbol: d.symbol, market: d.market, raw: d.raw, price: d.price,
       })))
     }, 500)
-    return () => clearInterval(id)
+
+    return () => { active = false; clearInterval(binanceId); clearInterval(simId) }
   }, [isDemo])
 
-  // ─── Live path (always runs, but disabled when demo) ───
+  // ─── Live path (always runs, disabled when demo) ───
   let contracts: ReturnType<typeof getContracts> | null = null
   let markets: { symbol: string; baseAsset: string; indexToken: `0x${string}` }[] = []
   try {
