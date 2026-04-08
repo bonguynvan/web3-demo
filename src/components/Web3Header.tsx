@@ -40,17 +40,30 @@ export function Web3Header() {
   const { mode, setMode } = useModeStore()
   const { theme: appTheme, toggleTheme } = useThemeStore()
 
-  // Auto-disconnect when mode changes if connector type doesn't match
-  // Demo mode → disconnect external wallets
-  // Live mode → disconnect demo accounts
+  // Sync wallet with mode:
+  // - Live → Demo: disconnect external wallet, auto-connect first demo account
+  // - Demo → Live: disconnect demo account (user must manually connect external)
   useEffect(() => {
-    if (!isConnected) return
-    if (mode === 'live' && isDemoAccount) {
-      disconnect()
-    } else if (mode === 'demo' && connector && connector.type !== 'demo') {
-      disconnect()
+    if (mode === 'demo') {
+      // Disconnect external wallet first
+      if (isConnected && connector && connector.type !== 'demo') {
+        disconnect()
+        return
+      }
+      // Auto-connect first demo account if nothing connected
+      if (!isConnected) {
+        const demoConnector = connectors.find(c => c.type === 'demo')
+        if (demoConnector) {
+          connect({ connector: demoConnector })
+        }
+      }
+    } else if (mode === 'live') {
+      // Disconnect demo account — user must manually connect external wallet
+      if (isConnected && isDemoAccount) {
+        disconnect()
+      }
     }
-  }, [mode, isConnected, isDemoAccount, connector, disconnect])
+  }, [mode, isConnected, isDemoAccount, connector, connectors, connect, disconnect])
 
   const currentPrice = getPrice(selectedMarket.symbol)
   const priceLabel = mode === 'demo' ? 'Binance' : 'Oracle'
