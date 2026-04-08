@@ -1,15 +1,38 @@
 /**
- * useTradeFeed — generates a realistic stream of fake trades.
+ * useTradeFeed — populates the recentTrades store.
  *
- * Uses refs to avoid restarting the timer when getPrice reference changes.
+ * Demo mode: synthetic generator that fakes a realistic flow with bursts,
+ *            power-law sizes, and momentum-biased side selection.
+ *
+ * Live mode: delegates to useOnChainTrades, which backfills + polls
+ *            PositionManager events from the chain.
+ *
+ * Both paths feed the same `tradingStore.addTrade` action, so RecentTrades
+ * doesn't have to know which source is active.
+ *
+ * Refs are used to keep the demo timer stable across getPrice re-renders
+ * (every price tick changes the function reference, which would otherwise
+ * destroy the timer mid-flight).
  */
 
 import { useEffect, useRef } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from './usePrices'
+import { useIsDemo } from '../store/modeStore'
+import { useOnChainTrades } from './useOnChainTrades'
 import type { Trade } from '../types/trading'
 
 export function useTradeFeed() {
+  const isDemo = useIsDemo()
+
+  // Live trades — hook is internally a no-op in demo mode.
+  useOnChainTrades()
+
+  // Demo synthetic generator — internally a no-op in live mode.
+  useDemoTradeFeed(isDemo)
+}
+
+function useDemoTradeFeed(isDemo: boolean) {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const addTrade = useTradingStore(s => s.addTrade)
   const { getPrice } = usePrices()
@@ -26,6 +49,8 @@ export function useTradeFeed() {
   const tradeIdRef = useRef(0)
 
   useEffect(() => {
+    if (!isDemo) return
+
     let active = true
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
@@ -78,5 +103,5 @@ export function useTradeFeed() {
       active = false
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, []) // ← empty deps, refs handle latest values
+  }, [isDemo])
 }

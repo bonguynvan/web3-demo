@@ -1,8 +1,11 @@
 /**
  * useMarketStats — 24h market statistics and funding rate.
  *
- * Subscribes to the same Binance WebSocket ticker stream as usePrices.
- * One connection serves both — no separate polling.
+ * Demo mode: subscribes to the singleton Binance ticker stream — same
+ *            connection that usePrices uses.
+ * Live mode: polls /api/markets/:symbol/stats from the backend every 5s.
+ *            Funding fields stay unset because the contracts don't expose
+ *            a funding accumulator yet (Phase 2 of the contract roadmap).
  */
 
 import { useMemo, useEffect, useState } from 'react'
@@ -10,6 +13,9 @@ import { usePrices } from './usePrices'
 import { useTradingStore } from '../store/tradingStore'
 import { useIsDemo } from '../store/modeStore'
 import { binanceTicker, type TickerData } from '../lib/binanceTicker'
+import { apiClient, type MarketStatsDto } from '../lib/apiClient'
+
+const LIVE_REFRESH_MS = 5_000
 
 export interface MarketStats {
   price: number
@@ -21,6 +27,19 @@ export interface MarketStats {
   openInterest: number
   fundingRate: number
   nextFundingSec: number
+  /**
+   * True only when the funding fields above are backed by real data.
+   * False in live mode until the contracts expose a funding accumulator
+   * (planned for Phase 2 of the contract roadmap). Consumers should render
+   * "—" when this is false instead of showing the placeholder zeros below.
+   */
+  fundingAvailable: boolean
+  /**
+   * True only when 24h stats (high/low/volume/change/openInterest) are
+   * backed by real data. Live mode sets this true once the backend has
+   * returned at least one stats response.
+   */
+  statsAvailable: boolean
 }
 
 export function useMarketStats(): MarketStats {
@@ -29,9 +48,14 @@ export function useMarketStats(): MarketStats {
   const isDemo = useIsDemo()
   const currentPrice = getPrice(selectedMarket.symbol)
 
+  // Demo path — Binance ticker stream
   const [ticker, setTicker] = useState<TickerData | null>(null)
 
-  // Funding countdown (8h cycle, UTC-aligned)
+  // Live path — backend REST poll
+  const [liveStats, setLiveStats] = useState<MarketStatsDto | null>(null)
+
+  // Funding countdown (8h cycle, UTC-aligned). Used in demo mode only;
+  // live mode keeps it for the type signature but reports unavailable.
   const [nextFundingSec, setNextFundingSec] = useState(() => calcNextFunding())
   useEffect(() => {
     const timer = setInterval(() => {
@@ -40,49 +64,120 @@ export function useMarketStats(): MarketStats {
     return () => clearInterval(timer)
   }, [])
 
-  // Subscribe to the shared Binance ticker stream
+  // Subscribe to the shared Binance ticker stream in demo mode
   useEffect(() => {
-    if (!isDemo) return
-
+    if (!isDemo) {
+      setTicker(null)
+      return
+    }
     const unsub = binanceTicker.subscribe((tickers) => {
       const t = Array.from(tickers.values()).find(t => t.market === selectedMarket.symbol)
       if (t) setTicker(t)
     })
-
     return unsub
+  }, [isDemo, selectedMarket.symbol])
+
+  // Poll the backend in live mode
+  useEffect(() => {
+    if (isDemo) {
+      setLiveStats(null)
+      return
+    }
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const fetchStats = async () => {
+      const res = await apiClient.getMarketStats(selectedMarket.symbol)
+      if (cancelled) return
+      if (res.success) {
+        setLiveStats(res.data)
+      }
+      // On failure, keep the previous snapshot — better than blanking the UI.
+      if (!cancelled) {
+        timer = setTimeout(fetchStats, LIVE_REFRESH_MS)
+      }
+    }
+
+    fetchStats()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
   }, [isDemo, selectedMarket.symbol])
 
   return useMemo(() => {
     const price = currentPrice?.price ?? 0
 
-    if (ticker && isDemo) {
+    if (isDemo) {
+      if (ticker) {
+        return {
+          price,
+          change24h: ticker.change24h,
+          change24hUsd: ticker.change24hUsd,
+          high24h: ticker.high24h,
+          low24h: ticker.low24h,
+          volume24h: ticker.volume24h,
+          openInterest: estimateOI(ticker.volume24h),
+          fundingRate: estimateFunding(ticker.change24h),
+          nextFundingSec,
+          fundingAvailable: true,
+          statsAvailable: true,
+        }
+      }
+
+      // Demo fallback while waiting for the first ticker frame
+      const baseVol = price > 10000 ? 1_200_000_000 : 280_000_000
       return {
         price,
-        change24h: ticker.change24h,
-        change24hUsd: ticker.change24hUsd,
-        high24h: ticker.high24h,
-        low24h: ticker.low24h,
-        volume24h: ticker.volume24h,
-        openInterest: estimateOI(ticker.volume24h),
-        fundingRate: estimateFunding(ticker.change24h),
+        change24h: 0,
+        change24hUsd: 0,
+        high24h: price * 1.02,
+        low24h: price * 0.98,
+        volume24h: baseVol,
+        openInterest: baseVol * 0.6,
+        fundingRate: 0.0035,
         nextFundingSec,
+        fundingAvailable: true,
+        statsAvailable: true,
       }
     }
 
-    // Fallback when no ticker yet
-    const baseVol = price > 10000 ? 1_200_000_000 : 280_000_000
+    // Live mode — backend stats. Funding still unavailable (no contract data).
+    if (liveStats) {
+      return {
+        price: liveStats.price > 0 ? liveStats.price : price,
+        change24h: liveStats.change24h,
+        change24hUsd: liveStats.change24hUsd,
+        high24h: liveStats.high24h,
+        low24h: liveStats.low24h,
+        volume24h: liveStats.volume24h,
+        // Open interest still requires a long/short snapshot table on the
+        // server. Until that exists, leave it blank.
+        openInterest: 0,
+        fundingRate: 0,
+        nextFundingSec: 0,
+        fundingAvailable: false,
+        statsAvailable: true,
+      }
+    }
+
+    // Live mode, backend hasn't responded yet
     return {
       price,
       change24h: 0,
       change24hUsd: 0,
-      high24h: price * 1.02,
-      low24h: price * 0.98,
-      volume24h: baseVol,
-      openInterest: baseVol * 0.6,
-      fundingRate: 0.0035,
-      nextFundingSec,
+      high24h: 0,
+      low24h: 0,
+      volume24h: 0,
+      openInterest: 0,
+      fundingRate: 0,
+      nextFundingSec: 0,
+      fundingAvailable: false,
+      statsAvailable: false,
     }
-  }, [currentPrice, ticker, isDemo, nextFundingSec])
+  }, [currentPrice, ticker, liveStats, isDemo, nextFundingSec])
 }
 
 function calcNextFunding(): number {

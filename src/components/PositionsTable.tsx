@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { Loader2 } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
+import { useTradeHistory, type TradeHistoryEntry } from '../hooks/useTradeHistory'
 import { cn, formatUsd } from '../lib/format'
 import { useIsDemo } from '../store/modeStore'
 import { closeDemoPosition, getDemoOrders, cancelDemoOrder, getDemoHistory, type DemoOrder, type DemoTradeHistory } from '../lib/demoData'
@@ -301,9 +302,16 @@ function OrdersTab() {
   )
 }
 
-// ─── Trade History Tab (live from demo store) ───
+// ─── Trade History Tab ───
+// Demo: polls demo store every 500ms.
+// Live: useTradeHistory backfills + polls PositionManager events.
 
 function TradeHistoryTab() {
+  const isDemo = useIsDemo()
+  return isDemo ? <DemoTradeHistoryTable /> : <LiveTradeHistoryTable />
+}
+
+function DemoTradeHistoryTable() {
   const [history, setHistory] = useState<DemoTradeHistory[]>([])
 
   useEffect(() => {
@@ -395,4 +403,126 @@ function formatTimeAgo(timestamp: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
   return `${Math.floor(seconds / 86400)}d ago`
+}
+
+// ─── Live trade history table (sourced from chain events) ─────────────────
+
+function LiveTradeHistoryTable() {
+  const { isConnected } = useAccount()
+  const { history, isLoading } = useTradeHistory()
+
+  const totalPnl = history.reduce((sum, t) => sum + t.realizedPnl, 0)
+  const totalFees = history.reduce((sum, t) => sum + t.fee, 0)
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-xs">
+        Connect wallet to view history
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div className="flex items-center gap-4 px-3 py-2 border-b border-border text-[10px]">
+        <div>
+          <span className="text-text-muted">Realised P&L:</span>
+          <span className={cn('ml-1 font-mono font-medium', totalPnl >= 0 ? 'text-long' : 'text-short')}>
+            {totalPnl >= 0 ? '+' : ''}${formatUsd(totalPnl)}
+          </span>
+        </div>
+        <div>
+          <span className="text-text-muted">Fees:</span>
+          <span className="ml-1 font-mono text-text-secondary">${formatUsd(totalFees)}</span>
+        </div>
+        <div>
+          <span className="text-text-muted">Net:</span>
+          <span className={cn('ml-1 font-mono font-medium', (totalPnl - totalFees) >= 0 ? 'text-long' : 'text-short')}>
+            {(totalPnl - totalFees) >= 0 ? '+' : ''}${formatUsd(totalPnl - totalFees)}
+          </span>
+        </div>
+        <div>
+          <span className="text-text-muted">Fills:</span>
+          <span className="ml-1 font-mono text-text-primary">{history.length}</span>
+        </div>
+        {isLoading && history.length === 0 && (
+          <div className="ml-auto flex items-center gap-1.5 text-text-muted">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading...
+          </div>
+        )}
+      </div>
+
+      {history.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-text-muted text-xs">
+          {isLoading
+            ? 'Scanning recent blocks...'
+            : 'No fills found in the recent block window'}
+        </div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-border">
+              <th className="text-left px-3 py-2 font-medium">Time</th>
+              <th className="text-left px-3 py-2 font-medium">Market</th>
+              <th className="text-left px-3 py-2 font-medium">Side</th>
+              <th className="text-left px-3 py-2 font-medium">Action</th>
+              <th className="text-right px-3 py-2 font-medium">Size</th>
+              <th className="text-right px-3 py-2 font-medium">Price</th>
+              <th className="text-right px-3 py-2 font-medium">P&L</th>
+              <th className="text-right px-3 py-2 font-medium">Fee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map(entry => (
+              <LiveHistoryRow key={entry.id} entry={entry} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+function LiveHistoryRow({ entry }: { entry: TradeHistoryEntry }) {
+  const kindLabel = entry.kind === 'open' ? 'Open' : entry.kind === 'close' ? 'Close' : 'Liq'
+  const kindColor =
+    entry.kind === 'open'
+      ? 'bg-accent-dim text-accent'
+      : entry.kind === 'liquidation'
+        ? 'bg-short-dim text-short'
+        : 'bg-surface text-text-muted'
+
+  return (
+    <tr className="border-b border-border/50 hover:bg-panel-light transition-colors">
+      <td className="px-3 py-2.5 text-text-muted">{formatTimeAgo(entry.time)}</td>
+      <td className="px-3 py-2.5 font-medium text-text-primary">{entry.market}</td>
+      <td className="px-3 py-2.5">
+        <span className={cn(
+          'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
+          entry.side === 'long' ? 'bg-long-dim text-long' : 'bg-short-dim text-short'
+        )}>
+          {entry.side}
+        </span>
+      </td>
+      <td className="px-3 py-2.5">
+        <span className={cn('px-2 py-0.5 rounded text-[10px] font-medium', kindColor)}>
+          {kindLabel}
+        </span>
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(entry.size)}</td>
+      <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(entry.price)}</td>
+      <td className="px-3 py-2.5 text-right">
+        {entry.kind === 'open' ? (
+          <span className="font-mono text-text-muted">—</span>
+        ) : (
+          <span className={cn('font-mono font-medium', entry.realizedPnl >= 0 ? 'text-long' : 'text-short')}>
+            {entry.realizedPnl >= 0 ? '+' : ''}${formatUsd(entry.realizedPnl)}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono text-text-muted">${formatUsd(entry.fee)}</td>
+    </tr>
+  )
 }
