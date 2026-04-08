@@ -89,10 +89,19 @@ export class CrosshairTooltip {
     this.volEl.textContent = `Vol ${v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v.toFixed(0)}`;
     this.volEl.style.color = theme.textSecondary;
 
-    // Style (only set once per theme, but cheap to set)
-    this.el.style.background = theme.background.startsWith('#1') ? '#1e222dF0' : '#f8f9fdF0';
+    // Style — use theme tokens with alpha overlay
+    // Detect dark vs light theme by parsing the background luminance
+    const isDark = isDarkColor(theme.background);
+    this.el.style.background = isDark
+      ? withAlpha(theme.background, 0.95)
+      : withAlpha(theme.background, 0.97);
     this.el.style.border = `1px solid ${theme.axisLine}`;
-    this.el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
+    this.el.style.boxShadow = isDark
+      ? '0 4px 12px rgba(0,0,0,0.5)'
+      : '0 4px 12px rgba(0,0,0,0.15)';
+    this.el.style.color = theme.text;
+    // Backdrop blur for depth (optional, browser-dependent)
+    this.el.style.backdropFilter = 'blur(8px)';
 
     // Measure once after first show
     if (!this.measured && this.visible) {
@@ -152,4 +161,44 @@ export class CrosshairTooltip {
   private val(): HTMLSpanElement {
     return document.createElement('span');
   }
+}
+
+/** Detect if a hex/rgb color is dark (luminance < 0.5) */
+function isDarkColor(color: string): boolean {
+  // Parse hex like #0f1729 or #fff
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const full = hex.length === 3
+      ? hex.split('').map(c => c + c).join('')
+      : hex.slice(0, 6);
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    // Relative luminance approximation (sRGB)
+    const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luma < 0.5;
+  }
+  // Parse rgb(r, g, b) or rgba(r, g, b, a)
+  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (m) {
+    const r = parseInt(m[1]), g = parseInt(m[2]), b = parseInt(m[3]);
+    const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luma < 0.5;
+  }
+  return true; // assume dark if unknown
+}
+
+/** Add alpha to a hex color */
+function withAlpha(color: string, alpha: number): string {
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const full = hex.length === 3
+      ? hex.split('').map(c => c + c).join('')
+      : hex.slice(0, 6);
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return color;
 }
