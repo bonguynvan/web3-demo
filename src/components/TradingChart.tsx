@@ -13,7 +13,8 @@ import { Loader2 } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'
 import { useModeStore } from '../store/modeStore'
-import { PERP_THEME } from '../lib/chartConfig'
+import { useThemeStore } from '../store/themeStore'
+import { PERP_THEME, getChartTheme } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
 import { DrawToolsSidebar } from './DrawToolsSidebar'
 import { ChartSettings, DEFAULT_SETTINGS, type ChartSettingsState } from './ChartSettings'
@@ -127,6 +128,14 @@ export function TradingChart({ loading }: { loading: boolean }) {
       setChartReady(false)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync chart theme with app theme
+  const appTheme = useThemeStore(s => s.theme)
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    chart.setTheme(getChartTheme(appTheme))
+  }, [appTheme])
 
   // Update watermark on market change
   useEffect(() => {

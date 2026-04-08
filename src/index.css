@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* ─── Semantic color tokens — components use these, never raw hex ─── */
+
 @theme {
   --color-panel: #111827;
   --color-panel-light: #1a2235;
@@ -20,15 +22,48 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
+/* ─── Dark theme (default) ─── */
+[data-theme="dark"] {
+  --color-panel: #111827;
+  --color-panel-light: #1a2235;
+  --color-surface: #0A0F1A;
+  --color-border: #1e293b;
+  --color-border-light: #334155;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-long-dim: rgba(34, 197, 94, 0.15);
+  --color-short-dim: rgba(239, 68, 68, 0.15);
+  --color-accent-dim: rgba(139, 92, 246, 0.15);
+}
+
+/* ─── Light theme ─── */
+[data-theme="light"] {
+  --color-panel: #ffffff;
+  --color-panel-light: #f1f5f9;
+  --color-surface: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-border-light: #cbd5e1;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-long: #16a34a;
+  --color-long-dim: rgba(22, 163, 74, 0.1);
+  --color-short: #dc2626;
+  --color-short-dim: rgba(220, 38, 38, 0.1);
+  --color-accent: #7c3aed;
+  --color-accent-dim: rgba(124, 58, 237, 0.1);
+}
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--color-border-light) transparent;
 }
 
 body {
   margin: 0;
-  background-color: #0A0F1A;
-  color: #f8fafc;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
