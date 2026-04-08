@@ -1,11 +1,7 @@
 /**
  * useTradeFeed — generates a realistic stream of fake trades.
  *
- * Simulates trade flow that looks like a real exchange:
- * - Random intervals (50-800ms, clustered — bursts then quiet)
- * - Size follows power-law distribution (many small, few large)
- * - Side biased toward recent price direction
- * - Occasional large "whale" trades
+ * Uses refs to avoid restarting the timer when getPrice reference changes.
  */
 
 import { useEffect, useRef } from 'react'
@@ -17,74 +13,70 @@ export function useTradeFeed() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const addTrade = useTradingStore(s => s.addTrade)
   const { getPrice } = usePrices()
-  const intervalRef = useRef<ReturnType<typeof setTimeout>>()
-  const tradeIdRef = useRef(0)
+
+  // Stable refs — don't trigger effect re-runs
+  const getPriceRef = useRef(getPrice)
+  const marketRef = useRef(selectedMarket.symbol)
+  const addTradeRef = useRef(addTrade)
+  getPriceRef.current = getPrice
+  marketRef.current = selectedMarket.symbol
+  addTradeRef.current = addTrade
+
   const lastPriceRef = useRef(0)
+  const tradeIdRef = useRef(0)
 
   useEffect(() => {
     let active = true
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     const generateTrade = () => {
       if (!active) return
 
-      const currentPrice = getPrice(selectedMarket.symbol)
+      const currentPrice = getPriceRef.current(marketRef.current)
       const price = currentPrice?.price ?? lastPriceRef.current
       if (price === 0) {
-        // No price yet — retry soon
-        intervalRef.current = setTimeout(generateTrade, 1000)
+        timeoutId = setTimeout(generateTrade, 1000)
         return
       }
 
-      // Track direction
       const direction = price > lastPriceRef.current ? 'up' : 'down'
       lastPriceRef.current = price
 
-      // Price with tiny spread variation
       const spreadNoise = price * (Math.random() - 0.5) * 0.0002
       const tradePrice = price + spreadNoise
 
-      // Size: power-law — most trades are small, occasional whale
+      // Power-law size distribution
       const r = Math.random()
-      let size: number
-      if (r < 0.6) {
-        size = 0.01 + Math.random() * 0.5 // small: 0.01 - 0.5
-      } else if (r < 0.9) {
-        size = 0.5 + Math.random() * 5 // medium: 0.5 - 5
-      } else if (r < 0.98) {
-        size = 5 + Math.random() * 20 // large: 5 - 25
-      } else {
-        size = 20 + Math.random() * 100 // whale: 20 - 120
-      }
+      const size = r < 0.6 ? 0.01 + Math.random() * 0.5
+        : r < 0.9 ? 0.5 + Math.random() * 5
+        : r < 0.98 ? 5 + Math.random() * 20
+        : 20 + Math.random() * 100
 
-      // Side biased toward price direction (60/40 split)
       const sideBias = direction === 'up' ? 0.6 : 0.4
-      const side = Math.random() < sideBias ? 'long' : 'short'
+      const side = (Math.random() < sideBias ? 'long' : 'short') as 'long' | 'short'
 
       const trade: Trade = {
         id: `t-${++tradeIdRef.current}`,
         price: +tradePrice.toFixed(2),
         size: +size.toFixed(4),
-        side: side as 'long' | 'short',
+        side,
         time: Date.now(),
       }
 
-      addTrade(trade)
+      addTradeRef.current(trade)
 
-      // Next trade interval: clustered (bursts of activity then quiet)
-      const burstPhase = Math.sin(Date.now() / 3000) > 0 // 3s burst cycles
+      // Next trade — clustered (bursts then quiet)
+      const burstPhase = Math.sin(Date.now() / 3000) > 0
       const baseInterval = burstPhase ? 80 : 400
       const jitter = Math.random() * baseInterval
-      const nextInterval = baseInterval + jitter
-
-      intervalRef.current = setTimeout(generateTrade, nextInterval)
+      timeoutId = setTimeout(generateTrade, baseInterval + jitter)
     }
 
-    // Start after a short delay
-    intervalRef.current = setTimeout(generateTrade, 500)
+    timeoutId = setTimeout(generateTrade, 500)
 
     return () => {
       active = false
-      clearTimeout(intervalRef.current)
+      if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [selectedMarket.symbol, getPrice, addTrade])
+  }, []) // ← empty deps, refs handle latest values
 }
