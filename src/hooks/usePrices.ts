@@ -1,8 +1,8 @@
 /**
- * usePrices — price data for the entire app (header, depth, order form, positions).
+ * usePrices — price data for the entire app.
  *
- * Demo mode: fetches real prices from Binance public API every 2s.
- *            Falls back to simulated prices if Binance is unreachable.
+ * Demo mode: subscribes to Binance WebSocket ticker stream (push, no polling).
+ *            Falls back to simulation if WebSocket can't connect.
  * Live mode: reads PriceFeed contract every 3 seconds.
  */
 
@@ -12,7 +12,7 @@ import { getContracts, getMarkets } from '../lib/contracts'
 import { priceToNumber } from '../lib/precision'
 import { useIsDemo } from '../store/modeStore'
 import { tickDemoPrices, getDemoPrices } from '../lib/demoData'
-import { fetchBinancePrices } from '../lib/binancePrices'
+import { binanceTicker, type TickerData } from '../lib/binanceTicker'
 
 const PRICE_PRECISION = 10n ** 30n
 
@@ -27,43 +27,40 @@ function priceToRaw(price: number): bigint {
   return BigInt(Math.round(price * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
 }
 
+function tickerToTokenPrice(t: TickerData): TokenPrice {
+  return { symbol: t.symbol, market: t.market, raw: priceToRaw(t.price), price: t.price }
+}
+
 export function usePrices() {
   const isDemo = useIsDemo()
   const chainId = useChainId()
 
-  // ─── Demo path: try Binance, fall back to simulation ───
+  // ─── Demo path: Binance WebSocket with simulation fallback ───
   const [demoPrices, setDemoPrices] = useState<TokenPrice[]>(() =>
     getDemoPrices().map(d => ({ symbol: d.symbol, market: d.market, raw: d.raw, price: d.price }))
   )
-  const binanceOkRef = useRef(false)
+  const wsActiveRef = useRef(false)
 
   useEffect(() => {
     if (!isDemo) return
-    let active = true
 
-    // Poll Binance every 2s
-    const poll = async () => {
-      if (!active) return
-      try {
-        const bp = await fetchBinancePrices()
-        if (bp.length > 0 && active) {
-          binanceOkRef.current = true
-          setDemoPrices(bp.map(p => ({
-            symbol: p.symbol, market: p.market,
-            raw: priceToRaw(p.price), price: p.price,
-          })))
-        }
-      } catch {
-        binanceOkRef.current = false
+    // Subscribe to the singleton ticker stream
+    const unsub = binanceTicker.subscribe((tickers) => {
+      const next: TokenPrice[] = []
+      for (const t of tickers.values()) {
+        next.push(tickerToTokenPrice(t))
       }
-    }
-    poll()
-    const binanceId = setInterval(poll, 2000)
+      if (next.length > 0) {
+        wsActiveRef.current = true
+        setDemoPrices(next)
+      }
+    })
 
-    // Simulation fallback — only updates state if Binance is down
-    const simId = setInterval(() => {
-      if (!active || binanceOkRef.current) {
-        tickDemoPrices() // keep demoData in sync even when not displayed
+    // Fallback simulation — only updates state when WebSocket isn't delivering
+    const fallbackId = setInterval(() => {
+      if (wsActiveRef.current) {
+        // WebSocket is providing data — keep demoData in sync silently
+        tickDemoPrices()
         return
       }
       setDemoPrices(tickDemoPrices().map(d => ({
@@ -71,7 +68,20 @@ export function usePrices() {
       })))
     }, 500)
 
-    return () => { active = false; clearInterval(binanceId); clearInterval(simId) }
+    // If no ticker arrives within 3 seconds, mark as inactive (use sim)
+    const timeoutId = setTimeout(() => {
+      if (!wsActiveRef.current) {
+        // WebSocket failed or hasn't delivered — fall back to simulation
+        wsActiveRef.current = false
+      }
+    }, 3000)
+
+    return () => {
+      unsub()
+      clearInterval(fallbackId)
+      clearTimeout(timeoutId)
+      wsActiveRef.current = false
+    }
   }, [isDemo])
 
   // ─── Live path (always runs, disabled when demo) ───

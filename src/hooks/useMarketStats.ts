@@ -1,15 +1,15 @@
 /**
  * useMarketStats — 24h market statistics and funding rate.
  *
- * Demo mode: fetches real 24h stats from Binance public API.
- * Falls back to generated demo data if Binance is unreachable.
+ * Subscribes to the same Binance WebSocket ticker stream as usePrices.
+ * One connection serves both — no separate polling.
  */
 
 import { useMemo, useEffect, useState } from 'react'
 import { usePrices } from './usePrices'
 import { useTradingStore } from '../store/tradingStore'
 import { useIsDemo } from '../store/modeStore'
-import { fetchBinance24hStats, type Binance24hStats } from '../lib/binancePrices'
+import { binanceTicker, type TickerData } from '../lib/binanceTicker'
 
 export interface MarketStats {
   price: number
@@ -29,11 +29,10 @@ export function useMarketStats(): MarketStats {
   const isDemo = useIsDemo()
   const currentPrice = getPrice(selectedMarket.symbol)
 
-  const [binanceStats, setBinanceStats] = useState<Binance24hStats | null>(null)
+  const [ticker, setTicker] = useState<TickerData | null>(null)
 
-  // Funding countdown (8h cycle)
+  // Funding countdown (8h cycle, UTC-aligned)
   const [nextFundingSec, setNextFundingSec] = useState(() => calcNextFunding())
-
   useEffect(() => {
     const timer = setInterval(() => {
       setNextFundingSec(prev => (prev <= 0 ? 28800 : prev - 1))
@@ -41,42 +40,36 @@ export function useMarketStats(): MarketStats {
     return () => clearInterval(timer)
   }, [])
 
-  // Fetch real 24h stats from Binance
+  // Subscribe to the shared Binance ticker stream
   useEffect(() => {
     if (!isDemo) return
-    let active = true
 
-    const poll = async () => {
-      const stats = await fetchBinance24hStats()
-      if (!active) return
-      const match = stats.find(s => s.market === selectedMarket.symbol)
-      if (match) setBinanceStats(match)
-    }
-    poll()
-    const id = setInterval(poll, 10_000) // every 10s
+    const unsub = binanceTicker.subscribe((tickers) => {
+      const t = Array.from(tickers.values()).find(t => t.market === selectedMarket.symbol)
+      if (t) setTicker(t)
+    })
 
-    return () => { active = false; clearInterval(id) }
+    return unsub
   }, [isDemo, selectedMarket.symbol])
 
   return useMemo(() => {
     const price = currentPrice?.price ?? 0
 
-    if (binanceStats && isDemo) {
-      // Real Binance 24h data
+    if (ticker && isDemo) {
       return {
         price,
-        change24h: binanceStats.change24h,
-        change24hUsd: binanceStats.change24hUsd,
-        high24h: binanceStats.high24h,
-        low24h: binanceStats.low24h,
-        volume24h: binanceStats.volume24h,
-        openInterest: estimateOI(binanceStats.volume24h),
-        fundingRate: estimateFunding(binanceStats.change24h),
+        change24h: ticker.change24h,
+        change24hUsd: ticker.change24hUsd,
+        high24h: ticker.high24h,
+        low24h: ticker.low24h,
+        volume24h: ticker.volume24h,
+        openInterest: estimateOI(ticker.volume24h),
+        fundingRate: estimateFunding(ticker.change24h),
         nextFundingSec,
       }
     }
 
-    // Fallback: generate from price
+    // Fallback when no ticker yet
     const baseVol = price > 10000 ? 1_200_000_000 : 280_000_000
     return {
       price,
@@ -89,7 +82,7 @@ export function useMarketStats(): MarketStats {
       fundingRate: 0.0035,
       nextFundingSec,
     }
-  }, [currentPrice, binanceStats, isDemo, nextFundingSec])
+  }, [currentPrice, ticker, isDemo, nextFundingSec])
 }
 
 function calcNextFunding(): number {
@@ -102,12 +95,10 @@ function calcNextFunding(): number {
   return Math.floor((target.getTime() - now.getTime()) / 1000)
 }
 
-// Estimate OI from volume (no free endpoint for this)
 function estimateOI(volume24h: number): number {
   return volume24h * 0.55
 }
 
-// Estimate funding from 24h change direction
 function estimateFunding(change24h: number): number {
   return change24h > 0 ? 0.003 + Math.random() * 0.002 : -0.001 - Math.random() * 0.002
 }

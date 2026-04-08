@@ -1,0 +1,220 @@
+/**
+ * Binance Ticker Stream — singleton WebSocket manager.
+ *
+ * Subscribes to !miniTicker@arr which pushes ALL symbol tickers every 1 second.
+ * We filter for the symbols we need (ETHUSDT, BTCUSDT) and notify subscribers.
+ *
+ * Performance:
+ * - ONE WebSocket connection per browser tab (not per hook)
+ * - Zero REST polling (saves ~36 HTTP requests/min)
+ * - Subscribers notified via direct callback, no React state cascade
+ * - Component hooks throttle their own renders via refs
+ * - Auto-reconnect with exponential backoff on disconnect
+ *
+ * Binance message format (mini ticker):
+ *   {
+ *     e: "24hrMiniTicker",
+ *     s: "ETHUSDT",
+ *     c: "3498.50",  // close
+ *     o: "3450.00",  // open 24h ago
+ *     h: "3520.00",  // high
+ *     l: "3440.00",  // low
+ *     v: "12345.67", // base asset volume
+ *     q: "43210000"  // quote asset volume (USDT)
+ *   }
+ */
+
+const WS_URL = 'wss://stream.binance.com:9443/ws/!miniTicker@arr'
+
+// Symbols we care about (Binance → our market mapping)
+const SYMBOL_MAP: Record<string, string> = {
+  'ETHUSDT': 'ETH-PERP',
+  'BTCUSDT': 'BTC-PERP',
+}
+
+export interface TickerData {
+  market: string       // "ETH-PERP"
+  symbol: string       // "ETH"
+  price: number        // last close
+  open24h: number      // open 24h ago
+  high24h: number
+  low24h: number
+  change24h: number    // % change
+  change24hUsd: number // absolute change
+  volume24h: number    // quote volume (USDT)
+  baseVolume24h: number
+  receivedAt: number   // ms timestamp of last update
+}
+
+type Subscriber = (tickers: Map<string, TickerData>) => void
+
+class BinanceTickerStream {
+  private ws: WebSocket | null = null
+  private tickers = new Map<string, TickerData>()
+  private subscribers = new Set<Subscriber>()
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connecting = false
+
+  // Notification batching: collect updates, flush once per frame
+  private dirty = false
+  private rafId = 0
+
+  /** Subscribe to ticker updates. Returns unsubscribe function. */
+  subscribe(cb: Subscriber): () => void {
+    this.subscribers.add(cb)
+
+    // Lazy connect on first subscriber
+    if (this.subscribers.size === 1 && !this.ws && !this.connecting) {
+      this.connect()
+    }
+
+    // Send current cache immediately
+    if (this.tickers.size > 0) {
+      cb(this.tickers)
+    }
+
+    return () => {
+      this.subscribers.delete(cb)
+      // Disconnect when last subscriber leaves
+      if (this.subscribers.size === 0) {
+        this.disconnect()
+      }
+    }
+  }
+
+  /** Get latest ticker for a market (synchronous, may be undefined) */
+  get(market: string): TickerData | undefined {
+    for (const t of this.tickers.values()) {
+      if (t.market === market) return t
+    }
+    return undefined
+  }
+
+  /** Get all current tickers */
+  getAll(): Map<string, TickerData> {
+    return this.tickers
+  }
+
+  // ─── Internal ───
+
+  private connect() {
+    if (this.ws || this.connecting) return
+    this.connecting = true
+
+    try {
+      this.ws = new WebSocket(WS_URL)
+    } catch {
+      this.connecting = false
+      this.scheduleReconnect()
+      return
+    }
+
+    this.ws.onopen = () => {
+      this.connecting = false
+      this.reconnectAttempts = 0
+    }
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        // !miniTicker@arr sends an array of all tickers
+        if (Array.isArray(data)) {
+          this.processBatch(data)
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    }
+
+    this.ws.onerror = () => {
+      // onclose will fire next, handle reconnect there
+    }
+
+    this.ws.onclose = () => {
+      this.ws = null
+      this.connecting = false
+      // Only reconnect if we still have subscribers
+      if (this.subscribers.size > 0) {
+        this.scheduleReconnect()
+      }
+    }
+  }
+
+  private processBatch(items: any[]) {
+    let changed = false
+    const now = Date.now()
+
+    for (const item of items) {
+      const binanceSymbol = item.s as string
+      const market = SYMBOL_MAP[binanceSymbol]
+      if (!market) continue // not a symbol we care about
+
+      const close = parseFloat(item.c)
+      const open = parseFloat(item.o)
+      const change24h = open > 0 ? ((close - open) / open) * 100 : 0
+
+      this.tickers.set(binanceSymbol, {
+        market,
+        symbol: market.split('-')[0],
+        price: close,
+        open24h: open,
+        high24h: parseFloat(item.h),
+        low24h: parseFloat(item.l),
+        change24h,
+        change24hUsd: close - open,
+        volume24h: parseFloat(item.q),
+        baseVolume24h: parseFloat(item.v),
+        receivedAt: now,
+      })
+      changed = true
+    }
+
+    if (changed) this.scheduleNotify()
+  }
+
+  /** rAF-throttled notification — coalesces multiple updates per frame */
+  private scheduleNotify() {
+    if (this.dirty) return
+    this.dirty = true
+    this.rafId = requestAnimationFrame(() => {
+      this.dirty = false
+      this.rafId = 0
+      // Snapshot for subscribers
+      for (const cb of this.subscribers) {
+        try { cb(this.tickers) } catch { /* ignore subscriber errors */ }
+      }
+    })
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return
+    this.reconnectAttempts++
+    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+    const delay = Math.min(30_000, 1000 * Math.pow(2, this.reconnectAttempts - 1))
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
+  }
+
+  private disconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = 0
+    }
+    if (this.ws) {
+      this.ws.onclose = null // prevent reconnect
+      this.ws.close()
+      this.ws = null
+    }
+    this.connecting = false
+  }
+}
+
+// Singleton instance
+export const binanceTicker = new BinanceTickerStream()
