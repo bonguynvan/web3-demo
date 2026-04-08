@@ -6,7 +6,7 @@ import { Web3Header } from './components/Web3Header'
 import { AccountBar } from './components/AccountBar'
 import { TradingChart } from './components/TradingChart'
 import { DepthBook } from './components/DepthBook'
-import { Web3OrderForm } from './components/Web3OrderForm'
+import { TradePanel } from './components/TradePanel'
 import { PositionsTable } from './components/PositionsTable'
 import { RecentTrades } from './components/RecentTrades'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -64,7 +64,7 @@ function App() {
           </div>
           <div className="xl:w-[280px] shrink-0 min-h-[400px] xl:min-h-0">
             <ErrorBoundary name="OrderForm">
-              <Web3OrderForm />
+              <TradePanel />
             </ErrorBoundary>
           </div>
         </div>
