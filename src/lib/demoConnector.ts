@@ -149,9 +149,13 @@ export function demoConnector(params: { account: DemoAccount }) {
                 return hash
               }
 
-              // ─── Fake responses for read methods (no Anvil call) ───
+              // ─── Fakes for noisy block-tracker calls ───
+              // wagmi's transport-level block tracker may poll these even
+              // with `pollingInterval: 60000` set. Faking them keeps Anvil
+              // logs clean without affecting any real read path — application
+              // hooks fetch their own data via `useReadContract` which goes
+              // through the `eth_call` branch below.
               case 'eth_blockNumber':
-                // Return a fake block number that increments slowly
                 return `0x${Math.floor(Date.now() / 12000).toString(16)}`
 
               case 'eth_getBlockByNumber':
@@ -167,30 +171,22 @@ export function demoConnector(params: { account: DemoAccount }) {
                   transactions: [],
                 }
 
+              // ─── Real reads — proxy straight to Anvil ───
+              // Required for live mode (balance, allowance, position reads,
+              // simulations, etc.). In demo mode the live hooks are guarded
+              // with `enabled: !isDemo`, so these branches don't fire and
+              // there's no RPC spam.
+              case 'eth_call':
               case 'eth_getBalance':
-                // Fake ETH balance (10 ETH for gas)
-                return '0x8ac7230489e80000'
-
+              case 'eth_getCode':
+              case 'eth_estimateGas':
               case 'eth_gasPrice':
               case 'eth_maxPriorityFeePerGas':
-                return '0x3b9aca00' // 1 gwei
-
-              case 'eth_estimateGas':
-                return '0x5208' // 21000
-
-              case 'eth_getCode':
-                // Pretend any address has code (so contract checks pass)
-                return '0x60'
-
-              case 'eth_call':
-                // Reads from contracts — return empty (hooks should be disabled in demo)
-                return '0x'
-
+              case 'eth_getTransactionReceipt':
+              case 'eth_getTransactionByHash':
+              case 'eth_getLogs':
               case 'net_version':
-                return foundry.id.toString()
-
               default: {
-                // For anything else, try Anvil but don't crash if it fails
                 try {
                   const res = await fetch(RPC_URL, {
                     method: 'POST',
@@ -200,8 +196,12 @@ export function demoConnector(params: { account: DemoAccount }) {
                   const json = await res.json()
                   if (json.error) throw new Error(json.error.message)
                   return json.result
-                } catch {
-                  return null
+                } catch (err) {
+                  // Fall through to a sensible empty response per method type
+                  // so the UI doesn't crash on transient Anvil hiccups.
+                  if (method === 'eth_call' || method === 'eth_getCode') return '0x'
+                  if (method === 'eth_getBalance' || method === 'eth_estimateGas') return '0x0'
+                  throw err
                 }
               }
             }

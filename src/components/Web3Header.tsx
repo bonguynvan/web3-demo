@@ -42,7 +42,10 @@ export function Web3Header() {
 
   // Sync wallet with mode:
   // - Live → Demo: disconnect external wallet, auto-connect first demo account
-  // - Demo → Live: disconnect demo account (user must manually connect external)
+  // - Demo → Live: keep the demo account connected. The demo connector now
+  //   proxies real reads/writes to Anvil so it doubles as a "headless local
+  //   wallet" for live-mode testing without MetaMask. Users with MetaMask
+  //   can still switch to it via the wallet dropdown.
   useEffect(() => {
     if (mode === 'demo') {
       // Disconnect external wallet first
@@ -57,12 +60,9 @@ export function Web3Header() {
           connect({ connector: demoConnector })
         }
       }
-    } else if (mode === 'live') {
-      // Disconnect demo account — user must manually connect external wallet
-      if (isConnected && isDemoAccount) {
-        disconnect()
-      }
     }
+    // Live mode: don't auto-disconnect anything. The user can manually
+    // switch wallets via the connect dropdown.
   }, [mode, isConnected, isDemoAccount, connector, connectors, connect, disconnect])
 
   const currentPrice = getPrice(selectedMarket.symbol)
@@ -134,33 +134,48 @@ export function Web3Header() {
         {/* 24h Change */}
         <div>
           <span className="text-text-muted text-[10px]">24h Change</span>
-          <div className={cn('font-mono font-medium', stats.change24h >= 0 ? 'text-long' : 'text-short')}>
-            {stats.change24h >= 0 ? '+' : ''}{stats.change24h.toFixed(2)}%
+          <div className={cn(
+            'font-mono font-medium',
+            stats.statsAvailable
+              ? (stats.change24h >= 0 ? 'text-long' : 'text-short')
+              : 'text-text-muted'
+          )}>
+            {stats.statsAvailable
+              ? `${stats.change24h >= 0 ? '+' : ''}${stats.change24h.toFixed(2)}%`
+              : '—'}
           </div>
         </div>
 
         {/* 24h High */}
         <div>
           <span className="text-text-muted text-[10px]">24h High</span>
-          <div className="font-mono text-text-primary">${formatUsd(stats.high24h)}</div>
+          <div className="font-mono text-text-primary">
+            {stats.statsAvailable ? `$${formatUsd(stats.high24h)}` : '—'}
+          </div>
         </div>
 
         {/* 24h Low */}
         <div>
           <span className="text-text-muted text-[10px]">24h Low</span>
-          <div className="font-mono text-text-primary">${formatUsd(stats.low24h)}</div>
+          <div className="font-mono text-text-primary">
+            {stats.statsAvailable ? `$${formatUsd(stats.low24h)}` : '—'}
+          </div>
         </div>
 
         {/* 24h Volume */}
         <div>
           <span className="text-text-muted text-[10px]">24h Volume</span>
-          <div className="font-mono text-text-primary">${formatCompact(stats.volume24h)}</div>
+          <div className="font-mono text-text-primary">
+            {stats.statsAvailable ? `$${formatCompact(stats.volume24h)}` : '—'}
+          </div>
         </div>
 
         {/* Open Interest */}
         <div className="hidden xl:block">
           <span className="text-text-muted text-[10px]">Open Interest</span>
-          <div className="font-mono text-text-primary">${formatCompact(stats.openInterest)}</div>
+          <div className="font-mono text-text-primary">
+            {stats.statsAvailable ? `$${formatCompact(stats.openInterest)}` : '—'}
+          </div>
         </div>
 
         <div className="w-px h-6 bg-border" />
@@ -168,12 +183,21 @@ export function Web3Header() {
         {/* Funding Rate + Countdown */}
         <div>
           <span className="text-text-muted text-[10px]">Funding / Countdown</span>
-          <div className="flex items-center gap-1.5">
-            <span className={cn('font-mono font-medium', stats.fundingRate >= 0 ? 'text-long' : 'text-short')}>
-              {stats.fundingRate >= 0 ? '+' : ''}{stats.fundingRate.toFixed(4)}%
-            </span>
-            <span className="text-text-muted font-mono">{formatCountdown(stats.nextFundingSec)}</span>
-          </div>
+          {stats.fundingAvailable ? (
+            <div className="flex items-center gap-1.5">
+              <span className={cn('font-mono font-medium', stats.fundingRate >= 0 ? 'text-long' : 'text-short')}>
+                {stats.fundingRate >= 0 ? '+' : ''}{stats.fundingRate.toFixed(4)}%
+              </span>
+              <span className="text-text-muted font-mono">{formatCountdown(stats.nextFundingSec)}</span>
+            </div>
+          ) : (
+            <div
+              className="font-mono text-text-muted"
+              title="Funding accumulator not yet implemented in the contracts"
+            >
+              —
+            </div>
+          )}
         </div>
       </div>
 
@@ -295,7 +319,7 @@ export function Web3Header() {
           ) : (
             <>
               <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-                Connect Wallet
+                Real Wallets
               </div>
               {connectors.filter(c => c.type !== 'demo').map(connector => (
                 <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
@@ -310,6 +334,22 @@ export function Web3Header() {
                   No wallet detected. Install MetaMask.
                 </div>
               )}
+              {/* Local Anvil accounts work in live mode too — the demo
+                  connector proxies real reads/writes to Anvil so they
+                  behave like a headless local wallet. Useful when you
+                  want to test the contract path without setting up
+                  MetaMask + a custom Anvil network. */}
+              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1 border-t border-border mt-1 pt-2" onClick={e => e.stopPropagation()}>
+                Local Anvil Accounts
+              </div>
+              {connectors.filter(c => c.type === 'demo').map(connector => (
+                <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-long/20 flex items-center justify-center text-[10px] text-long font-bold">D</div>
+                    <span>{connector.name}</span>
+                  </div>
+                </DropdownItem>
+              ))}
             </>
           )}
         </Dropdown>
