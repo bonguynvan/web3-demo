@@ -5,52 +5,35 @@
  * Withdraw: PLP approve → Router.withdrawFromVault → receive USDC
  */
 
-import { useState, useCallback } from 'react'
-import { useAccount, useChainId, useWriteContract } from 'wagmi'
+import { useState, useCallback, useMemo } from 'react'
+import { useAccount, useChainId, useConfig, useWriteContract } from 'wagmi'
 import { maxUint256 } from 'viem'
 import { useQueryClient } from '@tanstack/react-query'
 import { getContracts } from '../lib/contracts'
 import { dollarsToUsdc } from '../lib/precision'
+import { waitForTxReceipt } from '../lib/waitForReceipt'
+import { invalidateContractReads } from '../lib/queryInvalidation'
 
 export type VaultOpStatus = 'idle' | 'approving' | 'submitting' | 'confirming' | 'success' | 'error'
 
 export function useVaultOperations() {
   const { address } = useAccount()
   const chainId = useChainId()
+  const config = useConfig()
   const queryClient = useQueryClient()
 
   const [status, setStatus] = useState<VaultOpStatus>('idle')
   const [error, setError] = useState<string | null>(null)
 
-  let contracts: ReturnType<typeof getContracts> | null = null
-  try {
-    contracts = getContracts(chainId)
-  } catch {
-    // Chain not configured
-  }
+  const contracts = useMemo(() => {
+    try {
+      return getContracts(chainId)
+    } catch {
+      return null
+    }
+  }, [chainId])
 
   const { writeContractAsync } = useWriteContract()
-
-  const waitForTx = async (hash: `0x${string}`) => {
-    await new Promise<void>((resolve, reject) => {
-      const check = async () => {
-        try {
-          const receipt = await fetch('http://127.0.0.1:8545', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [hash] }),
-          }).then(r => r.json())
-          if (receipt.result) {
-            if (receipt.result.status === '0x1') resolve()
-            else reject(new Error('Transaction reverted'))
-          } else {
-            setTimeout(check, 1000)
-          }
-        } catch (err) { reject(err) }
-      }
-      check()
-    })
-  }
 
   const deposit = useCallback(async (usdcAmount: number) => {
     if (!contracts || !address) return
@@ -66,7 +49,7 @@ export function useVaultOperations() {
         functionName: 'approve',
         args: [contracts.addresses.router, maxUint256],
       })
-      await waitForTx(approveTx)
+      await waitForTxReceipt(config, approveTx)
 
       // Deposit
       setStatus('submitting')
@@ -77,18 +60,17 @@ export function useVaultOperations() {
       })
 
       setStatus('confirming')
-      await waitForTx(depositTx)
+      await waitForTxReceipt(config, depositTx)
 
       setStatus('success')
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
-      queryClient.invalidateQueries({ queryKey: ['readContracts'] })
+      invalidateContractReads(queryClient)
       setTimeout(() => setStatus('idle'), 3000)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message.slice(0, 200) : String(err))
       setStatus('error')
       setTimeout(() => setStatus('idle'), 5000)
     }
-  }, [contracts, address, writeContractAsync, queryClient])
+  }, [contracts, address, writeContractAsync, config, queryClient])
 
   const withdraw = useCallback(async (plpAmount: bigint) => {
     if (!contracts || !address) return
@@ -102,7 +84,7 @@ export function useVaultOperations() {
         functionName: 'approve',
         args: [contracts.addresses.router, maxUint256],
       })
-      await waitForTx(approveTx)
+      await waitForTxReceipt(config, approveTx)
 
       // Withdraw
       setStatus('submitting')
@@ -113,18 +95,17 @@ export function useVaultOperations() {
       })
 
       setStatus('confirming')
-      await waitForTx(withdrawTx)
+      await waitForTxReceipt(config, withdrawTx)
 
       setStatus('success')
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
-      queryClient.invalidateQueries({ queryKey: ['readContracts'] })
+      invalidateContractReads(queryClient)
       setTimeout(() => setStatus('idle'), 3000)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message.slice(0, 200) : String(err))
       setStatus('error')
       setTimeout(() => setStatus('idle'), 5000)
     }
-  }, [contracts, address, writeContractAsync, queryClient])
+  }, [contracts, address, writeContractAsync, config, queryClient])
 
   return { status, error, deposit, withdraw }
 }

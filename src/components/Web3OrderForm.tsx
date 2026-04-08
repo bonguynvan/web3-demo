@@ -48,7 +48,7 @@ export function Web3OrderForm() {
 
   const { dollars: onChainBalance } = useUsdcBalance()
   const { getPrice } = usePrices()
-  const { status, error, increasePosition } = useTradeExecution()
+  const { status, error, increasePosition, needsApproval } = useTradeExecution()
 
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
@@ -175,6 +175,9 @@ export function Web3OrderForm() {
     collateralNum <= 0 ? 'Enter amount' :
     collateralNum > balance ? 'Insufficient balance' :
     priceNum <= 0 ? 'Waiting for price...' : null
+
+  // Show "Approve USDC then Long" only in live mode when allowance is too low.
+  const requiresApproval = !isDemo && isConnected && collateralNum > 0 && needsApproval(collateralNum)
 
   // Quick-fill: set input value based on percentage of balance
   const handleQuickFill = (pct: number) => {
@@ -444,12 +447,15 @@ export function Web3OrderForm() {
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
               {demoSubmitting ? 'Executing...' :
-               status === 'approving' ? 'Approving...' :
+               status === 'approving' ? 'Approving USDC...' :
+               status === 'simulating' ? 'Checking...' :
                status === 'submitting' ? 'Submitting...' :
                status === 'confirming' ? 'Confirming...' : 'Processing...'}
             </span>
           ) : validationMsg ? (
             <span className="opacity-80">{validationMsg}</span>
+          ) : requiresApproval ? (
+            `Approve USDC then ${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset}`
           ) : (
             `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset}`
           )}
@@ -499,11 +505,12 @@ function SummaryRow({ label, value, muted, bold, className }: {
 function TradeStatusDisplay({ status, error }: { status: TradeStatus; error: string | null }) {
   const steps: { key: TradeStatus; label: string }[] = [
     { key: 'approving', label: 'Approve USDC' },
+    { key: 'simulating', label: 'Pre-flight Check' },
     { key: 'submitting', label: 'Submit Transaction' },
     { key: 'confirming', label: 'Confirming On-chain' },
   ]
 
-  const statusOrder: TradeStatus[] = ['approving', 'submitting', 'confirming', 'success']
+  const statusOrder: TradeStatus[] = ['approving', 'simulating', 'submitting', 'confirming', 'success']
   const currentIdx = statusOrder.indexOf(status)
 
   return (
