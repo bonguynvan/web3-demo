@@ -68,17 +68,23 @@ export function Dropdown({ trigger, children, active, width, maxHeight, align = 
   )
 }
 
-export function DropdownItem({ onClick, active, children }: {
+export function DropdownItem({ onClick, active, disabled, children }: {
   onClick?: () => void
   active?: boolean
+  disabled?: boolean
   children: ReactNode
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
-        'w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer',
-        active ? 'text-accent bg-accent-dim' : 'text-text-secondary hover:bg-panel-light'
+        'w-full text-left px-3 py-1.5 text-xs transition-colors',
+        disabled
+          ? 'text-text-muted opacity-50 cursor-not-allowed'
+          : active
+            ? 'text-accent bg-accent-dim cursor-pointer'
+            : 'text-text-secondary hover:bg-panel-light cursor-pointer'
       )}
     >
       {children}

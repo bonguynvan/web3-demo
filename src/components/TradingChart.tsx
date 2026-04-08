@@ -8,16 +8,24 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Chart, BinanceAdapter } from '@chart-lib/library'
-import type { OHLCBar, TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor } from '@chart-lib/library'
+import type { OHLCBar, TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor, TradingPosition, TradingOrder } from '@chart-lib/library'
 import { Loader2 } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'
+import { usePositions } from '../hooks/usePositions'
 import { useModeStore } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
+import { useIsDemo } from '../store/modeStore'
+import { useToast } from '../store/toastStore'
 import { PERP_THEME, getChartTheme } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
 import { DrawToolsSidebar } from './DrawToolsSidebar'
 import { ChartSettings, DEFAULT_SETTINGS, type ChartSettingsState } from './ChartSettings'
+import {
+  saveLayoutToStorage, loadLayoutFromStorage, hasStoredLayout,
+  clearStoredLayout, downloadLayoutFile, loadLayoutFromFile,
+} from '../lib/chartLayout'
+import { getDemoOrders, type DemoOrder } from '../lib/demoData'
 
 // Map our market symbols to Binance symbols
 const BINANCE_SYMBOLS: Record<string, string> = {
@@ -43,6 +51,12 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const [availableIndicators, setAvailableIndicators] = useState<IndicatorDescriptor[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [chartSettings, setChartSettings] = useState<ChartSettingsState>(DEFAULT_SETTINGS)
+  const [hasLayout, setHasLayout] = useState<boolean>(() => hasStoredLayout())
+
+  // Trading overlay data
+  const isDemo = useIsDemo()
+  const toast = useToast()
+  const { positions } = usePositions()
 
   // Create chart only once, when container has dimensions
   useEffect(() => {
@@ -77,7 +91,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
           drawings: true,
           drawingMagnet: true,
           drawingUndoRedo: true,
-          trading: false,
+          trading: true,
           indicators: true,
           panning: true,
           zooming: true,
@@ -279,6 +293,76 @@ export function TradingChart({ loading }: { loading: boolean }) {
     chart.setCurrentPrice(currentPrice.price)
   }, [currentPrice])
 
+  // ─── Position overlay (MT4/MT5 style) ──────────────────────────────────
+  // Map open positions for the current market into TradingPosition shape
+  // and push them into the chart-libs trading layer. Liquidation price is
+  // surfaced as `stopLoss` so it renders as a dashed warning line.
+  useEffect(() => {
+    if (!chartReady) return
+    const chart = chartRef.current
+    if (!chart) return
+
+    const forMarket = positions.filter(p => p.market === selectedMarket.symbol)
+    const tradingPositions: TradingPosition[] = forMarket.map(p => {
+      const quantityCoin = p.markPrice > 0 ? p.size / p.markPrice : 0
+      return {
+        id: p.key,
+        side: p.side === 'long' ? 'buy' : 'sell',
+        entryPrice: p.entryPrice,
+        quantity: +quantityCoin.toFixed(6),
+        stopLoss: p.liquidationPrice > 0 ? p.liquidationPrice : undefined,
+        meta: {
+          pnl: p.pnl,
+          pnlPercent: p.pnlPercent,
+          leverage: p.leverage,
+          collateral: p.collateral,
+        },
+      }
+    })
+
+    chart.setPositions(tradingPositions)
+  }, [chartReady, positions, selectedMarket.symbol])
+
+  // ─── Demo TP/SL order overlay ──────────────────────────────────────────
+  // Demo mode only — there is no on-chain limit order store yet. Polls the
+  // demo store at the same 500ms cadence as PositionsTable. In live mode,
+  // explicitly clear the order layer so stale demo lines don't persist after
+  // a mode switch.
+  useEffect(() => {
+    if (!chartReady) return
+    const chart = chartRef.current
+    if (!chart) return
+
+    if (!isDemo) {
+      chart.setOrders([])
+      return
+    }
+
+    const sync = () => {
+      const orders = getDemoOrders().filter((o: DemoOrder) => o.market === selectedMarket.symbol)
+      const tradingOrders: TradingOrder[] = orders.map(o => {
+        // Closing the underlying position is the opposite side: closing a
+        // long means selling.
+        const closeSide = o.side === 'long' ? 'sell' : 'buy'
+        const quantityCoin = o.triggerPrice > 0 ? o.size / o.triggerPrice : o.size
+        return {
+          id: o.id,
+          side: closeSide,
+          type: 'limit',
+          price: o.triggerPrice,
+          quantity: +quantityCoin.toFixed(6),
+          label: o.type === 'Take Profit' ? 'TP' : 'SL',
+          draggable: false, // demo store has no edit-by-drag handler
+        }
+      })
+      chart.setOrders(tradingOrders)
+    }
+
+    sync()
+    const id = setInterval(sync, 500)
+    return () => clearInterval(id)
+  }, [chartReady, isDemo, selectedMarket.symbol])
+
   // Handlers
 
   const handleTimeframe = useCallback((tf: TimeFrame) => {
@@ -330,6 +414,75 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const handleScreenshot = useCallback(() => chartRef.current?.screenshot(), [])
   const handleClearDrawings = useCallback(() => chartRef.current?.clearDrawings(), [])
 
+  // ─── Layout save/load handlers ─────────────────────────────────────────
+
+  /** Pull the active indicator list back into local state after a load. */
+  const syncIndicatorState = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    try {
+      const active = chart.getActiveIndicators()
+      setActiveIndicators(active.map(a => ({
+        instanceId: a.instanceId,
+        id: a.id,
+        label: a.descriptor?.name ?? a.id,
+      })))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const handleSaveLayout = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    if (saveLayoutToStorage(chart)) {
+      setHasLayout(true)
+      toast.success('Layout saved', 'Drawings + indicators stored in this browser')
+    } else {
+      toast.error('Save failed', 'Could not write to localStorage')
+    }
+  }, [toast])
+
+  const handleLoadLayout = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    if (loadLayoutFromStorage(chart)) {
+      syncIndicatorState()
+      toast.success('Layout restored', 'Loaded from saved browser state')
+    } else {
+      toast.error('Nothing to load', 'No saved layout found in this browser')
+    }
+  }, [toast, syncIndicatorState])
+
+  const handleDownloadLayout = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    if (downloadLayoutFile(chart, `chart-layout-${selectedMarket.symbol}.json`)) {
+      toast.success('Layout downloaded', 'Saved to your downloads folder')
+    } else {
+      toast.error('Download failed', 'Save was empty')
+    }
+  }, [toast, selectedMarket.symbol])
+
+  const handleUploadLayout = useCallback(async () => {
+    const chart = chartRef.current
+    if (!chart) return
+    try {
+      await loadLayoutFromFile(chart)
+      syncIndicatorState()
+      toast.success('Layout loaded', 'Imported from file')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not parse file'
+      toast.error('Load failed', msg)
+    }
+  }, [toast, syncIndicatorState])
+
+  const handleClearLayout = useCallback(() => {
+    clearStoredLayout()
+    setHasLayout(false)
+    toast.success('Saved layout cleared', '')
+  }, [toast])
+
   // Apply settings changes to the chart instance
   const handleSettingsChange = useCallback((patch: Partial<ChartSettingsState>) => {
     setChartSettings(prev => {
@@ -372,12 +525,18 @@ export function TradingChart({ loading }: { loading: boolean }) {
         activeChartType={activeChartType}
         activeIndicators={activeIndicators}
         availableIndicators={availableIndicators}
+        hasStoredLayout={hasLayout}
         onTimeframe={handleTimeframe}
         onChartType={handleChartType}
         onAddIndicator={handleAddIndicator}
         onRemoveIndicator={handleRemoveIndicator}
         onScreenshot={handleScreenshot}
         onSettings={() => setShowSettings(true)}
+        onSaveLayout={handleSaveLayout}
+        onLoadLayout={handleLoadLayout}
+        onDownloadLayout={handleDownloadLayout}
+        onUploadLayout={handleUploadLayout}
+        onClearLayout={handleClearLayout}
       />
 
       {/* Draw sidebar + Chart canvas */}
