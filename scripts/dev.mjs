@@ -5,6 +5,11 @@
  * Kills everything on Ctrl+C.
  *
  * Usage: node scripts/dev.mjs
+ *
+ * Note on port reuse: Anvil and the backend server are reused if already
+ * running (we check ports 8545 and 3001 before launching). This makes it
+ * safe to keep running `pnpm dev:full` from a fresh shell without first
+ * stopping anything you started by hand.
  */
 
 import { spawn, execSync } from 'child_process'
@@ -104,6 +109,20 @@ async function waitForRpc(maxAttempts = 30) {
   return false
 }
 
+async function isPortInUse(port) {
+  // Cheap port check via fetch — if anything responds (even with an error
+  // body), the port is taken. Used to skip launching the backend server
+  // when the user already has it running manually.
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/health`, {
+      signal: AbortSignal.timeout(500),
+    })
+    return res.ok || res.status > 0
+  } catch {
+    return false
+  }
+}
+
 async function checkContractsDeployed() {
   // Check if the first deployed contract (USDC MockERC20) has code
   // Default USDC address from DeployLocal deterministic deploy
@@ -136,7 +155,7 @@ async function main() {
   const anvilAlive = await waitForRpc(2)
   let anvil = null
   if (anvilAlive) {
-    console.log('\x1b[32m[1/5] Anvil already running on :8545 (reusing)\x1b[0m')
+    console.log('\x1b[32m[1/6] Anvil already running on :8545 (reusing)\x1b[0m')
   } else {
     // Kill stale processes and start fresh
     try {
@@ -148,7 +167,7 @@ async function main() {
     } catch {}
     await sleep(1000)
 
-    console.log('\x1b[33m[1/5] Starting Anvil...\x1b[0m')
+    console.log('\x1b[33m[1/6] Starting Anvil...\x1b[0m')
     anvil = run(ANVIL, ['--host', '127.0.0.1', '--port', '8545'])
     anvil.stderr?.on('data', () => {})
     anvil.stdout?.on('data', () => {})
@@ -161,8 +180,8 @@ async function main() {
     console.log('\x1b[32m  ✓ Anvil running on :8545\x1b[0m')
   }
 
-  // 3. Deploy contracts (skip if already deployed on this Anvil)
-  console.log('\x1b[33m[2/5] Deploying contracts...\x1b[0m')
+  // 2. Deploy contracts (skip if already deployed on this Anvil)
+  console.log('\x1b[33m[2/6] Deploying contracts...\x1b[0m')
   const deployed = await checkContractsDeployed()
   if (deployed) {
     console.log('\x1b[32m  ✓ Contracts already deployed (skipping)\x1b[0m')
@@ -218,26 +237,48 @@ async function main() {
   } catch {}
 
   // 3. Start price updater
-  console.log('\x1b[33m[3/5] Starting price updater...\x1b[0m')
+  console.log('\x1b[33m[3/6] Starting price updater...\x1b[0m')
   const priceUpdater = run('npx', ['tsx', 'src/price-updater.ts'], { cwd: resolve(ROOT, 'packages/keepers'), env: { ...process.env, ...addrEnv } })
   priceUpdater.stdout?.on('data', () => {})
   priceUpdater.stderr?.on('data', () => {})
   console.log('\x1b[32m  ✓ Price updater running\x1b[0m')
 
   // 4. Start liquidator
-  console.log('\x1b[33m[4/5] Starting liquidator...\x1b[0m')
+  console.log('\x1b[33m[4/6] Starting liquidator...\x1b[0m')
   const liquidator = run('npx', ['tsx', 'src/liquidator.ts'], { cwd: resolve(ROOT, 'packages/keepers'), env: { ...process.env, ...addrEnv } })
   liquidator.stdout?.on('data', () => {})
   liquidator.stderr?.on('data', () => {})
   console.log('\x1b[32m  ✓ Liquidator running\x1b[0m')
 
+  // 5. Start backend server (REST + WebSocket + event indexer)
+  // Reuse an already-running instance if port 3001 is taken — this is the
+  // common case when the user has `pnpm dev` already open in another terminal.
+  console.log('\x1b[33m[5/6] Starting backend server...\x1b[0m')
+  const serverAlive = await isPortInUse(3001)
+  if (serverAlive) {
+    console.log('\x1b[32m  ✓ Backend already running on :3001 (reusing)\x1b[0m')
+  } else {
+    const server = run('npx', ['tsx', 'watch', 'src/index.ts'], {
+      cwd: resolve(ROOT, 'packages/server'),
+      env: { ...process.env, ...addrEnv },
+    })
+    server.stdout?.on('data', () => {})
+    server.stderr?.on('data', () => {})
+    // Give the server a moment to bind ports + run the indexer backfill
+    // before launching Vite, so the frontend's first API calls succeed.
+    await sleep(1500)
+    console.log('\x1b[32m  ✓ Backend running on :3001 (REST) + :3002 (WS)\x1b[0m')
+  }
+
   // 6. Start Vite
-  console.log('\x1b[33m[5/5] Starting Vite dev server...\x1b[0m')
+  console.log('\x1b[33m[6/6] Starting Vite dev server...\x1b[0m')
   console.log()
   console.log('\x1b[36m══════════════════════════════════════\x1b[0m')
   console.log('\x1b[32m  All services running!\x1b[0m')
   console.log()
   console.log('  Frontend:   \x1b[36mhttp://localhost:5173\x1b[0m')
+  console.log('  Backend:    \x1b[36mhttp://localhost:3001\x1b[0m  (REST)')
+  console.log('              \x1b[36mws://localhost:3002\x1b[0m    (WebSocket)')
   console.log('  Anvil RPC:  \x1b[36mhttp://localhost:8545\x1b[0m')
   console.log()
   console.log('  \x1b[33mAnvil accounts pre-funded with USDC:\x1b[0m')
