@@ -14,7 +14,9 @@ export class BarCountdown {
     if (!this.visible || this.timeframeMs <= 0 || data.length === 0) return;
 
     const lastBar = data[data.length - 1];
-    const nextBarTime = lastBar.time + this.timeframeMs;
+    // Handle both ms and s timestamps
+    const timeMs = lastBar.time > 1e12 ? lastBar.time : lastBar.time * 1000;
+    const nextBarTime = timeMs + this.timeframeMs;
     const remainingMs = nextBarTime - Date.now();
     if (remainingMs <= 0) return;
 
