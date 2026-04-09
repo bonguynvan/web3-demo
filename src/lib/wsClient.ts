@@ -48,6 +48,18 @@ interface TradeSubscription {
   filter: string
 }
 
+/**
+ * WebSocket connection state.
+ *
+ *   - `idle`         — nothing subscribed yet, so we haven't tried to connect
+ *   - `connecting`   — attempting the initial handshake or a reconnect
+ *   - `connected`    — handshake succeeded, messages flowing
+ *   - `disconnected` — socket closed, will auto-reconnect if subscribers remain
+ */
+export type WsConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected'
+
+type StateListener = (state: WsConnectionState) => void
+
 class PerpDexWsClient {
   private ws: WebSocket | null = null
   private connecting = false
@@ -56,6 +68,33 @@ class PerpDexWsClient {
 
   private priceListeners = new Set<PriceListener>()
   private tradeSubs = new Set<TradeSubscription>()
+
+  private state: WsConnectionState = 'idle'
+  private stateListeners = new Set<StateListener>()
+
+  /** Current connection state — synchronous read. */
+  getConnectionState(): WsConnectionState {
+    return this.state
+  }
+
+  /**
+   * Subscribe to connection state transitions. The listener is invoked once
+   * immediately with the current state so callers don't need a separate
+   * getConnectionState() on mount. Returns an unsubscribe function.
+   */
+  onStateChange(listener: StateListener): () => void {
+    this.stateListeners.add(listener)
+    try { listener(this.state) } catch { /* ignore */ }
+    return () => { this.stateListeners.delete(listener) }
+  }
+
+  private setState(next: WsConnectionState): void {
+    if (this.state === next) return
+    this.state = next
+    for (const l of this.stateListeners) {
+      try { l(next) } catch { /* ignore listener errors */ }
+    }
+  }
 
   /** Subscribe to live oracle price updates. Returns unsubscribe function. */
   subscribeToPrices(listener: PriceListener): () => void {
@@ -102,12 +141,14 @@ class PerpDexWsClient {
   private connect(): void {
     if (this.ws || this.connecting) return
     this.connecting = true
+    this.setState('connecting')
 
     let socket: WebSocket
     try {
       socket = new WebSocket(WS_URL)
     } catch {
       this.connecting = false
+      this.setState('disconnected')
       this.scheduleReconnect()
       return
     }
@@ -116,6 +157,7 @@ class PerpDexWsClient {
     socket.onopen = () => {
       this.connecting = false
       this.reconnectAttempts = 0
+      this.setState('connected')
 
       // Re-subscribe everything we had before the reconnect
       if (this.priceListeners.size > 0) {
@@ -167,6 +209,7 @@ class PerpDexWsClient {
     socket.onclose = () => {
       this.ws = null
       this.connecting = false
+      this.setState('disconnected')
       // Only reconnect if we still have at least one consumer.
       if (this.priceListeners.size + this.tradeSubs.size > 0) {
         this.scheduleReconnect()
@@ -205,6 +248,7 @@ class PerpDexWsClient {
     }
     this.connecting = false
     this.reconnectAttempts = 0
+    this.setState('idle')
   }
 }
 
