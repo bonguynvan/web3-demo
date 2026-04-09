@@ -16,6 +16,7 @@ import { useModeStore, type AppMode } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
+import { Skeleton } from './ui/Skeleton'
 import { StatusPill } from './StatusPill'
 
 const CHAIN_NAMES: Record<number, string> = {
@@ -135,48 +136,66 @@ export function Web3Header() {
         {/* 24h Change */}
         <div>
           <span className="text-text-muted text-[10px]">24h Change</span>
-          <div className={cn(
-            'font-mono font-medium',
-            stats.statsAvailable
-              ? (stats.change24h >= 0 ? 'text-long' : 'text-short')
-              : 'text-text-muted'
-          )}>
-            {stats.statsAvailable
-              ? `${stats.change24h >= 0 ? '+' : ''}${stats.change24h.toFixed(2)}%`
-              : '—'}
-          </div>
+          {stats.statsAvailable ? (
+            <div className={cn(
+              'font-mono font-medium',
+              stats.change24h >= 0 ? 'text-long' : 'text-short',
+            )}>
+              {stats.change24h >= 0 ? '+' : ''}{stats.change24h.toFixed(2)}%
+            </div>
+          ) : stats.isInitialLoad ? (
+            <Skeleton className="h-[18px] mt-0.5" width={60} subtle />
+          ) : (
+            <div className="font-mono text-text-muted">—</div>
+          )}
         </div>
 
         {/* 24h High */}
         <div>
           <span className="text-text-muted text-[10px]">24h High</span>
-          <div className="font-mono text-text-primary">
-            {stats.statsAvailable ? `$${formatUsd(stats.high24h)}` : '—'}
-          </div>
+          {stats.statsAvailable ? (
+            <div className="font-mono text-text-primary">${formatUsd(stats.high24h)}</div>
+          ) : stats.isInitialLoad ? (
+            <Skeleton className="h-[18px] mt-0.5" width={72} subtle />
+          ) : (
+            <div className="font-mono text-text-muted">—</div>
+          )}
         </div>
 
         {/* 24h Low */}
         <div>
           <span className="text-text-muted text-[10px]">24h Low</span>
-          <div className="font-mono text-text-primary">
-            {stats.statsAvailable ? `$${formatUsd(stats.low24h)}` : '—'}
-          </div>
+          {stats.statsAvailable ? (
+            <div className="font-mono text-text-primary">${formatUsd(stats.low24h)}</div>
+          ) : stats.isInitialLoad ? (
+            <Skeleton className="h-[18px] mt-0.5" width={72} subtle />
+          ) : (
+            <div className="font-mono text-text-muted">—</div>
+          )}
         </div>
 
         {/* 24h Volume */}
         <div>
           <span className="text-text-muted text-[10px]">24h Volume</span>
-          <div className="font-mono text-text-primary">
-            {stats.statsAvailable ? `$${formatCompact(stats.volume24h)}` : '—'}
-          </div>
+          {stats.statsAvailable ? (
+            <div className="font-mono text-text-primary">${formatCompact(stats.volume24h)}</div>
+          ) : stats.isInitialLoad ? (
+            <Skeleton className="h-[18px] mt-0.5" width={64} subtle />
+          ) : (
+            <div className="font-mono text-text-muted">—</div>
+          )}
         </div>
 
         {/* Open Interest */}
         <div className="hidden xl:block">
           <span className="text-text-muted text-[10px]">Open Interest</span>
-          <div className="font-mono text-text-primary">
-            {stats.statsAvailable ? `$${formatCompact(stats.openInterest)}` : '—'}
-          </div>
+          {stats.statsAvailable ? (
+            <div className="font-mono text-text-primary">${formatCompact(stats.openInterest)}</div>
+          ) : stats.isInitialLoad ? (
+            <Skeleton className="h-[18px] mt-0.5" width={64} subtle />
+          ) : (
+            <div className="font-mono text-text-muted">—</div>
+          )}
         </div>
 
         <div className="w-px h-6 bg-border" />

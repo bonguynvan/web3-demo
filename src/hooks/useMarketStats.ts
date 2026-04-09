@@ -40,6 +40,13 @@ export interface MarketStats {
    * returned at least one stats response.
    */
   statsAvailable: boolean
+  /**
+   * True while the live stats hook is waiting for its first response.
+   * Flips to false once the first fetch resolves (success OR failure) so
+   * the UI can distinguish "loading skeleton" from "permanently blank".
+   * Always false in demo mode.
+   */
+  isInitialLoad: boolean
 }
 
 export function useMarketStats(): MarketStats {
@@ -53,6 +60,7 @@ export function useMarketStats(): MarketStats {
 
   // Live path — backend REST poll
   const [liveStats, setLiveStats] = useState<MarketStatsDto | null>(null)
+  const [liveFirstResponseSettled, setLiveFirstResponseSettled] = useState(false)
 
   // Funding countdown (8h cycle, UTC-aligned). Used in demo mode only;
   // live mode keeps it for the type signature but reports unavailable.
@@ -81,8 +89,13 @@ export function useMarketStats(): MarketStats {
   useEffect(() => {
     if (isDemo) {
       setLiveStats(null)
+      setLiveFirstResponseSettled(false)
       return
     }
+
+    // Reset settled flag when the market changes so the header shows a
+    // fresh skeleton while the new symbol loads.
+    setLiveFirstResponseSettled(false)
 
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -94,6 +107,7 @@ export function useMarketStats(): MarketStats {
         setLiveStats(res.data)
       }
       // On failure, keep the previous snapshot — better than blanking the UI.
+      setLiveFirstResponseSettled(true)
       if (!cancelled) {
         timer = setTimeout(fetchStats, LIVE_REFRESH_MS)
       }
@@ -124,6 +138,7 @@ export function useMarketStats(): MarketStats {
           nextFundingSec,
           fundingAvailable: true,
           statsAvailable: true,
+          isInitialLoad: false,
         }
       }
 
@@ -141,6 +156,7 @@ export function useMarketStats(): MarketStats {
         nextFundingSec,
         fundingAvailable: true,
         statsAvailable: true,
+        isInitialLoad: false,
       }
     }
 
@@ -160,10 +176,13 @@ export function useMarketStats(): MarketStats {
         nextFundingSec: 0,
         fundingAvailable: false,
         statsAvailable: true,
+        isInitialLoad: false,
       }
     }
 
-    // Live mode, backend hasn't responded yet
+    // Live mode, backend hasn't responded yet.
+    // isInitialLoad stays true until the first fetch settles (success or
+    // failure), after which consumers should show "—" instead of a skeleton.
     return {
       price,
       change24h: 0,
@@ -176,8 +195,9 @@ export function useMarketStats(): MarketStats {
       nextFundingSec: 0,
       fundingAvailable: false,
       statsAvailable: false,
+      isInitialLoad: !liveFirstResponseSettled,
     }
-  }, [currentPrice, ticker, liveStats, isDemo, nextFundingSec])
+  }, [currentPrice, ticker, liveStats, liveFirstResponseSettled, isDemo, nextFundingSec])
 }
 
 function calcNextFunding(): number {
