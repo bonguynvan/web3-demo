@@ -30,7 +30,7 @@ import { getContracts, getMarkets } from '../lib/contracts'
 import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
 import { useIsDemo } from '../store/modeStore'
-import { addDemoPosition, DEMO_ACCOUNT, FEES } from '../lib/demoData'
+import { addDemoPosition, addDemoPendingLimit, DEMO_ACCOUNT, FEES } from '../lib/demoData'
 
 type AmountUnit = 'usdc' | 'coin'
 
@@ -130,6 +130,38 @@ export function Web3OrderForm() {
   const handleSubmitOrder = useCallback(async () => {
     if (collateralNum <= 0 || priceNum <= 0) return
 
+    // ─── Limit orders: store off-chain pending ───
+    // Neither the contracts nor the demo store support automatic triggering
+    // yet. We persist the order in the client-side pending list so it
+    // renders on the chart and in the Orders tab, and the user can cancel
+    // it. Execution remains manual — when/if we wire a keeper loop it
+    // picks up from the same store.
+    if (orderType === 'limit') {
+      const limitPriceNum = parseFloat(orderPrice)
+      if (!Number.isFinite(limitPriceNum) || limitPriceNum <= 0) {
+        toast.error('Invalid limit price', 'Enter a positive price')
+        return
+      }
+
+      addDemoPendingLimit({
+        market: selectedMarket.symbol,
+        side: orderSide,
+        triggerPrice: limitPriceNum,
+        sizeUsd: notional,
+        leverage,
+        collateralUsd: collateralNum,
+      })
+
+      toast.success(
+        'Limit order placed',
+        `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} $${formatUsd(notional)} @ $${formatUsd(limitPriceNum)} — pending`,
+      )
+      setOrderSize('')
+      setOrderPrice('')
+      return
+    }
+
+    // ─── Market orders: execute immediately ───
     if (!isDemo && isConnected && indexToken && currentPrice) {
       await increasePosition({
         indexToken,
@@ -141,7 +173,7 @@ export function Web3OrderForm() {
       return
     }
 
-    // Demo mode
+    // Demo mode — market fill
     setDemoSubmitting(true)
     await new Promise(r => setTimeout(r, 500))
 
@@ -165,7 +197,12 @@ export function Web3OrderForm() {
     setTpPrice('')
     setSlPrice('')
     setDemoSubmitting(false)
-  }, [collateralNum, priceNum, isDemo, isConnected, indexToken, currentPrice, increasePosition, notional, orderSide, selectedMarket.symbol, selectedMarket.baseAsset, leverage, tpNum, slNum, setOrderSize, toast])
+  }, [
+    collateralNum, priceNum, orderType, orderPrice, isDemo, isConnected,
+    indexToken, currentPrice, increasePosition, notional, orderSide,
+    selectedMarket.symbol, selectedMarket.baseAsset, leverage, tpNum, slNum,
+    setOrderSize, setOrderPrice, toast,
+  ])
 
   const isSubmitting = demoSubmitting || (status !== 'idle' && status !== 'success' && status !== 'error')
 

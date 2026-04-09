@@ -277,17 +277,32 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
   return { realizedPnl, closeFee }
 }
 
-// ─── Demo orders (TP/SL) ───
+// ─── Pending orders (TP/SL + Limit opens) ───
+//
+// The contracts don't support limit orders on-chain, so pending limits live
+// client-side here and are rendered on the chart + in the Orders tab. Demo
+// and live mode share this store because neither has a real backend for it.
+// Known limit: module-level array, not persisted — a page refresh clears
+// any pending orders. Acceptable MVP; localStorage persistence is a trivial
+// follow-up if it becomes a pain.
+
+export type DemoOrderType = 'Take Profit' | 'Stop Loss' | 'Limit'
 
 export interface DemoOrder {
   id: string
   market: string
   side: 'long' | 'short'
-  type: 'Take Profit' | 'Stop Loss'
+  type: DemoOrderType
   triggerPrice: number
+  /** Notional size in USD (for Limit) or underlying position size in USD (for TP/SL) */
   size: number
+  /** Position slot this order reduces (TP/SL only) — empty for Limit opens. */
   positionKey: string
   createdAt: number
+  /** Leverage for Limit opens. Undefined for TP/SL. */
+  leverage?: number
+  /** Collateral in USD for Limit opens. Undefined for TP/SL. */
+  collateral?: number
 }
 
 const demoOrders: DemoOrder[] = []
@@ -299,6 +314,37 @@ export function getDemoOrders(): DemoOrder[] {
 export function cancelDemoOrder(id: string) {
   const idx = demoOrders.findIndex(o => o.id === id)
   if (idx >= 0) { demoOrders.splice(idx, 1); changeVersion++ }
+}
+
+/**
+ * Store a pending Limit open order. Does NOT touch on-chain state — caller
+ * is responsible for later triggering the actual increase if/when the price
+ * condition is met. For now we just display it on the chart and in the
+ * Orders tab; execution is manual via the cancel button.
+ */
+export function addDemoPendingLimit(params: {
+  market: string
+  side: 'long' | 'short'
+  triggerPrice: number
+  sizeUsd: number
+  leverage: number
+  collateralUsd: number
+}): DemoOrder {
+  const order: DemoOrder = {
+    id: `limit-${params.market}-${params.side}-${Date.now()}`,
+    market: params.market,
+    side: params.side,
+    type: 'Limit',
+    triggerPrice: params.triggerPrice,
+    size: params.sizeUsd,
+    positionKey: '', // no underlying position yet
+    createdAt: Date.now(),
+    leverage: params.leverage,
+    collateral: params.collateralUsd,
+  }
+  demoOrders.push(order)
+  changeVersion++
+  return order
 }
 
 // ─── Demo trade history ───

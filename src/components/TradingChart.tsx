@@ -323,36 +323,43 @@ export function TradingChart({ loading }: { loading: boolean }) {
     chart.setPositions(tradingPositions)
   }, [chartReady, positions, selectedMarket.symbol])
 
-  // ─── Demo TP/SL order overlay ──────────────────────────────────────────
-  // Demo mode only — there is no on-chain limit order store yet. Polls the
-  // demo store at the same 500ms cadence as PositionsTable. In live mode,
-  // explicitly clear the order layer so stale demo lines don't persist after
-  // a mode switch.
+  // ─── Pending order overlay (TP/SL + Limit opens) ──────────────────────
+  // Runs in BOTH modes. Neither the contracts nor any backend supports
+  // limit orders right now, so the client-side demo store doubles as the
+  // pending order cache for live mode too. Polls the store at 500ms to
+  // match PositionsTable's OrdersTab cadence.
+  //
+  // Side semantics:
+  //   - TP / SL orders CLOSE an existing position, so the chart line's
+  //     side is the opposite of the underlying position side (closing a
+  //     long means selling).
+  //   - Limit opens take the user's chosen side directly — a long limit
+  //     buy renders as a buy line, a short limit sell renders as a sell.
   useEffect(() => {
     if (!chartReady) return
     const chart = chartRef.current
     if (!chart) return
 
-    if (!isDemo) {
-      chart.setOrders([])
-      return
-    }
-
     const sync = () => {
       const orders = getDemoOrders().filter((o: DemoOrder) => o.market === selectedMarket.symbol)
       const tradingOrders: TradingOrder[] = orders.map(o => {
-        // Closing the underlying position is the opposite side: closing a
-        // long means selling.
-        const closeSide = o.side === 'long' ? 'sell' : 'buy'
+        const isClosing = o.type === 'Take Profit' || o.type === 'Stop Loss'
+        const chartSide: 'buy' | 'sell' = isClosing
+          ? (o.side === 'long' ? 'sell' : 'buy')
+          : (o.side === 'long' ? 'buy' : 'sell')
         const quantityCoin = o.triggerPrice > 0 ? o.size / o.triggerPrice : o.size
+        const label: 'LIMIT' | 'TP' | 'SL' =
+          o.type === 'Take Profit' ? 'TP' :
+          o.type === 'Stop Loss' ? 'SL' :
+          'LIMIT'
         return {
           id: o.id,
-          side: closeSide,
+          side: chartSide,
           type: 'limit',
           price: o.triggerPrice,
           quantity: +quantityCoin.toFixed(6),
-          label: o.type === 'Take Profit' ? 'TP' : 'SL',
-          draggable: false, // demo store has no edit-by-drag handler
+          label,
+          draggable: false, // cancel via Orders tab, not drag
         }
       })
       chart.setOrders(tradingOrders)

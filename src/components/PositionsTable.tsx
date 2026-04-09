@@ -242,7 +242,10 @@ function PositionRow({ position }: { position: OnChainPosition }) {
   )
 }
 
-// ─── Orders Tab (live from demo store) ───
+// ─── Orders Tab (client-side pending orders) ───
+// Displays TP/SL (close-side) and Limit (open-side) orders from the shared
+// demoData store. Active in both demo and live mode because the contracts
+// don't have an on-chain limit order representation.
 
 function OrdersTab() {
   const [orders, setOrders] = useState<DemoOrder[]>([])
@@ -255,7 +258,7 @@ function OrdersTab() {
   if (orders.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-xs">
-        No open orders — set TP/SL when opening a position
+        No pending orders — set a limit price or set TP/SL when opening a position
       </div>
     )
   }
@@ -265,9 +268,11 @@ function OrdersTab() {
       <thead>
         <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-border">
           <th className="text-left px-3 py-2 font-medium">Market</th>
+          <th className="text-left px-3 py-2 font-medium">Side</th>
           <th className="text-left px-3 py-2 font-medium">Type</th>
           <th className="text-right px-3 py-2 font-medium">Trigger</th>
           <th className="text-right px-3 py-2 font-medium">Size</th>
+          <th className="text-right px-3 py-2 font-medium">Lev.</th>
           <th className="text-right px-3 py-2 font-medium">Created</th>
           <th className="text-center px-3 py-2 font-medium">Cancel</th>
         </tr>
@@ -278,14 +283,27 @@ function OrdersTab() {
             <td className="px-3 py-2.5 font-medium text-text-primary">{order.market}</td>
             <td className="px-3 py-2.5">
               <span className={cn(
+                'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
+                order.side === 'long' ? 'bg-long-dim text-long' : 'bg-short-dim text-short'
+              )}>
+                {order.side}
+              </span>
+            </td>
+            <td className="px-3 py-2.5">
+              <span className={cn(
                 'px-2 py-0.5 rounded text-[10px] font-medium',
-                order.type === 'Take Profit' ? 'bg-long-dim text-long' : 'bg-short-dim text-short'
+                order.type === 'Take Profit' ? 'bg-long-dim text-long' :
+                order.type === 'Stop Loss' ? 'bg-short-dim text-short' :
+                'bg-accent-dim text-accent'
               )}>
                 {order.type}
               </span>
             </td>
             <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(order.triggerPrice)}</td>
             <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(order.size)}</td>
+            <td className="px-3 py-2.5 text-right font-mono text-text-muted">
+              {order.leverage !== undefined ? `${order.leverage}x` : '—'}
+            </td>
             <td className="px-3 py-2.5 text-right text-text-muted">{new Date(order.createdAt).toLocaleTimeString()}</td>
             <td className="px-3 py-2.5 text-center">
               <button
