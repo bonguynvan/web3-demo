@@ -16,6 +16,7 @@ import { useTradingStore } from '../store/tradingStore'
 import { useIsDemo } from '../store/modeStore'
 import { cn, formatUsd, formatCompact } from '../lib/format'
 import { FlashPrice } from './ui/FlashPrice'
+import { Skeleton } from './ui/Skeleton'
 
 const LEVELS = 15 // price levels per side
 const SPREAD_BPS = 10 // 0.1% spread (matches PriceFeed config)
@@ -235,7 +236,7 @@ function DepthRow({
 function PoolLiquidityCard() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const { getPrice } = usePrices()
-  const { stats } = useVault()
+  const { stats, isInitialLoad } = useVault()
   const currentPrice = getPrice(selectedMarket.symbol)
   const midPrice = currentPrice?.price ?? 0
 
@@ -259,7 +260,7 @@ function PoolLiquidityCard() {
         {midPrice > 0 ? (
           <FlashPrice value={midPrice} size="lg" showArrow format={n => `$${n.toFixed(decimals)}`} />
         ) : (
-          <span className="text-sm font-mono text-text-muted">$---</span>
+          <Skeleton className="h-6" width={120} subtle />
         )}
       </div>
 
@@ -268,24 +269,43 @@ function PoolLiquidityCard() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] text-text-muted uppercase tracking-wider">Utilisation</span>
-            <span className={cn('text-xs font-mono font-semibold', utilColor)}>
-              {util.toFixed(2)}%
-            </span>
+            {isInitialLoad ? (
+              <Skeleton className="h-3" width={42} subtle />
+            ) : (
+              <span className={cn('text-xs font-mono font-semibold', utilColor)}>
+                {util.toFixed(2)}%
+              </span>
+            )}
           </div>
           <div className="h-1.5 bg-surface rounded-full overflow-hidden">
-            <div
-              className={cn('h-full transition-all duration-500', utilBgColor)}
-              style={{ width: `${Math.min(util, 100)}%` }}
-            />
+            {isInitialLoad ? (
+              <Skeleton className="h-full" width="100%" subtle />
+            ) : (
+              <div
+                className={cn('h-full transition-all duration-500', utilBgColor)}
+                style={{ width: `${Math.min(util, 100)}%` }}
+              />
+            )}
           </div>
         </div>
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-2">
-          <PoolStat label="Pool" value={`$${formatCompact(stats.poolAmount)}`} />
-          <PoolStat label="Reserved" value={`$${formatCompact(stats.reservedAmount)}`} />
-          <PoolStat label="Available" value={`$${formatCompact(stats.availableLiquidity)}`} accent />
-          <PoolStat label="AUM" value={`$${formatCompact(stats.aum)}`} />
+          {isInitialLoad ? (
+            <>
+              <PoolStatSkeleton label="Pool" />
+              <PoolStatSkeleton label="Reserved" />
+              <PoolStatSkeleton label="Available" />
+              <PoolStatSkeleton label="AUM" />
+            </>
+          ) : (
+            <>
+              <PoolStat label="Pool" value={`$${formatCompact(stats.poolAmount)}`} />
+              <PoolStat label="Reserved" value={`$${formatCompact(stats.reservedAmount)}`} />
+              <PoolStat label="Available" value={`$${formatCompact(stats.availableLiquidity)}`} accent />
+              <PoolStat label="AUM" value={`$${formatCompact(stats.aum)}`} />
+            </>
+          )}
         </div>
 
         {/* Hint */}
@@ -294,6 +314,15 @@ function PoolLiquidityCard() {
           orderbook — depth is the available pool liquidity above.
         </div>
       </div>
+    </div>
+  )
+}
+
+function PoolStatSkeleton({ label }: { label: string }) {
+  return (
+    <div className="bg-surface/50 rounded-md px-3 py-2 border border-border/60">
+      <div className="text-[9px] text-text-muted uppercase tracking-wider">{label}</div>
+      <Skeleton className="h-4 mt-1" width={64} subtle />
     </div>
   )
 }

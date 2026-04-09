@@ -40,7 +40,8 @@ export function useUsdcBalance() {
   })
 
   if (isDemo) {
-    return { raw: 0n, dollars: demoBalance, isLoading: false }
+    // Demo state is synchronous — no fetch in flight, always "fetched".
+    return { raw: 0n, dollars: demoBalance, isLoading: false, isFetched: true as const }
   }
 
   const balance = rawBalance as bigint | undefined

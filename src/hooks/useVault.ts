@@ -25,7 +25,7 @@ export function useVault() {
   let contracts: ReturnType<typeof getContracts> | null = null
   try { contracts = getContracts(chainId) } catch {}
 
-  const { data } = useReadContracts({
+  const { data, isFetched } = useReadContracts({
     contracts: contracts ? [
       { ...contracts.vault, functionName: 'getPoolAmount' as const },
       { ...contracts.vault, functionName: 'getReservedAmount' as const },
@@ -42,6 +42,8 @@ export function useVault() {
     return {
       stats: getDemoVaultStats(),
       raw: { poolAmount: 0n, reservedAmount: 0n, availableLiquidity: 0n, aum: 0n },
+      // Demo vault stats are synchronous, no loading state.
+      isInitialLoad: false,
     }
   }
 
@@ -59,5 +61,8 @@ export function useVault() {
       utilizationPercent: poolAmount > 0n ? Number((reservedAmount * 10000n) / poolAmount) / 100 : 0,
     },
     raw: { poolAmount, reservedAmount, availableLiquidity, aum },
+    // True until wagmi's first read completes (success OR failure). Consumers
+    // can render skeleton shimmer during this window.
+    isInitialLoad: !!contracts && !isFetched,
   }
 }
