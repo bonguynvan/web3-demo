@@ -16,6 +16,7 @@ import { useModeStore, type AppMode } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
+import { StatusPill } from './StatusPill'
 
 const CHAIN_NAMES: Record<number, string> = {
   31337: 'Anvil',
@@ -202,6 +203,9 @@ export function Web3Header() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Service health pill — green/yellow/red dot with click-to-diagnose */}
+      <StatusPill />
 
       {/* Mode Toggle */}
       <div className="flex items-center bg-surface rounded-md p-0.5 gap-0.5">
