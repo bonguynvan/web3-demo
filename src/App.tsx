@@ -4,6 +4,7 @@
 
 import { Web3Header } from './components/Web3Header'
 import { AccountBar } from './components/AccountBar'
+import { ConnectionBanner } from './components/ConnectionBanner'
 import { TradingChart } from './components/TradingChart'
 import { DepthBook } from './components/DepthBook'
 import { TradePanel } from './components/TradePanel'
@@ -41,6 +42,7 @@ function App() {
     <div className="flex flex-col h-screen bg-surface">
       <Web3Header />
       <AccountBar />
+      <ConnectionBanner />
 
       {/* Main Trading Layout */}
       <div className="flex-1 flex flex-col xl:flex-row gap-1 p-1 min-h-0">
