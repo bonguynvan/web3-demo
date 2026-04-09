@@ -14,6 +14,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { useMarketWs } from './hooks/useMarketWs'
 import { useTradeFeed } from './hooks/useTradeFeed'
 import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
+import { useLiquidationAlerts } from './hooks/useLiquidationAlerts'
 import { useTradingStore } from './store/tradingStore'
 
 function App() {
@@ -31,6 +32,10 @@ function App() {
   // Auto-fire pending limit orders when the oracle price hits their trigger.
   // Mounted at App level so it survives tab switches inside TradePanel.
   useLimitOrderWatcher()
+
+  // Warn the user before the liquidator keeper force-closes a position.
+  // Informational only — no auto-close. See hook file for threshold details.
+  useLiquidationAlerts()
 
   return (
     <div className="flex flex-col h-screen bg-surface">
