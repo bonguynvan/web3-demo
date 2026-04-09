@@ -13,6 +13,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastContainer } from './components/ToastContainer'
 import { useMarketWs } from './hooks/useMarketWs'
 import { useTradeFeed } from './hooks/useTradeFeed'
+import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
 import { useTradingStore } from './store/tradingStore'
 
 function App() {
@@ -26,6 +27,10 @@ function App() {
 
   // Stream trades into the trade tape
   useTradeFeed()
+
+  // Auto-fire pending limit orders when the oracle price hits their trigger.
+  // Mounted at App level so it survives tab switches inside TradePanel.
+  useLimitOrderWatcher()
 
   return (
     <div className="flex flex-col h-screen bg-surface">
