@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Wallet, LineChart, Inbox, History as HistoryIcon } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
@@ -9,6 +9,33 @@ import { cn, formatUsd } from '../lib/format'
 import { useIsDemo } from '../store/modeStore'
 import { closeDemoPosition, getDemoOrders, cancelDemoOrder, getDemoHistory, type DemoOrder, type DemoTradeHistory } from '../lib/demoData'
 import { useToast } from '../store/toastStore'
+
+/**
+ * Reusable empty state used across positions / orders / history tabs.
+ * Icon + title + subtext in a centered layout — consistent visual weight
+ * so switching tabs with no data doesn't feel jarring.
+ */
+function EmptyState({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: ReactNode
+  title: string
+  subtitle: string
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-6 gap-2">
+      <div className="w-12 h-12 rounded-full bg-surface/70 flex items-center justify-center text-text-muted">
+        {icon}
+      </div>
+      <div className="text-xs text-text-secondary font-medium">{title}</div>
+      <div className="text-[10px] text-text-muted leading-relaxed max-w-[280px]">
+        {subtitle}
+      </div>
+    </div>
+  )
+}
 
 type Tab = 'positions' | 'orders' | 'history'
 
@@ -47,13 +74,17 @@ export function PositionsTable() {
       <div className="flex-1 overflow-auto">
         {activeTab === 'positions' && (
           !isConnected && !isDemo ? (
-            <div className="flex items-center justify-center h-full text-text-muted text-xs">
-              Connect wallet to view positions
-            </div>
+            <EmptyState
+              icon={<Wallet className="w-5 h-5" />}
+              title="Wallet not connected"
+              subtitle="Connect a wallet from the header to view your open positions."
+            />
           ) : positions.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-text-muted text-xs">
-              No open positions
-            </div>
+            <EmptyState
+              icon={<LineChart className="w-5 h-5" />}
+              title="No open positions"
+              subtitle="Place a market or limit order from the order form to start trading."
+            />
           ) : (
             <table className="w-full text-xs">
               <thead>
@@ -257,9 +288,11 @@ function OrdersTab() {
 
   if (orders.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-xs">
-        No pending orders — set a limit price or set TP/SL when opening a position
-      </div>
+      <EmptyState
+        icon={<Inbox className="w-5 h-5" />}
+        title="No pending orders"
+        subtitle="Limit orders and TP/SL triggers will appear here. Switch the order form to Limit to queue one."
+      />
     )
   }
 
@@ -367,8 +400,12 @@ function DemoTradeHistoryTable() {
       </div>
 
       {history.length === 0 ? (
-        <div className="flex items-center justify-center py-8 text-text-muted text-xs">
-          No trade history yet — close a position to see it here
+        <div className="py-8">
+          <EmptyState
+            icon={<HistoryIcon className="w-5 h-5" />}
+            title="No trade history yet"
+            subtitle="Close a position to see realised P&L and fill details here."
+          />
         </div>
       ) : (
         <table className="w-full text-xs">
@@ -434,9 +471,11 @@ function LiveTradeHistoryTable() {
 
   if (!isConnected) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-xs">
-        Connect wallet to view history
-      </div>
+      <EmptyState
+        icon={<Wallet className="w-5 h-5" />}
+        title="Wallet not connected"
+        subtitle="Connect a wallet from the header to view your fill history."
+      />
     )
   }
 
@@ -473,11 +512,20 @@ function LiveTradeHistoryTable() {
       </div>
 
       {history.length === 0 ? (
-        <div className="flex items-center justify-center py-8 text-text-muted text-xs">
-          {isLoading
-            ? 'Scanning recent blocks...'
-            : 'No fills found in the recent block window'}
-        </div>
+        isLoading ? (
+          <div className="flex items-center justify-center py-8 text-text-muted text-xs gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading history…
+          </div>
+        ) : (
+          <div className="py-8">
+            <EmptyState
+              icon={<HistoryIcon className="w-5 h-5" />}
+              title="No fills yet"
+              subtitle="Your opened and closed positions will appear here once you start trading."
+            />
+          </div>
+        )
       ) : (
         <table className="w-full text-xs">
           <thead>
