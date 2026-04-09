@@ -43,7 +43,7 @@ export function resetDemoAccount() {
   demoPositions.length = 0
   demoOrders.length = 0
   demoHistory.length = 0
-  changeVersion++
+  markDirty()
 }
 
 // ─── Demo prices ───
@@ -102,10 +102,12 @@ export interface DemoPosition {
 
 const demoPositions: DemoPosition[] = []
 
-// Change counter — hooks poll this to detect mutations
+// Change counter — hooks poll this to detect mutations.
+// Every mutation should go through markDirty() (not a bare changeVersion++)
+// so the persistence layer gets a chance to debounce a save.
 let changeVersion = 0
 export function getDemoVersion(): number { return changeVersion }
-export function bumpDemoVersion(): void { changeVersion++ }
+export function bumpDemoVersion(): void { markDirty() }
 
 export function getDemoPositions(prices: DemoPrice[]): DemoPosition[] {
   const now = Date.now()
@@ -197,7 +199,7 @@ export function addDemoPosition(params: OpenPositionParams): {
     accumulatedFunding: 0,
     openedAt: Date.now(),
   })
-  changeVersion++
+  markDirty()
 
   // Add to history as "Open"
   demoHistory.unshift({
@@ -273,7 +275,7 @@ export function closeDemoPosition(key: string, closePct: number): { realizedPnl:
     pos.collateralRaw = toRaw(pos.collateral)
   }
 
-  changeVersion++
+  markDirty()
   return { realizedPnl, closeFee }
 }
 
@@ -313,7 +315,7 @@ export function getDemoOrders(): DemoOrder[] {
 
 export function cancelDemoOrder(id: string) {
   const idx = demoOrders.findIndex(o => o.id === id)
-  if (idx >= 0) { demoOrders.splice(idx, 1); changeVersion++ }
+  if (idx >= 0) { demoOrders.splice(idx, 1); markDirty() }
 }
 
 /**
@@ -343,7 +345,7 @@ export function addDemoPendingLimit(params: {
     collateral: params.collateralUsd,
   }
   demoOrders.push(order)
-  changeVersion++
+  markDirty()
   return order
 }
 
@@ -403,4 +405,208 @@ export function generateDemoTrade(prices: DemoPrice[], market: string): Trade | 
     side: Math.random() > 0.45 ? 'long' : 'short',
     time: Date.now(),
   }
+}
+
+// ─── localStorage persistence ───────────────────────────────────────────────
+//
+// Persists the client-side state that would otherwise be lost on a page
+// refresh: balance, positions, pending orders, trade history. Everything
+// derivable from live price ticks is intentionally NOT persisted — it
+// recomputes from structural fields + the next tick.
+//
+// Why not SQLite-in-browser: 1–2 MB of WASM for <10 KB of data is overkill.
+// localStorage is synchronous, bounded at 5 MB per origin, and already used
+// for chart layout and theme.
+//
+// Schema versioning: the envelope carries a `version` field. If the version
+// doesn't match CLIENT_STATE_VERSION, the blob is dropped and in-memory
+// state starts fresh. No migration framework — this is dev-mode scratch data.
+//
+// Known limits:
+//  - Cross-tab: two tabs can race. Last write wins. Acceptable — demo is
+//    per-tab conceptually and pending limits are rare enough to not matter.
+//  - Private browsing / quota exceeded: silent failure, in-memory state
+//    keeps working.
+//  - No per-account scoping: all pending orders share one blob, so
+//    switching live-mode accounts mid-session sees the previous account's
+//    pending orders. Fine for single-user dev; fix with address-keyed
+//    storage when multi-user becomes real.
+
+const STORAGE_KEY = 'perp-dex.client-state.v1'
+const CLIENT_STATE_VERSION = 1
+const SAVE_DEBOUNCE_MS = 100
+
+// Persisted shape. Only structural fields that can't be re-derived from
+// live data. Adding a field here without bumping CLIENT_STATE_VERSION is
+// safe as long as the loader tolerates missing fields (via `??` defaults).
+interface StoredPosition {
+  key: string
+  market: string
+  baseAsset: string
+  indexToken: `0x${string}`
+  side: 'long' | 'short'
+  size: number
+  collateral: number
+  entryPrice: number
+  leverage: string
+  liquidationPrice: number
+  openFee: number
+  accumulatedFunding: number
+  openedAt: number
+}
+
+interface ClientStateEnvelope {
+  version: number
+  savedAt: number
+  balance: number
+  plpBalance: number
+  positions: StoredPosition[]
+  orders: DemoOrder[]
+  history: DemoTradeHistory[]
+}
+
+function toStoredPosition(pos: DemoPosition): StoredPosition {
+  return {
+    key: pos.key,
+    market: pos.market,
+    baseAsset: pos.baseAsset,
+    indexToken: pos.indexToken,
+    side: pos.side,
+    size: pos.size,
+    collateral: pos.collateral,
+    entryPrice: pos.entryPrice,
+    leverage: pos.leverage,
+    liquidationPrice: pos.liquidationPrice,
+    openFee: pos.openFee,
+    accumulatedFunding: pos.accumulatedFunding,
+    openedAt: pos.openedAt,
+  }
+}
+
+function fromStoredPosition(sp: StoredPosition): DemoPosition {
+  // markPrice / pnl / pnlPercent seed from the structural state and get
+  // overwritten by the next getDemoPositions() pass against live prices.
+  return {
+    key: sp.key,
+    market: sp.market,
+    baseAsset: sp.baseAsset,
+    indexToken: sp.indexToken,
+    side: sp.side,
+    size: sp.size,
+    sizeRaw: toRaw(sp.size),
+    collateral: sp.collateral,
+    collateralRaw: toRaw(sp.collateral),
+    entryPrice: sp.entryPrice,
+    entryPriceRaw: toRaw(sp.entryPrice),
+    markPrice: sp.entryPrice,
+    leverage: sp.leverage,
+    pnl: 0,
+    pnlPercent: 0,
+    liquidationPrice: sp.liquidationPrice,
+    openFee: sp.openFee,
+    accumulatedFunding: sp.accumulatedFunding,
+    openedAt: sp.openedAt,
+  }
+}
+
+function saveToStorage(): void {
+  try {
+    const envelope: ClientStateEnvelope = {
+      version: CLIENT_STATE_VERSION,
+      savedAt: Date.now(),
+      balance: DEMO_ACCOUNT.balance,
+      plpBalance: DEMO_ACCOUNT.plpBalance,
+      positions: demoPositions.map(toStoredPosition),
+      orders: [...demoOrders],
+      history: [...demoHistory],
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
+  } catch {
+    // Quota exceeded, private browsing, storage disabled — swallow and let
+    // the in-memory copy keep serving requests. The next save attempt may
+    // succeed if the user frees storage.
+  }
+}
+
+function loadFromStorage(): void {
+  let raw: string | null = null
+  try {
+    raw = localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return
+  }
+  if (!raw) return
+
+  let envelope: ClientStateEnvelope
+  try {
+    envelope = JSON.parse(raw) as ClientStateEnvelope
+  } catch {
+    // Corrupt blob — drop it and start fresh rather than failing forever.
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+    return
+  }
+
+  if (envelope.version !== CLIENT_STATE_VERSION) {
+    // Schema bumped. Drop the old blob, no migration.
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+    return
+  }
+
+  // Hydrate in place so any hooks that captured the array references still
+  // see the loaded data.
+  if (typeof envelope.balance === 'number') {
+    DEMO_ACCOUNT.balance = envelope.balance
+  }
+  if (typeof envelope.plpBalance === 'number') {
+    DEMO_ACCOUNT.plpBalance = envelope.plpBalance
+  }
+
+  if (Array.isArray(envelope.positions)) {
+    demoPositions.length = 0
+    for (const sp of envelope.positions) {
+      demoPositions.push(fromStoredPosition(sp))
+    }
+  }
+
+  if (Array.isArray(envelope.orders)) {
+    demoOrders.length = 0
+    for (const o of envelope.orders) demoOrders.push(o)
+  }
+
+  if (Array.isArray(envelope.history)) {
+    demoHistory.length = 0
+    for (const h of envelope.history) demoHistory.push(h)
+  }
+
+  // Note: we don't bump changeVersion here. Hooks poll getDemoVersion on
+  // their own interval and will pick up the loaded state on next tick.
+  // Bumping here would trigger a save before the first mutation, which is
+  // harmless but wasteful.
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Every state mutation must call this instead of `changeVersion++`. It
+ * bumps the version so subscribers re-render AND schedules a debounced
+ * save so we don't thrash localStorage during batched mutations.
+ */
+function markDirty(): void {
+  changeVersion++
+  if (saveTimer) return
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    saveToStorage()
+  }, SAVE_DEBOUNCE_MS)
+}
+
+// Guard: only run in a real browser. SSR / test environments that lack
+// `window.localStorage` skip the load path and continue with in-memory state.
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  loadFromStorage()
+}
+
+/** Wipe the persisted client state. Useful for testing or a "reset" button. */
+export function clearClientStateStorage(): void {
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
