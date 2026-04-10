@@ -48,14 +48,28 @@ export interface TickerData {
 
 type Subscriber = (tickers: Map<string, TickerData>) => void
 
-// React 18 StrictMode double-mounts every effect during dev: mount → unmount
-// → mount in quick succession. Without a grace window the singleton would
-// start a WebSocket on the first mount, close it during the cleanup — while
-// the socket is still in CONNECTING state, which the browser warns about
-// with "WebSocket is closed before the connection is established" — then
-// immediately reopen on the second mount. The grace window lets the second
-// mount cancel the pending close so the connection survives the dance.
-const DISCONNECT_GRACE_MS = 300
+// Grace window before we actually close an idle socket.
+//
+// Two problems this window solves:
+//
+//   1. React 18 StrictMode double-mounts every effect during dev (mount →
+//      unmount → mount in quick succession). Without a grace window the
+//      singleton would start a WebSocket on the first mount, close it during
+//      the cleanup — while the socket is still in CONNECTING state, which
+//      the browser warns about ("WebSocket is closed before the connection
+//      is established") — then immediately reopen on the second mount.
+//
+//   2. Mode switches (demo ↔ live) briefly drop subscriber count to 0.
+//      Demo mode uses binanceTicker via usePrices/useMarketStats/useTradeFeed,
+//      live mode uses the backend oracle instead. Toggling modes would
+//      churn the socket on every switch, and pings from Binance arriving
+//      in the close window would log "Ping received after close".
+//
+// 30 seconds is well above StrictMode's ~20ms re-mount and comfortably above
+// mode-switch latency. Only a genuine page navigation or true inactivity
+// closes the socket. Binance's public stream is free and rate-unmetered, so
+// the cost of keeping the socket warm is zero.
+const DISCONNECT_GRACE_MS = 30_000
 
 class BinanceTickerStream {
   private ws: WebSocket | null = null
@@ -238,8 +252,14 @@ class BinanceTickerStream {
       this.rafId = 0
     }
     if (this.ws) {
-      this.ws.onclose = null // prevent reconnect
-      this.ws.close()
+      // Detach all handlers before closing so any in-flight frame (ping,
+      // delayed message) doesn't get routed into our code while the close
+      // handshake is in progress.
+      this.ws.onclose = null
+      this.ws.onmessage = null
+      this.ws.onerror = null
+      this.ws.onopen = null
+      try { this.ws.close() } catch { /* ignore */ }
       this.ws = null
     }
     this.connecting = false

@@ -61,10 +61,11 @@ export type WsConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnec
 type StateListener = (state: WsConnectionState) => void
 
 // Grace window before closing a socket that just lost its last subscriber.
-// Guards against React 18 StrictMode double-mounting — see binanceTicker.ts
-// for the full explanation. Same fix applies here because both singletons
-// have the "disconnect-on-last-unsubscribe" shape.
-const DISCONNECT_GRACE_MS = 300
+// Guards against StrictMode double-mounting AND mode switches that briefly
+// drop the subscriber count to 0. See binanceTicker.ts for the full write-up.
+// 30 seconds is well above either pattern's latency; the backend WS is
+// cheap to keep warm across navigation.
+const DISCONNECT_GRACE_MS = 30_000
 
 class PerpDexWsClient {
   private ws: WebSocket | null = null
@@ -266,7 +267,13 @@ class PerpDexWsClient {
       this.disconnectTimer = null
     }
     if (this.ws) {
-      this.ws.onclose = null // suppress reconnect
+      // Detach all handlers before closing so any in-flight frame (ping,
+      // delayed message) doesn't get routed into our code during the close
+      // handshake.
+      this.ws.onclose = null
+      this.ws.onmessage = null
+      this.ws.onerror = null
+      this.ws.onopen = null
       try { this.ws.close() } catch { /* ignore */ }
       this.ws = null
     }
