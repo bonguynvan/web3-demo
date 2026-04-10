@@ -130,10 +130,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResponse
 export const apiClient = {
   baseUrl: BASE_URL,
 
-  /** Health check — returns true when the server responds. */
+  /**
+   * Health check — returns true when the server responds with `ok: true`.
+   *
+   * Bypasses the generic `request<T>()` wrapper because `/health` returns a
+   * bare `{ ok: true, wsSubscribers: N }` shape, NOT the `{success, data}`
+   * envelope the `/api/*` routes use. Routing it through `request()` would
+   * always fall into the "no success field → HTTP 200 as error" branch and
+   * falsely report the backend as down.
+   */
   async health(): Promise<boolean> {
-    const res = await request<{ ok: boolean }>('/health')
-    return res.success && res.data.ok === true
+    try {
+      const res = await fetch(`${BASE_URL}/health`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) return false
+      const body = (await res.json()) as { ok?: boolean }
+      return body?.ok === true
+    } catch {
+      return false
+    }
   },
 
   /** Listed markets. */
