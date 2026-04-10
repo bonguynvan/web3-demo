@@ -60,11 +60,18 @@ export type WsConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnec
 
 type StateListener = (state: WsConnectionState) => void
 
+// Grace window before closing a socket that just lost its last subscriber.
+// Guards against React 18 StrictMode double-mounting — see binanceTicker.ts
+// for the full explanation. Same fix applies here because both singletons
+// have the "disconnect-on-last-unsubscribe" shape.
+const DISCONNECT_GRACE_MS = 300
+
 class PerpDexWsClient {
   private ws: WebSocket | null = null
   private connecting = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null
 
   private priceListeners = new Set<PriceListener>()
   private tradeSubs = new Set<TradeSubscription>()
@@ -128,14 +135,27 @@ class PerpDexWsClient {
   // ─── Internal ────────────────────────────────────────────────────────────
 
   private ensureConnected(): void {
+    // Cancel any pending disconnect — a re-subscribe within the grace
+    // window means we should keep the existing socket alive.
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer)
+      this.disconnectTimer = null
+    }
     if (this.ws || this.connecting) return
     this.connect()
   }
 
   private maybeDisconnect(): void {
-    if (this.priceListeners.size === 0 && this.tradeSubs.size === 0) {
-      this.disconnect()
-    }
+    if (this.priceListeners.size + this.tradeSubs.size > 0) return
+    // Defer the disconnect. If nothing re-subscribes within the grace
+    // window, the timer fires and actually closes the socket.
+    if (this.disconnectTimer) return
+    this.disconnectTimer = setTimeout(() => {
+      this.disconnectTimer = null
+      if (this.priceListeners.size === 0 && this.tradeSubs.size === 0) {
+        this.disconnect()
+      }
+    }, DISCONNECT_GRACE_MS)
   }
 
   private connect(): void {
@@ -240,6 +260,10 @@ class PerpDexWsClient {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
+    }
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer)
+      this.disconnectTimer = null
     }
     if (this.ws) {
       this.ws.onclose = null // suppress reconnect

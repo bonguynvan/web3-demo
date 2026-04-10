@@ -48,6 +48,15 @@ export interface TickerData {
 
 type Subscriber = (tickers: Map<string, TickerData>) => void
 
+// React 18 StrictMode double-mounts every effect during dev: mount → unmount
+// → mount in quick succession. Without a grace window the singleton would
+// start a WebSocket on the first mount, close it during the cleanup — while
+// the socket is still in CONNECTING state, which the browser warns about
+// with "WebSocket is closed before the connection is established" — then
+// immediately reopen on the second mount. The grace window lets the second
+// mount cancel the pending close so the connection survives the dance.
+const DISCONNECT_GRACE_MS = 300
+
 class BinanceTickerStream {
   private ws: WebSocket | null = null
   private tickers = new Map<string, TickerData>()
@@ -55,6 +64,10 @@ class BinanceTickerStream {
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private connecting = false
+
+  // Pending deferred disconnect. Set when subscribers drop to 0; cleared
+  // when a new subscriber arrives inside the grace window.
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null
 
   // Notification batching: collect updates, flush once per frame
   private dirty = false
@@ -64,7 +77,15 @@ class BinanceTickerStream {
   subscribe(cb: Subscriber): () => void {
     this.subscribers.add(cb)
 
-    // Lazy connect on first subscriber
+    // Cancel any pending disconnect — a re-mount within the grace window
+    // means we should keep the existing socket alive instead of churning it.
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer)
+      this.disconnectTimer = null
+    }
+
+    // Lazy connect on first subscriber (unless we already have a live socket
+    // from a previous session the grace window just rescued).
     if (this.subscribers.size === 1 && !this.ws && !this.connecting) {
       this.connect()
     }
@@ -76,9 +97,14 @@ class BinanceTickerStream {
 
     return () => {
       this.subscribers.delete(cb)
-      // Disconnect when last subscriber leaves
-      if (this.subscribers.size === 0) {
-        this.disconnect()
+      // Defer the disconnect — see DISCONNECT_GRACE_MS comment above.
+      if (this.subscribers.size === 0 && !this.disconnectTimer) {
+        this.disconnectTimer = setTimeout(() => {
+          this.disconnectTimer = null
+          if (this.subscribers.size === 0) {
+            this.disconnect()
+          }
+        }, DISCONNECT_GRACE_MS)
       }
     }
   }
@@ -202,6 +228,10 @@ class BinanceTickerStream {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
+    }
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer)
+      this.disconnectTimer = null
     }
     if (this.rafId) {
       cancelAnimationFrame(this.rafId)
