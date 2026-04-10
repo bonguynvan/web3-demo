@@ -16,6 +16,7 @@ import { useMarketWs } from './hooks/useMarketWs'
 import { useTradeFeed } from './hooks/useTradeFeed'
 import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from './hooks/useLiquidationAlerts'
+import { useDocumentTitle } from './hooks/useDocumentTitle'
 import { useTradingStore } from './store/tradingStore'
 
 function App() {
@@ -37,6 +38,10 @@ function App() {
   // Warn the user before the liquidator keeper force-closes a position.
   // Informational only — no auto-close. See hook file for threshold details.
   useLiquidationAlerts()
+
+  // Reflect the live price + active market in the browser tab title so users
+  // can monitor multiple charts at once.
+  useDocumentTitle()
 
   return (
     <div className="flex flex-col h-screen bg-surface">
