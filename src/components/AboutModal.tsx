@@ -21,7 +21,7 @@ interface AboutModalProps {
 export function AboutModal({ open, onClose }: AboutModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="About Perp DEX" maxWidth="max-w-lg">
-      <div className="space-y-5 text-xs leading-relaxed text-text-secondary">
+      <div className="space-y-5 text-xs leading-relaxed text-text-secondary max-h-[70dvh] overflow-y-auto">
         {/* Hero */}
         <div className="flex items-start gap-3 pb-4 border-b border-border">
           <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
