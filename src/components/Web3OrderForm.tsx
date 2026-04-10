@@ -51,7 +51,7 @@ export function Web3OrderForm() {
 
   const { dollars: onChainBalance } = useUsdcBalance()
   const { getPrice } = usePrices()
-  const { status, error, increasePosition, needsApproval } = useTradeExecution()
+  const { status, error, lastTxHash, increasePosition, needsApproval } = useTradeExecution()
 
   // MT4-style hotkeys: B/S long/short, M/L market/limit, 1-5 leverage,
   // Esc clears the form. Suppressed while a text input is focused.
@@ -121,17 +121,22 @@ export function Web3OrderForm() {
   useEffect(() => {
     if (prevStatusRef.current !== status) {
       if (status === 'success') {
-        toast.success(
-          `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`,
-          `$${formatUsd(notional)} at ${leverage}x`
-        )
+        const title = `${orderSide === 'long' ? 'Long' : 'Short'} ${selectedMarket.baseAsset} opened`
+        const detail = `$${formatUsd(notional)} at ${leverage}x`
+        // Show the receipt link when we have a tx hash (live mode); fall
+        // back to a plain success toast in demo mode where there's no tx.
+        if (lastTxHash) {
+          toast.successWithTx(title, detail, lastTxHash)
+        } else {
+          toast.success(title, detail)
+        }
         setOrderSize('')
       } else if (status === 'error' && error) {
         toast.error('Trade failed', error)
       }
     }
     prevStatusRef.current = status
-  }, [status, error, orderSide, selectedMarket.baseAsset, notional, leverage, setOrderSize, toast])
+  }, [status, error, lastTxHash, orderSide, selectedMarket.baseAsset, notional, leverage, setOrderSize, toast])
 
   // ─── Submit handler ───
   const handleSubmitOrder = useCallback(async () => {

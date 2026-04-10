@@ -73,6 +73,10 @@ export function useTradeExecution() {
 
   const [status, setStatus] = useState<TradeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  // Hash of the most recently submitted trade tx. Cleared when a new trade
+  // starts so consumers can read it after `status === 'success'` without
+  // worrying about stale values from previous closes.
+  const [lastTxHash, setLastTxHash] = useState<`0x${string}` | null>(null)
 
   const contracts = useMemo(() => {
     try {
@@ -130,6 +134,7 @@ export function useTradeExecution() {
     if (isBusy) return // re-entry guard
 
     setError(null)
+    setLastTxHash(null)
     const collateralUsdc = dollarsToUsdc(params.collateralUsd)
     const sizeDelta = BigInt(Math.round(params.sizeUsd)) * PRICE_PRECISION
 
@@ -170,6 +175,7 @@ export function useTradeExecution() {
         functionName: 'increasePosition',
         args: [params.indexToken, collateralUsdc, sizeDelta, params.isLong, acceptablePrice],
       })
+      setLastTxHash(hash)
 
       setStatus('confirming')
       await waitForTxReceipt(config, hash)
@@ -190,6 +196,7 @@ export function useTradeExecution() {
     if (isBusy) return // re-entry guard
 
     setError(null)
+    setLastTxHash(null)
 
     const slippageBps = BigInt(params.slippageBps ?? 30)
     const slippageAmount = (params.currentPriceRaw * slippageBps) / 10_000n
@@ -234,6 +241,7 @@ export function useTradeExecution() {
           params.receiver,
         ],
       })
+      setLastTxHash(hash)
 
       setStatus('confirming')
       await waitForTxReceipt(config, hash)
@@ -252,6 +260,9 @@ export function useTradeExecution() {
   return {
     status,
     error,
+    /** Hash of the most recently submitted trade tx (open or close).
+     *  Null when no trade has been started or after a fresh start clears it. */
+    lastTxHash,
     needsApproval,
     increasePosition,
     decreasePosition,

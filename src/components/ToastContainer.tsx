@@ -10,9 +10,19 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, Info, X, ExternalLink } from 'lucide-react'
 import { useToastStore, type Toast, type ToastType } from '../store/toastStore'
 import { cn } from '../lib/format'
+
+// Optional explorer base URL — when set, tx hashes link out to it. Empty
+// string (or undefined) hides the link and shows the hash inline so local
+// Anvil sessions still get a useful receipt without needing a real explorer.
+const EXPLORER_URL = (import.meta.env.VITE_EXPLORER_URL ?? '').replace(/\/+$/, '')
+
+function shortHash(hash: string): string {
+  if (hash.length <= 14) return hash
+  return `${hash.slice(0, 8)}…${hash.slice(-6)}`
+}
 
 const ICONS: Record<ToastType, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -128,6 +138,7 @@ function ToastItem({ toast }: { toast: Toast }) {
           {toast.message && (
             <div className="text-xs text-white/70 mt-0.5 truncate">{toast.message}</div>
           )}
+          {toast.txHash && <TxReceiptRow txHash={toast.txHash} />}
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); handleDismiss() }}
@@ -146,6 +157,40 @@ function ToastItem({ toast }: { toast: Toast }) {
           />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Compact "view tx" row for transaction-bearing success toasts.
+ * - When VITE_EXPLORER_URL is set: clickable external link
+ * - When unset (local Anvil): displays the truncated hash inline as monospace
+ */
+function TxReceiptRow({ txHash }: { txHash: string }) {
+  const display = shortHash(txHash)
+
+  if (EXPLORER_URL) {
+    return (
+      <a
+        href={`${EXPLORER_URL}/tx/${txHash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-mono text-white/80 hover:text-white underline underline-offset-2 transition-colors"
+      >
+        {display}
+        <ExternalLink className="w-3 h-3" />
+      </a>
+    )
+  }
+
+  return (
+    <div
+      className="inline-block mt-1.5 text-[10px] font-mono text-white/70 select-all"
+      onClick={e => e.stopPropagation()}
+      title={txHash}
+    >
+      tx: {display}
     </div>
   )
 }
