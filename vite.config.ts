@@ -7,9 +7,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      // Public aliases used by dapp-demo imports
       '@chart-lib/library': path.resolve(__dirname, '../chart-lib/packages/library/src'),
       '@chart-lib/core': path.resolve(__dirname, '../chart-lib/packages/core/src'),
       '@chart-lib/commons': path.resolve(__dirname, '../chart-lib/packages/commons/src'),
+      // Internal aliases used within chart-lib packages (@tradecanvas scope)
+      '@tradecanvas/chart': path.resolve(__dirname, '../chart-lib/packages/library/src'),
+      '@tradecanvas/core': path.resolve(__dirname, '../chart-lib/packages/core/src'),
+      '@tradecanvas/commons': path.resolve(__dirname, '../chart-lib/packages/commons/src'),
     },
   },
   build: {

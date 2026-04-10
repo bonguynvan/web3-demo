@@ -1,5 +1,9 @@
 /**
- * wagmi + viem configuration for the Perp DEX.
+ * wagmi + viem configuration for the DeFi Trading Platform.
+ *
+ * Supports two chains:
+ * - Foundry (Anvil) — local dev with demo accounts
+ * - Arbitrum One — production (spot trading via 0x, perps via GMX-style contracts)
  *
  * Supports two connection modes:
  * 1. MetaMask/Rabby (injected) — for real wallet users
@@ -7,12 +11,12 @@
  */
 
 import { http, createConfig } from 'wagmi'
-import { foundry } from 'wagmi/chains'
+import { foundry, arbitrum } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
 import { demoConnector, DEMO_ACCOUNTS } from './demoConnector'
 
 export const wagmiConfig = createConfig({
-  chains: [foundry],
+  chains: [foundry, arbitrum],
   connectors: [
     // Demo accounts first (most convenient for dev)
     ...DEMO_ACCOUNTS.map(account => demoConnector({ account })),
@@ -26,6 +30,10 @@ export const wagmiConfig = createConfig({
       retryCount: 0,
       timeout: 5_000,
     }),
+    [arbitrum.id]: http(
+      import.meta.env.VITE_ARBITRUM_RPC_URL || undefined,
+      { retryCount: 2, timeout: 10_000 },
+    ),
   },
   // Disable wagmi's auto block-number polling (was 4s by default)
   // Components that need fresh data poll independently.

@@ -8,9 +8,10 @@
 import { useState } from 'react'
 import { Web3OrderForm } from './Web3OrderForm'
 import { LpPanel } from './LpPanel'
+import { SpotSwapForm } from './spot/SpotSwapForm'
 import { cn } from '../lib/format'
 
-type PanelTab = 'trade' | 'pool'
+type PanelTab = 'trade' | 'spot' | 'pool'
 
 export function TradePanel() {
   const [tab, setTab] = useState<PanelTab>('trade')
@@ -19,7 +20,7 @@ export function TradePanel() {
     <div className="flex flex-col h-full">
       {/* Top tabs */}
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'pool'] as const).map(t => (
+        {(['trade', 'spot', 'pool'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -38,7 +39,9 @@ export function TradePanel() {
       {/* Active panel — only mount the visible one to avoid duplicate
           contract reads from the inactive form. */}
       <div className="flex-1 min-h-0">
-        {tab === 'trade' ? <Web3OrderForm /> : <LpPanel />}
+        {tab === 'trade' && <Web3OrderForm />}
+        {tab === 'spot' && <SpotSwapForm />}
+        {tab === 'pool' && <LpPanel />}
       </div>
     </div>
   )
