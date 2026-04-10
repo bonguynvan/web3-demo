@@ -1,14 +1,15 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
-import { Loader2, Wallet, LineChart, Inbox, History as HistoryIcon } from 'lucide-react'
+import { Loader2, Wallet, LineChart, Inbox, History as HistoryIcon, AlertTriangle } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution } from '../hooks/useTradeExecution'
 import { useTradeHistory, type TradeHistoryEntry } from '../hooks/useTradeHistory'
 import { cn, formatUsd } from '../lib/format'
 import { useIsDemo } from '../store/modeStore'
-import { closeDemoPosition, getDemoOrders, cancelDemoOrder, getDemoHistory, type DemoOrder, type DemoTradeHistory } from '../lib/demoData'
+import { closeDemoPosition, getDemoOrders, cancelDemoOrder, getDemoHistory, FEES, type DemoOrder, type DemoTradeHistory } from '../lib/demoData'
 import { useToast } from '../store/toastStore'
+import { Modal } from './ui/Modal'
 
 /**
  * Reusable empty state used across positions / orders / history tabs.
@@ -122,55 +123,7 @@ export function PositionsTable() {
 }
 
 function PositionRow({ position }: { position: OnChainPosition }) {
-  const { address } = useAccount()
-  const { getPrice } = usePrices()
-  const { decreasePosition } = useTradeExecution()
-  const isDemo = useIsDemo()
-  const toast = useToast()
-  const [closing, setClosing] = useState(false)
-  const [showClose, setShowClose] = useState(false)
-  const [closePct, setClosePct] = useState(100)
-
-  const handleClose = useCallback(async () => {
-    setClosing(true)
-    try {
-      if (isDemo) {
-        // Demo mode — close from demo store
-        await new Promise(r => setTimeout(r, 500))
-        const result = closeDemoPosition(position.key, closePct)
-        if (result) {
-          toast.success(
-            `Closed ${closePct}% of ${position.market}`,
-            `P&L: ${result.realizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(result.realizedPnl))} • Fee: $${formatUsd(result.closeFee)}`
-          )
-        }
-      } else {
-        // Live mode
-        if (!address) return
-        const currentPrice = getPrice(position.market)
-        if (!currentPrice) return
-
-        const sizeDelta = closePct === 100
-          ? position.sizeRaw
-          : (position.sizeRaw * BigInt(closePct)) / 100n
-
-        await decreasePosition({
-          indexToken: position.indexToken,
-          collateralDelta: 0n,
-          sizeDelta,
-          isLong: position.side === 'long',
-          currentPriceRaw: currentPrice.raw,
-          receiver: address,
-        })
-      }
-      setShowClose(false)
-    } finally {
-      setClosing(false)
-    }
-  }, [isDemo, address, position, getPrice, decreasePosition, closePct, toast])
-
-  const closeSize = position.size * closePct / 100
-  const closePnl = position.pnl * closePct / 100
+  const [showCloseModal, setShowCloseModal] = useState(false)
 
   return (
     <>
@@ -199,77 +152,242 @@ function PositionRow({ position }: { position: OnChainPosition }) {
         <td className="px-3 py-2.5 text-right font-mono text-text-secondary">${formatUsd(position.collateral)}</td>
         <td className="px-3 py-2.5 text-center">
           <button
-            onClick={() => setShowClose(v => !v)}
-            className={cn(
-              'text-[10px] border px-2 py-1 rounded transition-colors cursor-pointer',
-              showClose
-                ? 'text-accent border-accent/30 bg-accent-dim'
-                : 'text-short border-short/30 hover:border-short/60 hover:text-short/80'
-            )}
+            onClick={() => setShowCloseModal(true)}
+            className="text-[10px] border px-2 py-1 rounded transition-colors cursor-pointer text-short border-short/30 hover:border-short/60 hover:bg-short-dim"
           >
             Close
           </button>
         </td>
       </tr>
 
-      {/* Expanded close panel */}
-      {showClose && (
-        <tr className="border-b border-border bg-panel-light/50">
-          <td colSpan={9} className="px-3 py-2">
-            <div className="flex items-center gap-4">
-              {/* Close % presets */}
-              <div className="flex items-center gap-1">
-                {[25, 50, 75, 100].map(pct => (
-                  <button
-                    key={pct}
-                    onClick={() => setClosePct(pct)}
-                    className={cn(
-                      'text-[10px] px-2 py-1 rounded transition-colors cursor-pointer',
-                      closePct === pct ? 'bg-short text-white' : 'bg-surface text-text-muted hover:text-text-primary'
-                    )}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-              </div>
-
-              {/* Slider */}
-              <input
-                type="range"
-                min={1}
-                max={100}
-                value={closePct}
-                onChange={e => setClosePct(Number(e.target.value))}
-                className="flex-1 accent-short h-1 cursor-pointer"
-              />
-
-              {/* Close info */}
-              <div className="text-[10px] text-text-muted font-mono">
-                ${formatUsd(closeSize)} size
-              </div>
-              <div className={cn('text-[10px] font-mono font-medium', closePnl >= 0 ? 'text-long' : 'text-short')}>
-                {closePnl >= 0 ? '+' : ''}${formatUsd(closePnl)} PnL
-              </div>
-
-              {/* Execute */}
-              <button
-                onClick={handleClose}
-                disabled={closing}
-                className="text-[10px] bg-short text-white px-3 py-1 rounded hover:bg-short/80 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {closing ? <Loader2 className="w-3 h-3 animate-spin inline" /> : `Close ${closePct}%`}
-              </button>
-              <button
-                onClick={() => setShowClose(false)}
-                className="text-[10px] text-text-muted hover:text-text-primary cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          </td>
-        </tr>
-      )}
+      <ClosePositionModal
+        open={showCloseModal}
+        onClose={() => setShowCloseModal(false)}
+        position={position}
+      />
     </>
+  )
+}
+
+/**
+ * Confirmation modal for closing (or partially closing) a position.
+ *
+ * Gates the destructive action behind an explicit click and shows a clear
+ * preview of what the user is about to lock in: notional being closed,
+ * estimated PnL, fee, and the resulting net cash return. Resets internal
+ * state on close so reopening starts at 100% again.
+ */
+function ClosePositionModal({
+  open,
+  onClose,
+  position,
+}: {
+  open: boolean
+  onClose: () => void
+  position: OnChainPosition
+}) {
+  const { address } = useAccount()
+  const { getPrice } = usePrices()
+  const { decreasePosition } = useTradeExecution()
+  const isDemo = useIsDemo()
+  const toast = useToast()
+  const [closing, setClosing] = useState(false)
+  const [closePct, setClosePct] = useState(100)
+
+  // Reset slider when the modal opens so each close is a fresh decision.
+  useEffect(() => {
+    if (open) setClosePct(100)
+  }, [open])
+
+  const closeSize = position.size * (closePct / 100)
+  const closePnl = position.pnl * (closePct / 100)
+  const closeFee = closeSize * (FEES.closeFeeBps / 10_000)
+  const closedCollateral = position.collateral * (closePct / 100)
+  const netReturn = closedCollateral + closePnl - closeFee
+  const isFullClose = closePct === 100
+
+  const handleConfirm = useCallback(async () => {
+    setClosing(true)
+    try {
+      if (isDemo) {
+        await new Promise(r => setTimeout(r, 500))
+        const result = closeDemoPosition(position.key, closePct)
+        if (result) {
+          toast.success(
+            `Closed ${closePct}% of ${position.market}`,
+            `P&L: ${result.realizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(result.realizedPnl))} • Fee: $${formatUsd(result.closeFee)}`,
+          )
+        }
+      } else {
+        if (!address) return
+        const currentPrice = getPrice(position.market)
+        if (!currentPrice) return
+
+        const sizeDelta = closePct === 100
+          ? position.sizeRaw
+          : (position.sizeRaw * BigInt(closePct)) / 100n
+
+        await decreasePosition({
+          indexToken: position.indexToken,
+          collateralDelta: 0n,
+          sizeDelta,
+          isLong: position.side === 'long',
+          currentPriceRaw: currentPrice.raw,
+          receiver: address,
+        })
+      }
+      onClose()
+    } finally {
+      setClosing(false)
+    }
+  }, [isDemo, address, position, getPrice, decreasePosition, closePct, toast, onClose])
+
+  return (
+    <Modal
+      open={open}
+      onClose={closing ? () => {} : onClose}
+      title={isFullClose ? 'Close position' : 'Reduce position'}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            disabled={closing}
+            className="px-3 py-1.5 text-xs text-text-muted hover:text-text-primary transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={closing}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-short hover:bg-short/90 rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {closing && <Loader2 className="w-3 h-3 animate-spin" />}
+            {closing ? 'Closing…' : isFullClose ? `Close all of ${position.market}` : `Close ${closePct}%`}
+          </button>
+        </>
+      }
+    >
+      {/* Position summary */}
+      <div className="bg-surface/50 rounded-lg p-3 mb-4 border border-border/60">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-text-primary">{position.market}</span>
+            <span className={cn(
+              'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
+              position.side === 'long' ? 'bg-long-dim text-long' : 'bg-short-dim text-short',
+            )}>
+              {position.side} {position.leverage}
+            </span>
+          </div>
+          <div className="text-right">
+            <div className={cn('font-mono text-sm font-semibold', position.pnl >= 0 ? 'text-long' : 'text-short')}>
+              {position.pnl >= 0 ? '+' : ''}${formatUsd(position.pnl)}
+            </div>
+            <div className={cn('text-[10px] font-mono', position.pnlPercent >= 0 ? 'text-long' : 'text-short')}>
+              {position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(2)}%
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-[10px]">
+          <CloseStat label="Size" value={`$${formatUsd(position.size)}`} />
+          <CloseStat label="Entry" value={`$${formatUsd(position.entryPrice)}`} />
+          <CloseStat label="Mark" value={`$${formatUsd(position.markPrice)}`} />
+        </div>
+      </div>
+
+      {/* Close % control */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] text-text-muted uppercase tracking-wider font-medium">Close amount</span>
+          <span className="text-sm font-mono font-semibold text-text-primary">{closePct}%</span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={100}
+          value={closePct}
+          onChange={e => setClosePct(Number(e.target.value))}
+          className="w-full accent-short h-1 cursor-pointer mb-2"
+        />
+        <div className="grid grid-cols-4 gap-1.5">
+          {[25, 50, 75, 100].map(pct => (
+            <button
+              key={pct}
+              onClick={() => setClosePct(pct)}
+              className={cn(
+                'text-[11px] py-1.5 rounded transition-colors cursor-pointer font-medium',
+                closePct === pct ? 'bg-short text-white' : 'bg-surface text-text-muted hover:bg-panel-light hover:text-text-primary',
+              )}
+            >
+              {pct === 100 ? 'Max' : `${pct}%`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Estimated outcome */}
+      <div className="space-y-1.5 text-xs border-t border-border pt-3">
+        <SummaryRow label="Size to close" value={`$${formatUsd(closeSize)}`} />
+        <SummaryRow
+          label="Realised P&L"
+          value={`${closePnl >= 0 ? '+' : ''}$${formatUsd(closePnl)}`}
+          valueClassName={closePnl >= 0 ? 'text-long' : 'text-short'}
+        />
+        <SummaryRow label="Close fee" value={`-$${formatUsd(closeFee)}`} muted />
+        <div className="pt-2 mt-2 border-t border-border">
+          <SummaryRow
+            label="Net return to wallet"
+            value={`$${formatUsd(netReturn)}`}
+            valueClassName="text-text-primary font-semibold"
+            bold
+          />
+        </div>
+      </div>
+
+      {isFullClose && (
+        <div className="flex items-start gap-2 mt-3 px-2.5 py-2 bg-amber-400/10 border border-amber-400/30 rounded text-[10px] text-amber-400 leading-relaxed">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>This closes the entire position. Any pending TP/SL orders for this slot will be cancelled.</span>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function CloseStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[9px] text-text-muted uppercase tracking-wider">{label}</div>
+      <div className="font-mono text-text-secondary">{value}</div>
+    </div>
+  )
+}
+
+function SummaryRow({
+  label,
+  value,
+  valueClassName,
+  muted,
+  bold,
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+  muted?: boolean
+  bold?: boolean
+}) {
+  return (
+    <div className="flex justify-between items-center gap-2">
+      <span className="text-text-muted text-[10px] uppercase tracking-wider">{label}</span>
+      <span className={cn(
+        'font-mono tabular-nums',
+        bold ? 'text-sm' : 'text-xs',
+        muted && 'text-text-muted',
+        valueClassName,
+      )}>
+        {value}
+      </span>
+    </div>
   )
 }
 
