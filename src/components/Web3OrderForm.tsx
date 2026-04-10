@@ -21,17 +21,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChainId } from 'wagmi'
-import { Loader2, Check, X, ChevronDown } from 'lucide-react'
+import { Loader2, Check, X, ChevronDown, Keyboard } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
 import { useTradeExecution, type TradeStatus } from '../hooks/useTradeExecution'
+import { useOrderFormShortcuts } from '../hooks/useOrderFormShortcuts'
 import { getContracts, getMarkets } from '../lib/contracts'
 import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
 import { useIsDemo } from '../store/modeStore'
 import { addDemoPosition, addDemoPendingLimit, DEMO_ACCOUNT, FEES } from '../lib/demoData'
 import { Tooltip } from './ui/Tooltip'
+import { Dropdown } from './ui/Dropdown'
 
 type AmountUnit = 'usdc' | 'coin'
 
@@ -50,6 +52,10 @@ export function Web3OrderForm() {
   const { dollars: onChainBalance } = useUsdcBalance()
   const { getPrice } = usePrices()
   const { status, error, increasePosition, needsApproval } = useTradeExecution()
+
+  // MT4-style hotkeys: B/S long/short, M/L market/limit, 1-5 leverage,
+  // Esc clears the form. Suppressed while a text input is focused.
+  useOrderFormShortcuts()
 
   const currentPrice = getPrice(selectedMarket.symbol)
   const markPrice = currentPrice?.price ?? 0
@@ -230,8 +236,8 @@ export function Web3OrderForm() {
 
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
-      {/* Side Toggle */}
-      <div className="flex p-1.5 gap-1 border-b border-border">
+      {/* Side Toggle + keyboard cheat sheet */}
+      <div className="flex p-1.5 gap-1 border-b border-border items-center">
         <button
           onClick={() => setOrderSide('long')}
           className={cn(
@@ -254,6 +260,7 @@ export function Web3OrderForm() {
         >
           Short
         </button>
+        <KeyboardShortcutsButton />
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -574,6 +581,62 @@ function SummaryRow({ label, value, muted, bold, className, tooltip }: {
         bold ? 'text-text-primary font-semibold' : muted ? 'text-text-muted' : 'text-text-secondary',
         className
       )}>{value}</span>
+    </div>
+  )
+}
+
+/**
+ * Compact dropdown that shows the keyboard shortcut cheat sheet.
+ * Discoverable affordance — without it, users wouldn't know the hotkeys
+ * we wired up via useOrderFormShortcuts exist.
+ */
+function KeyboardShortcutsButton() {
+  return (
+    <Dropdown
+      trigger={<Keyboard className="w-3.5 h-3.5" />}
+      align="right"
+      width="min-w-[220px]"
+    >
+      <div className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+        <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">
+          Keyboard shortcuts
+        </div>
+        <div className="space-y-1.5 text-[11px]">
+          <ShortcutRow keys={['B']} label="Long" />
+          <ShortcutRow keys={['S']} label="Short" />
+          <ShortcutRow keys={['M']} label="Market" />
+          <ShortcutRow keys={['L']} label="Limit" />
+          <div className="border-t border-border my-1" />
+          <ShortcutRow keys={['1']} label="1× leverage" />
+          <ShortcutRow keys={['2']} label="2× leverage" />
+          <ShortcutRow keys={['3']} label="5× leverage" />
+          <ShortcutRow keys={['4']} label="10× leverage" />
+          <ShortcutRow keys={['5']} label="20× leverage" />
+          <div className="border-t border-border my-1" />
+          <ShortcutRow keys={['Esc']} label="Clear form" />
+        </div>
+        <div className="text-[9px] text-text-muted mt-2.5 leading-relaxed">
+          Shortcuts are paused while typing in an input.
+        </div>
+      </div>
+    </Dropdown>
+  )
+}
+
+function ShortcutRow({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-text-secondary">{label}</span>
+      <div className="flex items-center gap-1">
+        {keys.map(k => (
+          <kbd
+            key={k}
+            className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1 text-[10px] font-mono text-text-primary bg-surface border border-border rounded"
+          >
+            {k}
+          </kbd>
+        ))}
+      </div>
     </div>
   )
 }
