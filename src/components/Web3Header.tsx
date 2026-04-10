@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
-import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings } from 'lucide-react'
+import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -21,6 +21,7 @@ import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
 import { SettingsModal } from './SettingsModal'
+import { AboutModal } from './AboutModal'
 
 const CHAIN_NAMES: Record<number, string> = {
   31337: 'Anvil',
@@ -82,6 +83,7 @@ export function Web3Header() {
   // to bury behind a menu.
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   return (
     <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
@@ -288,6 +290,16 @@ export function Web3Header() {
         <Settings className="w-4 h-4" />
       </button>
 
+      {/* About — desktop only; mobile gets it via the drawer */}
+      <button
+        onClick={() => setAboutOpen(true)}
+        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        title="About"
+        aria-label="About this app"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </button>
+
       {/* Mobile menu button — drawer trigger */}
       <button
         onClick={() => setDrawerOpen(true)}
@@ -310,9 +322,14 @@ export function Web3Header() {
           setDrawerOpen(false)
           setSettingsOpen(true)
         }}
+        onOpenAbout={() => {
+          setDrawerOpen(false)
+          setAboutOpen(true)
+        }}
       />
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {/* Wallet Section */}
       {isConnected ? (
@@ -446,10 +463,11 @@ interface MobileMenuDrawerProps {
   theme: 'light' | 'dark'
   toggleTheme: () => void
   onOpenSettings: () => void
+  onOpenAbout: () => void
 }
 
 function MobileMenuDrawer({
-  open, onClose, stats, mode, setMode, theme, toggleTheme, onOpenSettings,
+  open, onClose, stats, mode, setMode, theme, toggleTheme, onOpenSettings, onOpenAbout,
 }: MobileMenuDrawerProps) {
   return (
     <Drawer open={open} onClose={onClose} title="Menu" widthClass="w-[300px]">
@@ -493,16 +511,25 @@ function MobileMenuDrawer({
           </button>
         </section>
 
-        {/* Settings entry */}
+        {/* Settings + About entries */}
         <section>
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Preferences</div>
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
-          >
-            <span className="text-xs text-text-secondary">Settings…</span>
-            <Settings className="w-4 h-4 text-text-muted" />
-          </button>
+          <div className="space-y-1.5">
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
+            >
+              <span className="text-xs text-text-secondary">Settings…</span>
+              <Settings className="w-4 h-4 text-text-muted" />
+            </button>
+            <button
+              onClick={onOpenAbout}
+              className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
+            >
+              <span className="text-xs text-text-secondary">About this app</span>
+              <HelpCircle className="w-4 h-4 text-text-muted" />
+            </button>
+          </div>
         </section>
 
         {/* 24h Stats */}
