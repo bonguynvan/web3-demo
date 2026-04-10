@@ -34,6 +34,8 @@ import { useIsDemo } from '../store/modeStore'
 import { addDemoPosition, addDemoPendingLimit, DEMO_ACCOUNT, FEES } from '../lib/demoData'
 import { Tooltip } from './ui/Tooltip'
 import { Dropdown } from './ui/Dropdown'
+import { HighLeverageRiskModal, HIGH_LEVERAGE_THRESHOLD } from './HighLeverageRiskModal'
+import { useSettingsStore } from '../store/settingsStore'
 
 type AmountUnit = 'usdc' | 'coin'
 
@@ -104,6 +106,8 @@ export function Web3OrderForm() {
   const [slPrice, setSlPrice] = useState('')
   const [reduceOnly, setReduceOnly] = useState(false)
   const [demoSubmitting, setDemoSubmitting] = useState(false)
+  const [riskModalOpen, setRiskModalOpen] = useState(false)
+  const hideRiskWarning = useSettingsStore(s => s.hideHighLeverageRiskWarning)
 
   const tpNum = parseFloat(tpPrice) || 0
   const slNum = parseFloat(slPrice) || 0
@@ -139,7 +143,11 @@ export function Web3OrderForm() {
   }, [status, error, lastTxHash, orderSide, selectedMarket.baseAsset, notional, leverage, setOrderSize, toast])
 
   // ─── Submit handler ───
-  const handleSubmitOrder = useCallback(async () => {
+  // Two-stage:
+  //   handleSubmitOrder = entry point. Checks gates (high-leverage warning).
+  //                       If a gate fires, defers to a modal that calls executeSubmit on confirm.
+  //   executeSubmit     = the actual order placement logic. Bypasses gates.
+  const executeSubmit = useCallback(async () => {
     if (collateralNum <= 0 || priceNum <= 0) return
 
     // ─── Limit orders: store off-chain pending ───
@@ -215,6 +223,23 @@ export function Web3OrderForm() {
     selectedMarket.symbol, selectedMarket.baseAsset, leverage, tpNum, slNum,
     setOrderSize, setOrderPrice, toast,
   ])
+
+  /** Public entry point — checks the high-leverage gate, then defers to executeSubmit. */
+  const handleSubmitOrder = useCallback(() => {
+    if (collateralNum <= 0 || priceNum <= 0) return
+
+    // Gate: high leverage trades show a one-time risk modal unless dismissed.
+    if (leverage >= HIGH_LEVERAGE_THRESHOLD && !hideRiskWarning) {
+      setRiskModalOpen(true)
+      return
+    }
+
+    void executeSubmit()
+  }, [collateralNum, priceNum, leverage, hideRiskWarning, executeSubmit])
+
+  // Approximate liquidation buffer at the current leverage — used by the
+  // risk modal headline. Mirrors the formula in addDemoPosition / liq calc.
+  const liqBufferPctAtLeverage = leverage > 0 ? (0.95 / leverage) * 100 : 0
 
   const isSubmitting = demoSubmitting || (status !== 'idle' && status !== 'success' && status !== 'error')
 
@@ -535,6 +560,20 @@ export function Web3OrderForm() {
           )}
         </button>
       </div>
+
+      {/* High-leverage risk modal — gates the actual submit until the user
+          confirms once. After "don't show again" is checked, the gate flips
+          off via the settings store and this never re-mounts. */}
+      <HighLeverageRiskModal
+        open={riskModalOpen}
+        leverage={leverage}
+        liqBufferPct={liqBufferPctAtLeverage}
+        onCancel={() => setRiskModalOpen(false)}
+        onConfirm={() => {
+          setRiskModalOpen(false)
+          void executeSubmit()
+        }}
+      />
     </div>
   )
 }
