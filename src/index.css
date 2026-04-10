@@ -100,3 +100,15 @@ input[type="number"] {
   from { opacity: 0; transform: translateX(-16px); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/* Full-distance slide-ins for drawers anchored to the screen edge.
+   Drawers are 280px wide so we translate the full distance off-screen. */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideInLeftEdge {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}

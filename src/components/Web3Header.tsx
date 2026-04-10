@@ -2,9 +2,9 @@
  * Web3Header — market bar with real wallet connection and on-chain data.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
-import { ChevronDown, Wallet, Zap, LogOut } from 'lucide-react'
+import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -16,6 +16,7 @@ import { useModeStore, type AppMode } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
+import { Drawer } from './ui/Drawer'
 import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
@@ -75,12 +76,17 @@ export function Web3Header() {
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
 
+  // Mobile drawer for stats + mode + theme. Wallet stays visible in the
+  // header even on small screens because connection status is too important
+  // to bury behind a menu.
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
   return (
-    <header className="flex items-center h-14 bg-panel border-b border-border px-4 gap-6 shrink-0">
-      {/* Logo */}
-      <div className="flex items-center gap-2 mr-2">
-        <Zap className="w-5 h-5 text-accent" />
-        <span className="font-semibold text-text-primary text-sm">PERP DEX</span>
+    <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
+      {/* Logo — text hidden on mobile to save space, icon stays */}
+      <div className="flex items-center gap-2 md:mr-2">
+        <Zap className="w-5 h-5 text-accent shrink-0" />
+        <span className="hidden md:inline font-semibold text-text-primary text-sm">PERP DEX</span>
       </div>
 
       {/* Market Selector */}
@@ -118,8 +124,8 @@ export function Web3Header() {
         })}
       </Dropdown>
 
-      {/* Market Stats Bar */}
-      <div className="flex items-center gap-4 text-xs overflow-hidden">
+      {/* Market Stats Bar — hidden on mobile, shown in drawer instead */}
+      <div className="hidden md:flex items-center gap-4 text-xs overflow-hidden">
         {/* Price Source */}
         <div>
           <span className="text-text-muted text-[10px]">{priceLabel}</span>
@@ -239,8 +245,8 @@ export function Web3Header() {
       {/* Service health pill — green/yellow/red dot with click-to-diagnose */}
       <StatusPill />
 
-      {/* Mode Toggle */}
-      <div className="flex items-center bg-surface rounded-md p-0.5 gap-0.5">
+      {/* Mode Toggle — hidden on mobile, shown in drawer */}
+      <div className="hidden md:flex items-center bg-surface rounded-md p-0.5 gap-0.5">
         <button
           onClick={() => setMode('demo')}
           className={cn(
@@ -261,22 +267,34 @@ export function Web3Header() {
         </button>
       </div>
 
-      {/* Theme Toggle */}
+      {/* Theme Toggle — hidden on mobile, shown in drawer */}
       <button
         onClick={toggleTheme}
-        className="flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
         title={appTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       >
-        {appTheme === 'dark' ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        )}
+        {appTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </button>
+
+      {/* Mobile menu button — drawer trigger */}
+      <button
+        onClick={() => setDrawerOpen(true)}
+        className="md:hidden flex items-center justify-center w-9 h-9 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        title="Menu"
+        aria-label="Open menu"
+      >
+        <Menu className="w-4 h-4" />
+      </button>
+
+      <MobileMenuDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        stats={stats}
+        mode={mode}
+        setMode={setMode}
+        theme={appTheme}
+        toggleTheme={toggleTheme}
+      />
 
       {/* Wallet Section */}
       {isConnected ? (
@@ -291,7 +309,7 @@ export function Web3Header() {
             </button>
           )}
 
-          <div className="text-xs">
+          <div className="hidden md:block text-xs">
             <span className="text-text-muted">USDC</span>
             <span className="ml-1.5 font-mono text-text-primary font-medium">${formatUsd(usdcBalance)}</span>
           </div>
@@ -391,5 +409,127 @@ export function Web3Header() {
         </Dropdown>
       )}
     </header>
+  )
+}
+
+// ─── Mobile menu drawer ────────────────────────────────────────────────────
+//
+// Hosts the bits we hide from the top-of-screen header on small viewports:
+// the 24h stats grid, the demo/live mode toggle, and the theme toggle. The
+// wallet section stays in the header itself because connection status is
+// too important to require an extra tap to see.
+
+interface MobileMenuDrawerProps {
+  open: boolean
+  onClose: () => void
+  stats: ReturnType<typeof useMarketStats>
+  mode: AppMode
+  setMode: (m: AppMode) => void
+  theme: 'light' | 'dark'
+  toggleTheme: () => void
+}
+
+function MobileMenuDrawer({
+  open, onClose, stats, mode, setMode, theme, toggleTheme,
+}: MobileMenuDrawerProps) {
+  return (
+    <Drawer open={open} onClose={onClose} title="Menu" widthClass="w-[300px]">
+      <div className="p-4 space-y-5">
+        {/* Mode Toggle */}
+        <section>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Mode</div>
+          <div className="flex items-center bg-surface rounded-md p-1 gap-1">
+            <button
+              onClick={() => { setMode('demo'); onClose() }}
+              className={cn(
+                'flex-1 py-2 text-xs font-medium rounded transition-colors cursor-pointer',
+                mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary',
+              )}
+            >
+              Demo
+            </button>
+            <button
+              onClick={() => { setMode('live'); onClose() }}
+              className={cn(
+                'flex-1 py-2 text-xs font-medium rounded transition-colors cursor-pointer',
+                mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary',
+              )}
+            >
+              Live
+            </button>
+          </div>
+        </section>
+
+        {/* Theme Toggle */}
+        <section>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Appearance</div>
+          <button
+            onClick={toggleTheme}
+            className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
+          >
+            <span className="text-xs text-text-secondary">
+              {theme === 'dark' ? 'Dark' : 'Light'} mode
+            </span>
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-text-muted" /> : <Moon className="w-4 h-4 text-text-muted" />}
+          </button>
+        </section>
+
+        {/* 24h Stats */}
+        <section>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">24h Statistics</div>
+          <div className="bg-surface/60 rounded-md p-3 space-y-2 text-xs">
+            <DrawerStatRow
+              label="Change"
+              value={stats.statsAvailable
+                ? `${stats.change24h >= 0 ? '+' : ''}${stats.change24h.toFixed(2)}%`
+                : '—'}
+              valueClass={stats.statsAvailable
+                ? (stats.change24h >= 0 ? 'text-long' : 'text-short')
+                : 'text-text-muted'}
+            />
+            <DrawerStatRow
+              label="High"
+              value={stats.statsAvailable ? `$${formatUsd(stats.high24h)}` : '—'}
+            />
+            <DrawerStatRow
+              label="Low"
+              value={stats.statsAvailable ? `$${formatUsd(stats.low24h)}` : '—'}
+            />
+            <DrawerStatRow
+              label="Volume"
+              value={stats.statsAvailable ? `$${formatCompact(stats.volume24h)}` : '—'}
+            />
+            <DrawerStatRow
+              label="Open Interest"
+              value={stats.statsAvailable ? `$${formatCompact(stats.openInterest)}` : '—'}
+            />
+            <DrawerStatRow
+              label="Funding"
+              value={stats.fundingAvailable
+                ? `${stats.fundingRate >= 0 ? '+' : ''}${stats.fundingRate.toFixed(4)}%`
+                : '—'}
+              valueClass={stats.fundingAvailable
+                ? (stats.fundingRate >= 0 ? 'text-long' : 'text-short')
+                : 'text-text-muted'}
+            />
+          </div>
+        </section>
+      </div>
+    </Drawer>
+  )
+}
+
+function DrawerStatRow({
+  label, value, valueClass,
+}: {
+  label: string
+  value: string
+  valueClass?: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-text-muted">{label}</span>
+      <span className={cn('font-mono tabular-nums', valueClass ?? 'text-text-primary')}>{value}</span>
+    </div>
   )
 }
