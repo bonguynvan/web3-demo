@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
-import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon } from 'lucide-react'
+import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -20,6 +20,7 @@ import { Drawer } from './ui/Drawer'
 import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
+import { SettingsModal } from './SettingsModal'
 
 const CHAIN_NAMES: Record<number, string> = {
   31337: 'Anvil',
@@ -80,6 +81,7 @@ export function Web3Header() {
   // header even on small screens because connection status is too important
   // to bury behind a menu.
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
@@ -276,6 +278,16 @@ export function Web3Header() {
         {appTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </button>
 
+      {/* Settings — desktop only; mobile gets it via the drawer */}
+      <button
+        onClick={() => setSettingsOpen(true)}
+        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        title="Settings"
+        aria-label="Open settings"
+      >
+        <Settings className="w-4 h-4" />
+      </button>
+
       {/* Mobile menu button — drawer trigger */}
       <button
         onClick={() => setDrawerOpen(true)}
@@ -294,7 +306,13 @@ export function Web3Header() {
         setMode={setMode}
         theme={appTheme}
         toggleTheme={toggleTheme}
+        onOpenSettings={() => {
+          setDrawerOpen(false)
+          setSettingsOpen(true)
+        }}
       />
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* Wallet Section */}
       {isConnected ? (
@@ -427,10 +445,11 @@ interface MobileMenuDrawerProps {
   setMode: (m: AppMode) => void
   theme: 'light' | 'dark'
   toggleTheme: () => void
+  onOpenSettings: () => void
 }
 
 function MobileMenuDrawer({
-  open, onClose, stats, mode, setMode, theme, toggleTheme,
+  open, onClose, stats, mode, setMode, theme, toggleTheme, onOpenSettings,
 }: MobileMenuDrawerProps) {
   return (
     <Drawer open={open} onClose={onClose} title="Menu" widthClass="w-[300px]">
@@ -471,6 +490,18 @@ function MobileMenuDrawer({
               {theme === 'dark' ? 'Dark' : 'Light'} mode
             </span>
             {theme === 'dark' ? <Sun className="w-4 h-4 text-text-muted" /> : <Moon className="w-4 h-4 text-text-muted" />}
+          </button>
+        </section>
+
+        {/* Settings entry */}
+        <section>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Preferences</div>
+          <button
+            onClick={onOpenSettings}
+            className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
+          >
+            <span className="text-xs text-text-secondary">Settings…</span>
+            <Settings className="w-4 h-4 text-text-muted" />
           </button>
         </section>
 

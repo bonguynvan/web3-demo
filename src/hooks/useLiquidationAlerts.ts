@@ -30,10 +30,8 @@
 import { useEffect, useRef } from 'react'
 import { usePositions, type OnChainPosition } from './usePositions'
 import { useToast } from '../store/toastStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { formatUsd } from '../lib/format'
-
-const BUFFER_WARNING_PCT = 15 // yellow toast at 15% or less
-const BUFFER_CRITICAL_PCT = 5 // red toast at 5% or less
 
 type HealthLevel = 'healthy' | 'warning' | 'critical'
 
@@ -46,9 +44,13 @@ function computeBufferPercent(pos: OnChainPosition): number {
   return buffer * 100
 }
 
-function classifyHealth(bufferPct: number): HealthLevel {
-  if (bufferPct <= BUFFER_CRITICAL_PCT) return 'critical'
-  if (bufferPct <= BUFFER_WARNING_PCT) return 'warning'
+function classifyHealth(
+  bufferPct: number,
+  warningPct: number,
+  criticalPct: number,
+): HealthLevel {
+  if (bufferPct <= criticalPct) return 'critical'
+  if (bufferPct <= warningPct) return 'warning'
   return 'healthy'
 }
 
@@ -61,11 +63,20 @@ function isWorseLevel(next: HealthLevel, prev: HealthLevel): boolean {
 export function useLiquidationAlerts(): void {
   const { positions } = usePositions()
   const toast = useToast()
+  const warningPct = useSettingsStore(s => s.alertWarningPct)
+  const criticalPct = useSettingsStore(s => s.alertCriticalPct)
 
   // Stable ref so the effect can call the latest toast API without re-running
   // on every toast-store subscription tick.
   const toastRef = useRef(toast)
   toastRef.current = toast
+
+  // Threshold refs so the effect doesn't re-run on every settings tick — the
+  // next position update will pick up the new values automatically.
+  const warningRef = useRef(warningPct)
+  const criticalRef = useRef(criticalPct)
+  warningRef.current = warningPct
+  criticalRef.current = criticalPct
 
   // Tracks the last fired health level per position key. Starts at 'healthy'
   // implicitly for new positions; first drop into warning/critical fires.
@@ -78,7 +89,7 @@ export function useLiquidationAlerts(): void {
       currentKeys.add(pos.key)
 
       const buffer = computeBufferPercent(pos)
-      const level = classifyHealth(buffer)
+      const level = classifyHealth(buffer, warningRef.current, criticalRef.current)
       const prev = lastLevelRef.current.get(pos.key) ?? 'healthy'
 
       if (level !== 'healthy' && level !== prev && isWorseLevel(level, prev)) {
