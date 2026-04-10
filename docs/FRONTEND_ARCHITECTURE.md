@@ -1,7 +1,11 @@
-# Frontend Architecture — Perp DEX
+# Frontend Architecture — DeFi Trading Platform
 
-A GMX-style perpetual futures DEX frontend built with React, wagmi, and Zustand.
+A multi-market DeFi trading platform built with React, wagmi, and Zustand.
+Currently supports perpetual futures (GMX v1 style), with spot trading (0x Swap API) in development.
 This document explains the architecture, Web3 integration patterns, and how everything connects.
+
+> **Platform roadmap:** See [PLATFORM_PLAN.md](./PLATFORM_PLAN.md) for the full multi-market evolution plan.
+> **Chart library:** Developed as a standalone monorepo at `../chart-lib/`. See chart section below.
 
 ---
 
@@ -313,14 +317,23 @@ idle → approving → submitting → confirming → success
 
 ### Architecture
 
-The chart is a custom **canvas-based** rendering library (`@chart-lib`):
+The chart is a custom **canvas-based** rendering library (`@chart-lib`), developed as a
+**standalone monorepo** at `../chart-lib/`:
 
 ```
-packages/
-├── commons/    # Shared types (OHLCBar, Theme, ViewportState)
-├── core/       # Rendering engine, canvas layers, interaction handlers
-└── library/    # Public API (Chart class)
+../chart-lib/
+├── packages/
+│   ├── commons/    # Shared types (OHLCBar, Theme, ViewportState)
+│   ├── core/       # Rendering engine, canvas layers, interaction handlers
+│   └── library/    # Public API (Chart class)
+├── package.json        # Monorepo root (pnpm workspace)
+├── tsconfig.base.json  # Shared TS config
+└── pnpm-workspace.yaml
 ```
+
+> **Note:** `dapp-demo/packages/{commons,core,library}` are frozen copies kept as fallback.
+> All active development happens in `../chart-lib/`. Module resolution is transparent via
+> Vite aliases and TypeScript path mapping (see `vite.config.ts` and `tsconfig.app.json`).
 
 ### How Data Flows to the Chart
 
