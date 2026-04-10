@@ -17,6 +17,7 @@ import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
 import { Skeleton } from './ui/Skeleton'
+import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
 
 const CHAIN_NAMES: Record<number, string> = {
@@ -188,7 +189,13 @@ export function Web3Header() {
 
         {/* Open Interest */}
         <div className="hidden xl:block">
-          <span className="text-text-muted text-[10px]">Open Interest</span>
+          <Tooltip
+            title="Open interest"
+            content="Total notional value of open positions across all traders on this market. A proxy for how much capital is currently committed to directional bets."
+            side="bottom"
+          >
+            <span className="text-text-muted text-[10px] cursor-help">Open Interest</span>
+          </Tooltip>
           {stats.statsAvailable ? (
             <div className="font-mono text-text-primary">${formatCompact(stats.openInterest)}</div>
           ) : stats.isInitialLoad ? (
@@ -202,7 +209,13 @@ export function Web3Header() {
 
         {/* Funding Rate + Countdown */}
         <div>
-          <span className="text-text-muted text-[10px]">Funding / Countdown</span>
+          <Tooltip
+            title="Funding rate"
+            content="Periodic payment between longs and shorts to keep the perpetual price aligned with spot. Positive = longs pay shorts; negative = shorts pay longs. Charged every 8 hours."
+            side="bottom"
+          >
+            <span className="text-text-muted text-[10px] cursor-help">Funding / Countdown</span>
+          </Tooltip>
           {stats.fundingAvailable ? (
             <div className="flex items-center gap-1.5">
               <span className={cn('font-mono font-medium', stats.fundingRate >= 0 ? 'text-long' : 'text-short')}>

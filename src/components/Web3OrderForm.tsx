@@ -31,6 +31,7 @@ import { cn, formatUsd } from '../lib/format'
 import { useToast } from '../store/toastStore'
 import { useIsDemo } from '../store/modeStore'
 import { addDemoPosition, addDemoPendingLimit, DEMO_ACCOUNT, FEES } from '../lib/demoData'
+import { Tooltip } from './ui/Tooltip'
 
 type AmountUnit = 'usdc' | 'coin'
 
@@ -454,11 +455,35 @@ export function Web3OrderForm() {
         {/* Order Summary — compact */}
         {collateralNum > 0 && priceNum > 0 && (
           <div className="space-y-1 text-[11px] border-t border-border pt-2.5">
-            <SummaryRow label="Position Size" value={`$${formatUsd(notional)}`} bold />
+            <SummaryRow
+              label="Position Size"
+              value={`$${formatUsd(notional)}`}
+              bold
+              tooltip={{
+                title: 'Position size',
+                content: 'Total notional exposure: collateral × leverage. Your profit and loss scale with this number, not just your collateral.',
+              }}
+            />
             <SummaryRow label="Collateral" value={`$${formatUsd(collateralNum)}`} />
             <SummaryRow label="Entry Price" value={`$${formatUsd(effectiveEntry)}`} />
-            <SummaryRow label="Liq. Price" value={`$${formatUsd(liqPrice)}`} className="text-short" />
-            <SummaryRow label="Fee" value={`-$${formatUsd(openFee)}`} muted />
+            <SummaryRow
+              label="Liq. Price"
+              value={`$${formatUsd(liqPrice)}`}
+              className="text-short"
+              tooltip={{
+                title: 'Liquidation price',
+                content: 'If the mark price reaches this level, your position will be force-closed by the keeper and you lose your collateral. Higher leverage = closer liq price.',
+              }}
+            />
+            <SummaryRow
+              label="Fee"
+              value={`-$${formatUsd(openFee)}`}
+              muted
+              tooltip={{
+                title: 'Open fee',
+                content: 'Charged at entry, deducted from your collateral. A symmetric close fee applies when you exit. Both default to 0.1% of position size.',
+              }}
+            />
           </div>
         )}
 
@@ -520,16 +545,30 @@ function FieldGroup({ label, right, children }: {
   )
 }
 
-function SummaryRow({ label, value, muted, bold, className }: {
+function SummaryRow({ label, value, muted, bold, className, tooltip }: {
   label: string
   value: string
   muted?: boolean
   bold?: boolean
   className?: string
+  tooltip?: { title: string; content: string }
 }) {
+  const labelEl = (
+    <span className={cn(
+      'text-text-muted text-[10px] uppercase tracking-wider',
+      tooltip && 'cursor-help',
+      className,
+    )}>
+      {label}
+    </span>
+  )
   return (
     <div className="flex justify-between items-center gap-2">
-      <span className={cn('text-text-muted text-[10px] uppercase tracking-wider', className)}>{label}</span>
+      {tooltip ? (
+        <Tooltip title={tooltip.title} content={tooltip.content}>{labelEl}</Tooltip>
+      ) : (
+        labelEl
+      )}
       <span className={cn(
         'font-mono tabular-nums truncate',
         bold ? 'text-text-primary font-semibold' : muted ? 'text-text-muted' : 'text-text-secondary',

@@ -14,6 +14,7 @@ import { useIsDemo } from '../store/modeStore'
 import { cn, formatUsd } from '../lib/format'
 import { FlashPrice } from './ui/FlashPrice'
 import { Skeleton } from './ui/Skeleton'
+import { Tooltip } from './ui/Tooltip'
 
 export function AccountBar() {
   const { isConnected } = useAccount()
@@ -60,7 +61,13 @@ export function AccountBar() {
     <div className="flex items-center h-8 bg-panel/80 border-b border-border px-4 gap-6 text-[11px] shrink-0">
       {/* Total Equity */}
       <div className="flex items-center gap-1.5">
-        <span className="text-text-muted">Equity</span>
+        <Tooltip
+          title="Equity"
+          content="Total account value: free USDC + collateral locked in open positions + unrealized PnL. This is what your account would be worth if you closed everything at the current mark price."
+          side="bottom"
+        >
+          <span className="text-text-muted cursor-help">Equity</span>
+        </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={70} subtle />
         ) : (
@@ -89,7 +96,13 @@ export function AccountBar() {
 
       {/* Margin Used */}
       <div className="flex items-center gap-1.5">
-        <span className="text-text-muted">Margin</span>
+        <Tooltip
+          title="Margin used"
+          content="USDC locked as collateral across all your open positions. As the margin usage % approaches 100, your account is closer to liquidation."
+          side="bottom"
+        >
+          <span className="text-text-muted cursor-help">Margin</span>
+        </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={48} subtle />
         ) : (
@@ -113,7 +126,13 @@ export function AccountBar() {
 
       {/* Unrealized PnL */}
       <div className="flex items-center gap-1.5">
-        <span className="text-text-muted">Unrealized</span>
+        <Tooltip
+          title="Unrealized P&L"
+          content="Profit or loss on open positions if they were closed at the current mark price. Becomes 'realized' (and added to your balance) only when you actually close the position."
+          side="bottom"
+        >
+          <span className="text-text-muted cursor-help">Unrealized</span>
+        </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={56} subtle />
         ) : (
