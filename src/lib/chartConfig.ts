@@ -1,5 +1,5 @@
-import type { Theme, TimeFrame, ChartType, DrawingToolType } from '@chart-lib/library'
-import { DARK_THEME, LIGHT_THEME } from '@chart-lib/library'
+import type { Theme, TimeFrame, ChartType, DrawingToolType } from '@tradecanvas/chart'
+import { DARK_THEME, LIGHT_THEME } from '@tradecanvas/chart'
 import type { AppTheme } from '../store/themeStore'
 
 const CHART_FONT = {

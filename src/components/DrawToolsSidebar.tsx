@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import type { DrawingToolType } from '@chart-lib/library'
+import type { DrawingToolType } from '@tradecanvas/chart'
 import {
   TrendingUp, Minus, PenLine, ArrowUpRight, MoveRight,
   Square, Circle, Triangle, GitBranch,

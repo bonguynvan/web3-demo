@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { OrderSide, OrderType, CandleData, Trade } from '../types/trading'
-import type { TimeFrame } from '@chart-lib/library'
+import type { TimeFrame } from '@tradecanvas/chart'
 
 /**
  * Trading store — holds UI state only.

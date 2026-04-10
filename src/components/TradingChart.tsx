@@ -7,8 +7,8 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Chart, BinanceAdapter } from '@chart-lib/library'
-import type { OHLCBar, TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor, TradingPosition, TradingOrder } from '@chart-lib/library'
+import { Chart, BinanceAdapter } from '@tradecanvas/chart'
+import type { OHLCBar, TimeFrame, ChartType, DrawingToolType, IndicatorDescriptor, TradingPosition, TradingOrder } from '@tradecanvas/chart'
 import { Loader2 } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from '../hooks/usePrices'

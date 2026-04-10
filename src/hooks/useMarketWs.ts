@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from './usePrices'
 import type { CandleData } from '../types/trading'
-import type { TimeFrame } from '@chart-lib/library'
+import type { TimeFrame } from '@tradecanvas/chart'
 
 // Timeframe → candle interval in milliseconds
 const TF_INTERVALS: Record<string, number> = {

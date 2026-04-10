@@ -25,12 +25,12 @@
     "noUncheckedSideEffectImports": true,
 
     "paths": {
-      "@chart-lib/library": ["../chart-lib/packages/library/src"],
-      "@chart-lib/library/*": ["../chart-lib/packages/library/src/*"],
-      "@chart-lib/core": ["../chart-lib/packages/core/src"],
-      "@chart-lib/core/*": ["../chart-lib/packages/core/src/*"],
-      "@chart-lib/commons": ["../chart-lib/packages/commons/src"],
-      "@chart-lib/commons/*": ["../chart-lib/packages/commons/src/*"]
+      "@tradecanvas/chart": ["../chart-lib/packages/library/src"],
+      "@tradecanvas/chart/*": ["../chart-lib/packages/library/src/*"],
+      "@tradecanvas/core": ["../chart-lib/packages/core/src"],
+      "@tradecanvas/core/*": ["../chart-lib/packages/core/src/*"],
+      "@tradecanvas/commons": ["../chart-lib/packages/commons/src"],
+      "@tradecanvas/commons/*": ["../chart-lib/packages/commons/src/*"]
     }
   },
   "include": ["src", "../chart-lib/packages/*/src"],

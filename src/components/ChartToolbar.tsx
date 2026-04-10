@@ -1,4 +1,4 @@
-import type { TimeFrame, ChartType, IndicatorDescriptor } from '@chart-lib/library'
+import type { TimeFrame, ChartType, IndicatorDescriptor } from '@tradecanvas/chart'
 import {
   TrendingUp, BarChart3, ChevronDown, Camera, X, Settings, Save, Upload, Download, Trash2,
 } from 'lucide-react'

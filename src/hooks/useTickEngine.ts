@@ -11,7 +11,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { TickEngine, type FlushPayload, type TickCandle } from '../lib/tickEngine'
 import { useTradingStore } from '../store/tradingStore'
-import type { Chart } from '@chart-lib/library'
+import type { Chart } from '@tradecanvas/chart'
 import type { CandleData } from '../types/trading'
 
 interface UseTickEngineOptions {
