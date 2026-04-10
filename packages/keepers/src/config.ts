@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import {
   createPublicClient,
   createWalletClient,
@@ -32,9 +35,20 @@ export const walletClient = createWalletClient({
   transport: http(RPC_URL),
 });
 
-// --- Contract Addresses (from DeployLocal, fresh Anvil) ---
-// These are deterministic when deploying to a fresh Anvil with default account 0.
-// Update after running `deploy:local` if addresses differ.
+// --- Contract Addresses ---
+//
+// Resolution order (first match wins):
+//   1. Per-address env var (e.g. ROUTER_ADDRESS) — used by dev:full to push
+//      the currently-deployed addresses into the child process environment
+//   2. `src/addresses.json` at the repo root — written by
+//      `scripts/export-addresses.mjs` after every fresh `forge script
+//      DeployLocal`. Same source the frontend and the server use, so the
+//      keeper can never drift from the deployed contracts.
+//   3. Hardcoded typechain defaults — last-resort fallback for CI / first
+//      run before any deploy has happened.
+//
+// Read once at module load. If you redeploy the contracts mid-run the
+// keeper process needs to be restarted to pick up the new addresses.
 
 export interface Addresses {
   usdc: Address;
@@ -48,18 +62,69 @@ export interface Addresses {
   router: Address;
 }
 
-// Load from environment or use defaults
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ADDRESSES_JSON_PATH = resolve(__dirname, "../../../src/addresses.json");
+
+interface AddressesJsonShape {
+  usdc?: string;
+  weth?: string;
+  wbtc?: string;
+  ethOracle?: string;
+  btcOracle?: string;
+  priceFeed?: string;
+  vault?: string;
+  positionManager?: string;
+  router?: string;
+}
+
+function loadAddressesFromJson(): AddressesJsonShape | null {
+  try {
+    if (!existsSync(ADDRESSES_JSON_PATH)) return null;
+    const raw = readFileSync(ADDRESSES_JSON_PATH, "utf-8");
+    return JSON.parse(raw) as AddressesJsonShape;
+  } catch (err: unknown) {
+    console.warn(
+      `[keeper config] Failed to read ${ADDRESSES_JSON_PATH}, falling back to typechain defaults:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
+const ADDRESSES_FROM_JSON = loadAddressesFromJson();
+if (ADDRESSES_FROM_JSON) {
+  console.log("[keeper config] Loaded contract addresses from src/addresses.json");
+} else {
+  console.log("[keeper config] Using hardcoded typechain defaults (no addresses.json found)");
+}
+
+function pick(
+  envKey: string,
+  jsonKey: keyof AddressesJsonShape,
+  fallback: string,
+): Address {
+  return (
+    process.env[envKey] ??
+    ADDRESSES_FROM_JSON?.[jsonKey] ??
+    fallback
+  ) as Address;
+}
+
 export function getAddresses(): Addresses {
   return {
-    usdc: (process.env.USDC_ADDRESS ?? "0x5FbDB2315678afecb367f032d93F642f64180aa3") as Address,
-    weth: (process.env.WETH_ADDRESS ?? "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512") as Address,
-    wbtc: (process.env.WBTC_ADDRESS ?? "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0") as Address,
-    ethOracle: (process.env.ETH_ORACLE_ADDRESS ?? "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9") as Address,
-    btcOracle: (process.env.BTC_ORACLE_ADDRESS ?? "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9") as Address,
-    priceFeed: (process.env.PRICE_FEED_ADDRESS ?? "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6") as Address,
-    vault: (process.env.VAULT_ADDRESS ?? "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82") as Address,
-    positionManager: (process.env.POSITION_MANAGER_ADDRESS ?? "0x0B306BF915C4d645ff596e518fAf3F9669b97016") as Address,
-    router: (process.env.ROUTER_ADDRESS ?? "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c") as Address,
+    usdc: pick("USDC_ADDRESS", "usdc", "0x5FbDB2315678afecb367f032d93F642f64180aa3"),
+    weth: pick("WETH_ADDRESS", "weth", "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"),
+    wbtc: pick("WBTC_ADDRESS", "wbtc", "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"),
+    ethOracle: pick("ETH_ORACLE_ADDRESS", "ethOracle", "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"),
+    btcOracle: pick("BTC_ORACLE_ADDRESS", "btcOracle", "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
+    priceFeed: pick("PRICE_FEED_ADDRESS", "priceFeed", "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"),
+    vault: pick("VAULT_ADDRESS", "vault", "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"),
+    positionManager: pick(
+      "POSITION_MANAGER_ADDRESS",
+      "positionManager",
+      "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+    ),
+    router: pick("ROUTER_ADDRESS", "router", "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"),
   };
 }
 
