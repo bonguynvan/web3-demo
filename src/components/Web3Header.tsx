@@ -333,17 +333,19 @@ export function Web3Header() {
 
       {/* Wallet Section */}
       {isConnected ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Faucet — hidden on mobile, accessible via drawer if needed */}
           {mode === 'demo' && faucetAvailable && (
             <button
               onClick={() => mint(10_000)}
               disabled={minting}
-              className="w-[72px] text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50 text-center"
+              className="hidden md:block w-[72px] text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50 text-center"
             >
               {minting ? '...' : '+ 10K USDC'}
             </button>
           )}
 
+          {/* Balance — desktop only */}
           <div className="hidden md:block text-xs">
             <span className="text-text-muted">USDC</span>
             <span className="ml-1.5 font-mono text-text-primary font-medium">${formatUsd(usdcBalance)}</span>
@@ -353,12 +355,13 @@ export function Web3Header() {
             trigger={
               <>
                 {isDemoAccount
-                  ? <div className="w-4 h-4 rounded-full bg-long/20 flex items-center justify-center text-[8px] text-long font-bold">D</div>
-                  : <Wallet className="w-3.5 h-3.5" />
+                  ? <div className="w-4 h-4 rounded-full bg-long/20 flex items-center justify-center text-[8px] text-long font-bold shrink-0">D</div>
+                  : <Wallet className="w-3.5 h-3.5 shrink-0" />
                 }
-                <span className="font-mono">{truncatedAddress}</span>
-                {isDemoAccount && <span className="text-[9px] bg-long/20 text-long px-1 rounded">DEMO</span>}
-                <span className="text-[10px] text-accent/60">{CHAIN_NAMES[chainId] || `Chain ${chainId}`}</span>
+                {/* Mobile: just short address. Desktop: address + badge + chain */}
+                <span className="font-mono text-[11px] md:text-xs">{truncatedAddress}</span>
+                {isDemoAccount && <span className="hidden md:inline text-[9px] bg-long/20 text-long px-1 rounded">DEMO</span>}
+                <span className="hidden md:inline text-[10px] text-accent/60">{CHAIN_NAMES[chainId] || `Chain ${chainId}`}</span>
               </>
             }
             align="right"
@@ -367,6 +370,10 @@ export function Web3Header() {
             <div className="px-4 py-3 border-b border-border" onClick={e => e.stopPropagation()}>
               <div className="text-xs text-text-muted">Connected as</div>
               <div className="text-sm font-mono text-text-primary mt-0.5">{truncatedAddress}</div>
+              <div className="text-[10px] text-text-muted mt-0.5">
+                {CHAIN_NAMES[chainId] || `Chain ${chainId}`}
+                {isDemoAccount && ' · Demo account'}
+              </div>
             </div>
             <button
               onClick={() => disconnect()}
@@ -382,7 +389,8 @@ export function Web3Header() {
           trigger={
             <>
               <Wallet className="w-3.5 h-3.5" />
-              Connect Wallet
+              <span className="hidden md:inline">Connect Wallet</span>
+              <span className="md:hidden">Connect</span>
             </>
           }
           align="right"
