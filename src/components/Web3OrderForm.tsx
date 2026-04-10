@@ -350,7 +350,7 @@ export function Web3OrderForm() {
               <button
                 key={pct}
                 onClick={() => handleQuickFill(pct)}
-                className="text-[10px] text-text-muted hover:text-text-primary bg-surface hover:bg-panel-light py-1.5 rounded transition-colors cursor-pointer"
+                className="text-[10px] text-text-muted hover:text-text-primary bg-surface hover:bg-panel-light py-2 md:py-1.5 rounded transition-colors cursor-pointer min-h-[32px] md:min-h-0"
               >
                 {pct === 100 ? 'Max' : `${pct}%`}
               </button>
@@ -386,7 +386,7 @@ export function Web3OrderForm() {
                 key={l}
                 onClick={() => setLeverage(l)}
                 className={cn(
-                  'text-[10px] py-1.5 rounded transition-colors cursor-pointer font-medium',
+                  'text-[10px] py-2 md:py-1.5 rounded transition-colors cursor-pointer font-medium min-h-[32px] md:min-h-0',
                   leverage === l
                     ? 'bg-accent-dim text-accent'
                     : 'text-text-muted bg-surface hover:bg-panel-light'

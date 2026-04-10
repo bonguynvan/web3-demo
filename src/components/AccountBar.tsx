@@ -58,7 +58,7 @@ export function AccountBar() {
   if (!isConnected) return null
 
   return (
-    <div className="flex items-center h-8 bg-panel/80 border-b border-border px-4 gap-6 text-[11px] shrink-0">
+    <div className="flex items-center h-8 bg-panel/80 border-b border-border px-3 md:px-4 gap-3 md:gap-6 text-[11px] shrink-0 overflow-x-auto scrollbar-thin">
       {/* Total Equity */}
       <div className="flex items-center gap-1.5">
         <Tooltip
@@ -80,10 +80,10 @@ export function AccountBar() {
         )}
       </div>
 
-      <Divider />
+      <Divider hideOnMobile />
 
-      {/* Available */}
-      <div className="flex items-center gap-1.5">
+      {/* Available — hidden on mobile, equity covers the headline number */}
+      <div className="hidden md:flex items-center gap-1.5">
         <span className="text-text-muted">Available</span>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={60} subtle />
@@ -145,10 +145,10 @@ export function AccountBar() {
         )}
       </div>
 
-      <Divider />
+      <Divider hideOnMobile />
 
-      {/* Daily PnL */}
-      <div className="flex items-center gap-1.5">
+      {/* Daily PnL — hidden on mobile (less critical for fast trading) */}
+      <div className="hidden md:flex items-center gap-1.5">
         <span className="text-text-muted">Daily P&L</span>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={56} subtle />
@@ -191,6 +191,6 @@ export function AccountBar() {
   )
 }
 
-function Divider() {
-  return <div className="w-px h-3 bg-border" />
+function Divider({ hideOnMobile }: { hideOnMobile?: boolean } = {}) {
+  return <div className={cn('w-px h-3 bg-border', hideOnMobile && 'hidden md:block')} />
 }
