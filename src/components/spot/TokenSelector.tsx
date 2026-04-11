@@ -138,18 +138,38 @@ function TokenBalanceDisplay({ token }: { token: Token }) {
   )
 }
 
+/** Validate logo URI against known safe CDN domains. */
+const ALLOWED_LOGO_ORIGINS = [
+  'https://raw.githubusercontent.com',
+  'https://assets.coingecko.com',
+  'https://tokens.1inch.io',
+  'https://ethereum-optimism.github.io',
+  'https://coin-images.coingecko.com',
+]
+
+function isSafeLogoURI(uri: string): boolean {
+  try {
+    const url = new URL(uri)
+    return url.protocol === 'https:' &&
+      ALLOWED_LOGO_ORIGINS.some(o => uri.startsWith(o))
+  } catch {
+    return false
+  }
+}
+
 /** Token icon with fallback to first letter of symbol. */
 function TokenIcon({ token, size = 24 }: { token: Token; size?: number }) {
-  if (token.logoURI) {
+  const safeURI = token.logoURI && isSafeLogoURI(token.logoURI) ? token.logoURI : null
+
+  if (safeURI) {
     return (
       <img
-        src={token.logoURI}
+        src={safeURI}
         alt={token.symbol}
         width={size}
         height={size}
         className={cn('rounded-full shrink-0')}
         onError={e => {
-          // Fallback to letter on load failure
           const el = e.currentTarget
           el.style.display = 'none'
           el.nextElementSibling?.classList.remove('hidden')
@@ -163,7 +183,7 @@ function TokenIcon({ token, size = 24 }: { token: Token; size?: number }) {
       className="rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold shrink-0"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
-      {token.symbol[0]}
+      {token.symbol?.[0] ?? '?'}
     </div>
   )
 }

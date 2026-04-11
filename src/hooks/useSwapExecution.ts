@@ -13,7 +13,7 @@
 
 import { useState, useCallback } from 'react'
 import { useAccount, useChainId, useReadContract, useSendTransaction, useConfig } from 'wagmi'
-import { erc20Abi, maxUint256 } from 'viem'
+import { erc20Abi } from 'viem'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWriteContract } from 'wagmi'
 import { waitForTransactionReceipt } from '@wagmi/core'
@@ -107,13 +107,18 @@ export function useSwapExecution() {
           address: sellToken.address,
           abi: erc20Abi,
           functionName: 'approve',
-          args: [ZERO_X_ALLOWANCE_HOLDER, maxUint256],
+          args: [ZERO_X_ALLOWANCE_HOLDER, rawSellAmount],
           chainId: ARBITRUM_CHAIN_ID,
         })
         await waitForTransactionReceipt(config, { hash: approveHash })
       }
 
-      // 3. Send the swap transaction
+      // 3. Validate transaction destination — block if not the known 0x contract
+      if (transaction.to.toLowerCase() !== ZERO_X_ALLOWANCE_HOLDER.toLowerCase()) {
+        return failWithMessage('Invalid swap destination — transaction blocked')
+      }
+
+      // 4. Send the swap transaction
       setStatus('submitting')
       const hash = await sendTransactionAsync({
         to: transaction.to,

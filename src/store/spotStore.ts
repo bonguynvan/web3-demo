@@ -48,7 +48,7 @@ export const useSpotStore = create<SpotState>((set) => ({
 
   setSellAmount: (amount) => set({ sellAmount: amount }),
 
-  setSlippageBps: (bps) => set({ slippageBps: bps }),
+  setSlippageBps: (bps) => set({ slippageBps: Math.max(1, Math.min(bps, 500)) }),
 
   flipTokens: () =>
     set((state) => ({

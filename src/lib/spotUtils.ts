@@ -17,7 +17,7 @@ import type { Address } from 'viem'
  */
 export function parseTokenAmount(humanAmount: string, decimals: number): bigint {
   const trimmed = humanAmount.trim()
-  if (!trimmed || trimmed === '.' || trimmed === '-') return 0n
+  if (!trimmed || trimmed === '.' || trimmed.startsWith('-')) return 0n
 
   const [intPart = '0', decPart = ''] = trimmed.split('.')
   const paddedDec = decPart.slice(0, decimals).padEnd(decimals, '0')

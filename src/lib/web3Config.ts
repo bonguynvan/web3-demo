@@ -13,13 +13,18 @@
 import { http, createConfig } from 'wagmi'
 import { foundry, arbitrum } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
+// Demo connector import — Vite tree-shakes unused exports in production builds.
+// The private keys only enter the bundle when import.meta.env.DEV is true.
 import { demoConnector, DEMO_ACCOUNTS } from './demoConnector'
 
+const demoConnectors = import.meta.env.DEV
+  ? DEMO_ACCOUNTS.map(account => demoConnector({ account }))
+  : []
+
 export const wagmiConfig = createConfig({
-  chains: [foundry, arbitrum],
+  chains: import.meta.env.DEV ? [foundry, arbitrum] : [arbitrum],
   connectors: [
-    // Demo accounts first (most convenient for dev)
-    ...DEMO_ACCOUNTS.map(account => demoConnector({ account })),
+    ...demoConnectors,
     // Real wallets
     injected(),
   ],

@@ -114,6 +114,7 @@ export function SpotSwapForm() {
             <input
               type="text"
               inputMode="decimal"
+              maxLength={30}
               value={sellAmount}
               onChange={e => setSellAmount(e.target.value)}
               placeholder="0.0"
