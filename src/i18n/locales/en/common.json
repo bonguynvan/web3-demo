@@ -1,5 +1,6 @@
 {
   "connect_wallet": "Connect Wallet",
+  "connect": "Connect",
   "disconnect": "Disconnect",
   "connected_as": "Connected as",
   "switch_to_arbitrum": "Switch to Arbitrum",
@@ -20,5 +21,17 @@
   "cancel": "Cancel",
   "close": "Close",
   "max": "Max",
-  "balance": "Balance"
+  "balance": "Balance",
+  "retry": "Retry",
+  "dismiss": "Dismiss",
+  "reset": "Reset",
+  "save": "Save",
+  "no_wallet_detected": "No wallet detected. Install MetaMask.",
+  "no_wallet_needed_demo": "No real wallet needed in Demo mode",
+  "demo_accounts": "Demo Accounts",
+  "real_wallets": "Real Wallets",
+  "local_anvil_accounts": "Local Anvil Accounts",
+  "demo_account": "Demo account",
+  "statistics_24h": "24h Statistics",
+  "chain": "Chain {{chainId}}"
 }

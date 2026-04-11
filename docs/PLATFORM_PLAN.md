@@ -284,10 +284,14 @@ const ARBITRUM_CONFIG = {
 - [ ] Add language switcher UI
 - [ ] Add additional languages
 
-### Remaining (not started)
-- [ ] Code splitting / lazy loading for spot module
-- [ ] Mobile responsive spot UI polish
-- [ ] Unit tests for spot utilities and hooks
-- [ ] E2E tests for swap flow (Playwright)
-- [ ] Arbitrum testnet deployment
+### Phase 3: Polish & Testing — DONE
+- [x] Code splitting / lazy loading for spot module
+- [x] Mobile responsive spot UI (bottom CTA, full-screen modal, touch targets)
+- [x] Unit tests (48 tests — Vitest)
+- [x] E2E tests (29 tests — Playwright, desktop + mobile)
+
+### Remaining
+- [ ] Arbitrum testnet deployment (waiting for funded wallet)
 - [ ] Security review
+- [ ] Migrate remaining perp components to i18n (Web3Header, Web3OrderForm)
+- [ ] Add additional languages

@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
@@ -30,6 +31,7 @@ const CHAIN_NAMES: Record<number, string> = {
 }
 
 export function Web3Header() {
+  const { t } = useTranslation()
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
 
   const { address, isConnected, connector } = useAccount()
@@ -72,7 +74,7 @@ export function Web3Header() {
   }, [mode, isConnected, isDemoAccount, connector, connectors, connect, disconnect])
 
   const currentPrice = getPrice(selectedMarket.symbol)
-  const priceLabel = mode === 'demo' ? 'Binance' : 'Oracle'
+  const priceLabel = mode === 'demo' ? t('perp:binance') : t('perp:oracle')
 
   const truncatedAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -146,7 +148,7 @@ export function Web3Header() {
 
         {/* 24h Change */}
         <div>
-          <span className="text-text-muted text-[10px]">24h Change</span>
+          <span className="text-text-muted text-[10px]">{t('perp:24h_change')}</span>
           {stats.statsAvailable ? (
             <div className={cn(
               'font-mono font-medium',
@@ -163,7 +165,7 @@ export function Web3Header() {
 
         {/* 24h High */}
         <div>
-          <span className="text-text-muted text-[10px]">24h High</span>
+          <span className="text-text-muted text-[10px]">{t('perp:24h_high')}</span>
           {stats.statsAvailable ? (
             <div className="font-mono text-text-primary">${formatUsd(stats.high24h)}</div>
           ) : stats.isInitialLoad ? (
@@ -175,7 +177,7 @@ export function Web3Header() {
 
         {/* 24h Low */}
         <div>
-          <span className="text-text-muted text-[10px]">24h Low</span>
+          <span className="text-text-muted text-[10px]">{t('perp:24h_low')}</span>
           {stats.statsAvailable ? (
             <div className="font-mono text-text-primary">${formatUsd(stats.low24h)}</div>
           ) : stats.isInitialLoad ? (
@@ -187,7 +189,7 @@ export function Web3Header() {
 
         {/* 24h Volume */}
         <div>
-          <span className="text-text-muted text-[10px]">24h Volume</span>
+          <span className="text-text-muted text-[10px]">{t('perp:24h_volume')}</span>
           {stats.statsAvailable ? (
             <div className="font-mono text-text-primary">${formatCompact(stats.volume24h)}</div>
           ) : stats.isInitialLoad ? (
@@ -204,7 +206,7 @@ export function Web3Header() {
             content="Total notional value of open positions across all traders on this market. A proxy for how much capital is currently committed to directional bets."
             side="bottom"
           >
-            <span className="text-text-muted text-[10px] cursor-help">Open Interest</span>
+            <span className="text-text-muted text-[10px] cursor-help">{t('perp:open_interest')}</span>
           </Tooltip>
           {stats.statsAvailable ? (
             <div className="font-mono text-text-primary">${formatCompact(stats.openInterest)}</div>
@@ -224,7 +226,7 @@ export function Web3Header() {
             content="Periodic payment between longs and shorts to keep the perpetual price aligned with spot. Positive = longs pay shorts; negative = shorts pay longs. Charged every 8 hours."
             side="bottom"
           >
-            <span className="text-text-muted text-[10px] cursor-help">Funding / Countdown</span>
+            <span className="text-text-muted text-[10px] cursor-help">{t('perp:funding_countdown')}</span>
           </Tooltip>
           {stats.fundingAvailable ? (
             <div className="flex items-center gap-1.5">
@@ -368,7 +370,7 @@ export function Web3Header() {
             width="min-w-[200px]"
           >
             <div className="px-4 py-3 border-b border-border" onClick={e => e.stopPropagation()}>
-              <div className="text-xs text-text-muted">Connected as</div>
+              <div className="text-xs text-text-muted">{t('connected_as')}</div>
               <div className="text-sm font-mono text-text-primary mt-0.5">{truncatedAddress}</div>
               <div className="text-[10px] text-text-muted mt-0.5">
                 {CHAIN_NAMES[chainId] || `Chain ${chainId}`}
@@ -380,7 +382,7 @@ export function Web3Header() {
               className="flex items-center gap-2 w-full px-4 py-2.5 text-xs text-short hover:bg-panel-light transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Disconnect
+              {t('disconnect')}
             </button>
           </Dropdown>
         </div>
@@ -389,8 +391,8 @@ export function Web3Header() {
           trigger={
             <>
               <Wallet className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Connect Wallet</span>
-              <span className="md:hidden">Connect</span>
+              <span className="hidden md:inline">{t('connect_wallet')}</span>
+              <span className="md:hidden">{t('connect')}</span>
             </>
           }
           align="right"
@@ -399,7 +401,7 @@ export function Web3Header() {
           {mode === 'demo' ? (
             <>
               <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-                Demo Accounts
+                {t('demo_accounts')}
               </div>
               {connectors.filter(c => c.type === 'demo').map(connector => (
                 <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
@@ -410,13 +412,13 @@ export function Web3Header() {
                 </DropdownItem>
               ))}
               <div className="text-[10px] text-text-muted px-3 py-2 border-t border-border" onClick={e => e.stopPropagation()}>
-                No real wallet needed in Demo mode
+                {t('no_wallet_needed_demo')}
               </div>
             </>
           ) : (
             <>
               <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-                Real Wallets
+                {t('real_wallets')}
               </div>
               {connectors.filter(c => c.type !== 'demo').map(connector => (
                 <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
@@ -428,7 +430,7 @@ export function Web3Header() {
               ))}
               {connectors.filter(c => c.type !== 'demo').length === 0 && (
                 <div className="text-[10px] text-text-muted px-3 py-2" onClick={e => e.stopPropagation()}>
-                  No wallet detected. Install MetaMask.
+                  {t('no_wallet_detected')}
                 </div>
               )}
               {/* Local Anvil accounts work in live mode too — the demo
@@ -437,7 +439,7 @@ export function Web3Header() {
                   want to test the contract path without setting up
                   MetaMask + a custom Anvil network. */}
               <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1 border-t border-border mt-1 pt-2" onClick={e => e.stopPropagation()}>
-                Local Anvil Accounts
+                {t('local_anvil_accounts')}
               </div>
               {connectors.filter(c => c.type === 'demo').map(connector => (
                 <DropdownItem key={connector.uid} onClick={() => connect({ connector })}>
@@ -477,12 +479,14 @@ interface MobileMenuDrawerProps {
 function MobileMenuDrawer({
   open, onClose, stats, mode, setMode, theme, toggleTheme, onOpenSettings, onOpenAbout,
 }: MobileMenuDrawerProps) {
+  const { t } = useTranslation()
+
   return (
-    <Drawer open={open} onClose={onClose} title="Menu" widthClass="w-[300px]">
+    <Drawer open={open} onClose={onClose} title={t('menu')} widthClass="w-[300px]">
       <div className="p-4 space-y-5">
         {/* Mode Toggle */}
         <section>
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Mode</div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('mode')}</div>
           <div className="flex items-center bg-surface rounded-md p-1 gap-1">
             <button
               onClick={() => { setMode('demo'); onClose() }}
@@ -491,7 +495,7 @@ function MobileMenuDrawer({
                 mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary',
               )}
             >
-              Demo
+              {t('demo')}
             </button>
             <button
               onClick={() => { setMode('live'); onClose() }}
@@ -500,20 +504,20 @@ function MobileMenuDrawer({
                 mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary',
               )}
             >
-              Live
+              {t('live')}
             </button>
           </div>
         </section>
 
         {/* Theme Toggle */}
         <section>
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Appearance</div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('appearance')}</div>
           <button
             onClick={toggleTheme}
             className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
           >
             <span className="text-xs text-text-secondary">
-              {theme === 'dark' ? 'Dark' : 'Light'} mode
+              {theme === 'dark' ? t('dark_mode') : t('light_mode')}
             </span>
             {theme === 'dark' ? <Sun className="w-4 h-4 text-text-muted" /> : <Moon className="w-4 h-4 text-text-muted" />}
           </button>
@@ -521,20 +525,20 @@ function MobileMenuDrawer({
 
         {/* Settings + About entries */}
         <section>
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Preferences</div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('preferences')}</div>
           <div className="space-y-1.5">
             <button
               onClick={onOpenSettings}
               className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
             >
-              <span className="text-xs text-text-secondary">Settings…</span>
+              <span className="text-xs text-text-secondary">{t('settings')}…</span>
               <Settings className="w-4 h-4 text-text-muted" />
             </button>
             <button
               onClick={onOpenAbout}
               className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
             >
-              <span className="text-xs text-text-secondary">About this app</span>
+              <span className="text-xs text-text-secondary">{t('about')}</span>
               <HelpCircle className="w-4 h-4 text-text-muted" />
             </button>
           </div>
@@ -542,7 +546,7 @@ function MobileMenuDrawer({
 
         {/* 24h Stats */}
         <section>
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">24h Statistics</div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('statistics_24h')}</div>
           <div className="bg-surface/60 rounded-md p-3 space-y-2 text-xs">
             <DrawerStatRow
               label="Change"

@@ -1,4 +1,5 @@
 import { memo, useRef, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Activity } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { cn, formatUsd, formatTime } from '../lib/format'
@@ -22,6 +23,7 @@ const EMPTY_GRACE_MS = 6_000
  *   3. First trade arrives → immediately switches to the tape
  */
 export function RecentTrades() {
+  const { t } = useTranslation('perp')
   const rawTrades = useTradingStore(s => s.recentTrades)
   const recentTrades = useThrottledValue(rawTrades)
 
@@ -38,7 +40,7 @@ export function RecentTrades() {
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden" style={{ contain: 'layout style' }}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <span className="text-xs font-medium text-text-primary">Trades</span>
+        <span className="text-xs font-medium text-text-primary">{t('recent_trades')}</span>
         <span className="text-[10px] text-text-muted font-mono">
           {recentTrades.length > 0 ? `${recentTrades.length} trades` : ''}
         </span>

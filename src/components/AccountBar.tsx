@@ -8,6 +8,7 @@
 
 import { useMemo, useRef, useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePositions } from '../hooks/usePositions'
 import { useIsDemo } from '../store/modeStore'
@@ -17,6 +18,7 @@ import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 
 export function AccountBar() {
+  const { t } = useTranslation('perp')
   const { isConnected } = useAccount()
   const { dollars: usdcBalance, isFetched: balanceFetched } = useUsdcBalance()
   const { positions } = usePositions()
@@ -66,7 +68,7 @@ export function AccountBar() {
           content="Total account value: free USDC + collateral locked in open positions + unrealized PnL. This is what your account would be worth if you closed everything at the current mark price."
           side="bottom"
         >
-          <span className="text-text-muted cursor-help">Equity</span>
+          <span className="text-text-muted cursor-help">{t('equity')}</span>
         </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={70} subtle />
@@ -84,7 +86,7 @@ export function AccountBar() {
 
       {/* Available — hidden on mobile, equity covers the headline number */}
       <div className="hidden md:flex items-center gap-1.5">
-        <span className="text-text-muted">Available</span>
+        <span className="text-text-muted">{t('available')}</span>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={60} subtle />
         ) : (
@@ -101,7 +103,7 @@ export function AccountBar() {
           content="USDC locked as collateral across all your open positions. As the margin usage % approaches 100, your account is closer to liquidation."
           side="bottom"
         >
-          <span className="text-text-muted cursor-help">Margin</span>
+          <span className="text-text-muted cursor-help">{t('margin')}</span>
         </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={48} subtle />
@@ -131,7 +133,7 @@ export function AccountBar() {
           content="Profit or loss on open positions if they were closed at the current mark price. Becomes 'realized' (and added to your balance) only when you actually close the position."
           side="bottom"
         >
-          <span className="text-text-muted cursor-help">Unrealized</span>
+          <span className="text-text-muted cursor-help">{t('unrealized')}</span>
         </Tooltip>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={56} subtle />
@@ -149,7 +151,7 @@ export function AccountBar() {
 
       {/* Daily PnL — hidden on mobile (less critical for fast trading) */}
       <div className="hidden md:flex items-center gap-1.5">
-        <span className="text-text-muted">Daily P&L</span>
+        <span className="text-text-muted">{t('daily_pnl')}</span>
         {isInitialLoad ? (
           <Skeleton className="h-3" width={56} subtle />
         ) : (
@@ -164,7 +166,7 @@ export function AccountBar() {
       {/* Positions count */}
       {positions.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <span className="text-text-muted">Positions</span>
+          <span className="text-text-muted">{t('positions')}</span>
           <span className="bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded-full font-medium">
             {positions.length}
           </span>
