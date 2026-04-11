@@ -331,9 +331,8 @@ The chart is a custom **canvas-based** rendering library (`@chart-lib`), develop
 └── pnpm-workspace.yaml
 ```
 
-> **Note:** `dapp-demo/packages/{commons,core,library}` are frozen copies kept as fallback.
-> All active development happens in `../chart-lib/`. Module resolution is transparent via
-> Vite aliases and TypeScript path mapping (see `vite.config.ts` and `tsconfig.app.json`).
+> Module resolution is transparent via Vite aliases and TypeScript path mapping
+> (see `vite.config.ts` and `tsconfig.app.json`).
 
 ### How Data Flows to the Chart
 

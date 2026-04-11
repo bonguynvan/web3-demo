@@ -83,8 +83,7 @@ Changes to `../chart-lib/` automatically reload in dapp-demo via Vite HMR.
 
 ## Important Notes
 
-- **Do NOT edit** `dapp-demo/packages/{commons,core,library}` — these are frozen copies
-  kept as fallback. All chart development happens in `../chart-lib/`.
+- Chart library source lives exclusively in `../chart-lib/`.
 - The chart library will be published as `@vanbo/trading-chart` or `@vanbo/chart-lib`.
   Once published, dapp-demo will switch from path aliases to npm imports.
 
