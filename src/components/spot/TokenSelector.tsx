@@ -76,7 +76,7 @@ export function TokenSelector({ open, onClose, onSelect, excludeAddress }: Token
           <button
             key={token.address}
             onClick={() => handleSelect(token)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface border border-border rounded-full text-xs text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 md:px-2.5 md:py-1.5 bg-surface border border-border rounded-full text-xs text-text-primary hover:bg-panel-light active:bg-panel-light transition-colors cursor-pointer"
           >
             <TokenIcon token={token} size={16} />
             {token.symbol}
@@ -93,7 +93,7 @@ export function TokenSelector({ open, onClose, onSelect, excludeAddress }: Token
       ) : results.length === 0 ? (
         <div className="text-center text-text-muted text-xs py-8">No tokens found</div>
       ) : (
-        <div className="max-h-[300px] overflow-y-auto -mx-1">
+        <div className="max-h-[50vh] md:max-h-[300px] overflow-y-auto -mx-1">
           {results.map(token => (
             <TokenRow key={token.address} token={token} onSelect={handleSelect} />
           ))}
@@ -108,7 +108,7 @@ function TokenRow({ token, onSelect }: { token: Token; onSelect: (t: Token) => v
   return (
     <button
       onClick={() => onSelect(token)}
-      className="flex items-center justify-between w-full px-2 py-2 hover:bg-panel-light transition-colors cursor-pointer rounded"
+      className="flex items-center justify-between w-full px-2 py-2.5 md:py-2 hover:bg-panel-light active:bg-panel-light transition-colors cursor-pointer rounded min-h-[44px]"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <TokenIcon token={token} size={28} />

@@ -29,8 +29,9 @@
  * when useIsMobile() is true.
  */
 
-import { useState } from 'react'
-import { TrendingUp, TrendingDown, X } from 'lucide-react'
+import { useState, lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
+import { TrendingUp, TrendingDown, ArrowLeftRight, X, Loader2 } from 'lucide-react'
 import { TradingChart } from './TradingChart'
 import { PositionsTable } from './PositionsTable'
 import { DepthBook } from './DepthBook'
@@ -40,11 +41,15 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { useTradingStore } from '../store/tradingStore'
 import { cn } from '../lib/format'
 
+const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
+
 type MobileTab = 'positions' | 'book' | 'trades'
 
 export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
+  const { t } = useTranslation('perp')
   const [activeTab, setActiveTab] = useState<MobileTab>('positions')
   const [orderOpen, setOrderOpen] = useState(false)
+  const [spotOpen, setSpotOpen] = useState(false)
   const setOrderSide = useTradingStore(s => s.setOrderSide)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
 
@@ -101,7 +106,7 @@ export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
         </div>
       </div>
 
-      {/* Sticky bottom CTA — Long / Short buttons that open the order form.
+      {/* Sticky bottom CTA — Long / Short / Swap buttons.
           Pinned with safe-area insets so it sits above the iOS home indicator. */}
       <div
         className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-border bg-panel"
@@ -109,48 +114,82 @@ export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
       >
         <button
           onClick={() => openOrderForm('long')}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm text-white bg-long hover:bg-long/90 transition-colors cursor-pointer shadow-sm"
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-white bg-long hover:bg-long/90 transition-colors cursor-pointer shadow-sm"
         >
           <TrendingUp className="w-4 h-4" />
-          Long {selectedMarket.baseAsset}
+          {t('long')}
         </button>
         <button
           onClick={() => openOrderForm('short')}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm text-white bg-short hover:bg-short/90 transition-colors cursor-pointer shadow-sm"
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-white bg-short hover:bg-short/90 transition-colors cursor-pointer shadow-sm"
         >
           <TrendingDown className="w-4 h-4" />
-          Short {selectedMarket.baseAsset}
+          {t('short')}
+        </button>
+        <button
+          onClick={() => setSpotOpen(true)}
+          className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg font-semibold text-sm text-white bg-accent hover:bg-accent/90 transition-colors cursor-pointer shadow-sm"
+        >
+          <ArrowLeftRight className="w-4 h-4" />
+          {t('spot')}
         </button>
       </div>
 
-      {/* Full-screen order modal — reuses the existing TradePanel verbatim
-          so demo + live + LP tab + every existing feature works without a
-          parallel implementation. */}
-      {orderOpen && <MobileOrderModal onClose={() => setOrderOpen(false)} />}
+      {/* Full-screen order modal — reuses the existing TradePanel verbatim */}
+      {orderOpen && <MobileOrderModal onClose={() => setOrderOpen(false)} title={t('trade')} />}
+
+      {/* Full-screen spot swap modal */}
+      {spotOpen && <MobileSpotModal onClose={() => setSpotOpen(false)} />}
     </>
   )
 }
 
-function MobileOrderModal({ onClose }: { onClose: () => void }) {
+function MobileOrderModal({ onClose, title }: { onClose: () => void; title?: string }) {
   return (
     <div className="fixed inset-0 z-[90] bg-surface flex flex-col">
-      {/* Modal header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-panel shrink-0">
-        <span className="text-sm font-semibold text-text-primary">Place order</span>
+        <span className="text-sm font-semibold text-text-primary">{title ?? 'Place order'}</span>
         <button
           onClick={onClose}
           className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
-          aria-label="Close order form"
+          aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
-
-      {/* TradePanel handles its own scroll + tabs (Trade / Pool) so we just
-          give it a flex-1 box to live in. */}
       <div className="flex-1 min-h-0 p-2">
         <ErrorBoundary name="OrderForm">
           <TradePanel />
+        </ErrorBoundary>
+      </div>
+    </div>
+  )
+}
+
+function MobileSpotModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('perp')
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-panel shrink-0">
+        <span className="text-sm font-semibold text-text-primary">{t('spot')} Swap</span>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 p-2 overflow-y-auto">
+        <ErrorBoundary name="SpotSwap">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-32 text-text-muted">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          }>
+            <SpotSwapForm />
+          </Suspense>
         </ErrorBoundary>
       </div>
     </div>

@@ -170,7 +170,7 @@ export function SpotSwapForm() {
                 key={bps}
                 onClick={() => setSlippageBps(bps)}
                 className={cn(
-                  'px-2.5 py-1 text-[10px] rounded-md transition-colors cursor-pointer',
+                  'px-3 py-2 md:px-2.5 md:py-1 text-[10px] rounded-md transition-colors cursor-pointer min-h-[36px] md:min-h-0',
                   slippageBps === bps
                     ? 'bg-accent text-white'
                     : 'bg-surface text-text-muted hover:text-text-primary border border-border',
