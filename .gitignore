@@ -23,6 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables (may contain secrets)
+.env
+.env.local
+.env.*.local
+
 # Claude Code
 .claude/
 
