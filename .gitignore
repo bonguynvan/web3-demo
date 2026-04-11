@@ -46,3 +46,5 @@ packages/contracts/deployments/
 
 # Generated deploy addresses
 src/addresses.json
+test-results/
+playwright-report/
