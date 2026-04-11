@@ -15,6 +15,7 @@
 
 import { useState, useCallback } from 'react'
 import { useAccount, useChainId } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { ArrowDownUp, Loader2, Check, Settings } from 'lucide-react'
 import { useSpotStore } from '../../store/spotStore'
 import { useSwapQuote } from '../../hooks/useSwapQuote'
@@ -31,6 +32,7 @@ import type { SwapStatus } from '../../types/spot'
 type TokenSide = 'sell' | 'buy'
 
 export function SpotSwapForm() {
+  const { t } = useTranslation('spot')
   const { isConnected } = useAccount()
   const chainId = useChainId()
 
@@ -86,6 +88,7 @@ export function SpotSwapForm() {
     sellToken,
     buyToken,
     status,
+    t,
   })
   const buttonDisabled = status !== 'idle' && status !== 'error' && status !== 'success'
   const isWrongChain = chainId !== ARBITRUM_CHAIN_ID
@@ -96,7 +99,7 @@ export function SpotSwapForm() {
         {/* ─── You Pay ─── */}
         <div className="bg-surface rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider">You Pay</span>
+            <span className="text-[10px] text-text-muted uppercase tracking-wider">{t('you_pay')}</span>
             <div className="flex items-center gap-1.5 text-[10px] text-text-muted">
               Bal: <span className="font-mono">{sellBalanceFormatted}</span>
               <button
@@ -133,7 +136,7 @@ export function SpotSwapForm() {
         {/* ─── You Receive ─── */}
         <div className="bg-surface rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider">You Receive</span>
+            <span className="text-[10px] text-text-muted uppercase tracking-wider">{t('you_receive')}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex-1 text-xl font-mono text-text-primary min-w-0">
@@ -251,12 +254,13 @@ function TokenPill({ token, onClick }: { token: Token; onClick: () => void }) {
 
 /** Status progress during swap execution. */
 function SwapStatusDisplay({ status }: { status: SwapStatus }) {
+  const { t } = useTranslation('spot')
   const steps: { key: SwapStatus; label: string }[] = [
-    { key: 'fetching-quote', label: 'Fetching quote' },
-    { key: 'approving', label: 'Approving token' },
-    { key: 'submitting', label: 'Submitting swap' },
-    { key: 'confirming', label: 'Confirming' },
-    { key: 'success', label: 'Complete' },
+    { key: 'fetching-quote', label: t('fetching_quote_step') },
+    { key: 'approving', label: t('approving_token') },
+    { key: 'submitting', label: t('submitting_swap') },
+    { key: 'confirming', label: t('confirming') },
+    { key: 'success', label: t('complete') },
   ]
 
   return (
@@ -297,6 +301,7 @@ function getButtonLabel({
   sellToken,
   buyToken,
   status,
+  t,
 }: {
   isConnected: boolean
   chainId: number
@@ -305,17 +310,18 @@ function getButtonLabel({
   sellToken: Token
   buyToken: Token
   status: SwapStatus
+  t: (key: string, opts?: Record<string, string>) => string
 }): string {
-  if (!isConnected) return 'Connect Wallet'
-  if (chainId !== ARBITRUM_CHAIN_ID) return 'Switch to Arbitrum'
-  if (status === 'success') return 'Swap Successful'
-  if (status === 'error') return 'Try Again'
-  if (status !== 'idle') return 'Swapping...'
-  if (!isValidAmount(sellAmount)) return 'Enter Amount'
+  if (!isConnected) return t('common:connect_wallet')
+  if (chainId !== ARBITRUM_CHAIN_ID) return t('common:switch_to_arbitrum')
+  if (status === 'success') return t('swap_successful')
+  if (status === 'error') return t('try_again')
+  if (status !== 'idle') return t('swapping')
+  if (!isValidAmount(sellAmount)) return t('enter_amount')
 
   // Check insufficient balance
   const required = parseTokenAmount(sellAmount, sellToken.decimals)
-  if (required > sellBalance) return `Insufficient ${sellToken.symbol}`
+  if (required > sellBalance) return t('insufficient_balance', { symbol: sellToken.symbol })
 
-  return `Swap ${sellToken.symbol} for ${buyToken.symbol}`
+  return t('swap_for', { sell: sellToken.symbol, buy: buyToken.symbol })
 }

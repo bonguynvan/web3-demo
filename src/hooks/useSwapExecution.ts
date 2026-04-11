@@ -22,7 +22,8 @@ import { zeroXClient, type SwapParams } from '../lib/zeroXClient'
 import { isNativeEth } from '../lib/spotUtils'
 import { ZERO_X_ALLOWANCE_HOLDER, ARBITRUM_CHAIN_ID } from '../lib/spotConstants'
 import { useSpotStore } from '../store/spotStore'
-import { parseTokenAmount, isValidAmount } from '../lib/spotUtils'
+import { useSwapHistoryStore } from '../store/swapHistoryStore'
+import { parseTokenAmount, isValidAmount, formatTokenAmount } from '../lib/spotUtils'
 
 export function useSwapExecution() {
   const { address } = useAccount()
@@ -35,6 +36,7 @@ export function useSwapExecution() {
   const [lastTxHash, setLastTxHash] = useState<`0x${string}` | null>(null)
 
   const { sellToken, buyToken, sellAmount, slippageBps } = useSpotStore()
+  const addHistoryEntry = useSwapHistoryStore(s => s.addEntry)
 
   const { writeContractAsync } = useWriteContract()
   const { sendTransactionAsync } = useSendTransaction()
@@ -127,6 +129,20 @@ export function useSwapExecution() {
       await waitForTransactionReceipt(config, { hash })
 
       setStatus('success')
+
+      // Record swap in history
+      addHistoryEntry(address, {
+        id: `${hash}-${Date.now()}`,
+        timestamp: Date.now(),
+        txHash: hash,
+        sellToken: { symbol: sellToken.symbol, address: sellToken.address },
+        buyToken: { symbol: buyToken.symbol, address: buyToken.address },
+        sellAmount: formatTokenAmount(rawSellAmount, sellToken.decimals, 6),
+        buyAmount: formatTokenAmount(quoteResult.data.buyAmount, buyToken.decimals, 6),
+        price: quoteResult.data.price,
+        status: 'confirmed',
+      })
+
       // Invalidate token balance queries so UI updates
       queryClient.invalidateQueries({ queryKey: ['swapQuote'] })
       setTimeout(() => setStatus('idle'), 3000)
@@ -142,7 +158,7 @@ export function useSwapExecution() {
   }, [
     address, chainId, isBusy, sellAmount, sellToken, buyToken, slippageBps,
     isNative, needsApproval, writeContractAsync, sendTransactionAsync,
-    config, queryClient, failWithMessage,
+    config, queryClient, failWithMessage, addHistoryEntry,
   ])
 
   return {

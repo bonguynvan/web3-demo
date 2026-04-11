@@ -1,0 +1,12 @@
+{
+  "network_error": "Network error. Check your connection.",
+  "rpc_error": "RPC error. The blockchain node may be down.",
+  "user_rejected": "Transaction rejected by user.",
+  "insufficient_gas": "Insufficient gas for transaction.",
+  "slippage_exceeded": "Price moved too much. Try increasing slippage.",
+  "quote_expired": "Quote expired. Please try again.",
+  "rate_limited": "Rate limited. Please wait a moment.",
+  "unknown_error": "Something went wrong. Please try again.",
+  "wallet_not_connected": "Please connect your wallet first.",
+  "wrong_chain": "Please switch to the correct network."
+}

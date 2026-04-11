@@ -9,12 +9,15 @@ import { useState } from 'react'
 import { Web3OrderForm } from './Web3OrderForm'
 import { LpPanel } from './LpPanel'
 import { SpotSwapForm } from './spot/SpotSwapForm'
+import { SwapHistory } from './spot/SwapHistory'
 import { cn } from '../lib/format'
 
 type PanelTab = 'trade' | 'spot' | 'pool'
+type SpotSubTab = 'swap' | 'history'
 
 export function TradePanel() {
   const [tab, setTab] = useState<PanelTab>('trade')
+  const [spotSubTab, setSpotSubTab] = useState<SpotSubTab>('swap')
 
   return (
     <div className="flex flex-col h-full">
@@ -40,7 +43,30 @@ export function TradePanel() {
           contract reads from the inactive form. */}
       <div className="flex-1 min-h-0">
         {tab === 'trade' && <Web3OrderForm />}
-        {tab === 'spot' && <SpotSwapForm />}
+        {tab === 'spot' && (
+          <div className="flex flex-col h-full">
+            {/* Spot sub-tabs */}
+            <div className="flex items-center border-b border-border px-1 shrink-0">
+              {(['swap', 'history'] as const).map(st => (
+                <button
+                  key={st}
+                  onClick={() => setSpotSubTab(st)}
+                  className={cn(
+                    'px-3 py-2 text-[10px] font-medium capitalize transition-colors cursor-pointer border-b-2',
+                    spotSubTab === st
+                      ? 'text-text-primary border-accent'
+                      : 'text-text-muted border-transparent hover:text-text-secondary'
+                  )}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {spotSubTab === 'swap' ? <SpotSwapForm /> : <SwapHistory />}
+            </div>
+          </div>
+        )}
         {tab === 'pool' && <LpPanel />}
       </div>
     </div>
