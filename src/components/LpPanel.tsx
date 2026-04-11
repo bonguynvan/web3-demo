@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAccount } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { useVault } from '../hooks/useVault'
 import { useUsdcBalance, usePlpBalance } from '../hooks/useTokenBalance'
@@ -21,6 +22,7 @@ type LpTab = 'deposit' | 'withdraw'
 const PLP_DECIMALS = 6n // PLP inherits USDC's 6-dec scale
 
 export function LpPanel() {
+  const { t } = useTranslation('perp')
   const isDemo = useIsDemo()
   const { isConnected } = useAccount()
   const toast = useToast()
@@ -44,10 +46,10 @@ export function LpPanel() {
 
   // ─── Validation ───
   const validation = useMemo(() => {
-    if (!isConnected) return 'Connect wallet'
-    if (amountNum <= 0) return 'Enter amount'
-    if (tab === 'deposit' && amountNum > usdcBalance) return 'Insufficient USDC'
-    if (tab === 'withdraw' && amountNum > plpBalance) return 'Insufficient PLP'
+    if (!isConnected) return t('common:connect_wallet')
+    if (amountNum <= 0) return t('enter_amount')
+    if (tab === 'deposit' && amountNum > usdcBalance) return t('insufficient_balance')
+    if (tab === 'withdraw' && amountNum > plpBalance) return t('insufficient_balance')
     return null
   }, [isConnected, amountNum, tab, usdcBalance, plpBalance])
 
@@ -123,10 +125,10 @@ export function LpPanel() {
 
         {/* Pool stats */}
         <div className="space-y-1.5 text-[11px]">
-          <PoolStatRow label="Pool Liquidity" value={`$${formatUsd(stats.poolAmount)}`} />
-          <PoolStatRow label="Available" value={`$${formatUsd(stats.availableLiquidity)}`} />
-          <PoolStatRow label="Utilisation" value={`${stats.utilizationPercent.toFixed(2)}%`} />
-          <PoolStatRow label="AUM" value={`$${formatUsd(stats.aum)}`} bold />
+          <PoolStatRow label={t('pool_liquidity')} value={`$${formatUsd(stats.poolAmount)}`} />
+          <PoolStatRow label={t('available')} value={`$${formatUsd(stats.availableLiquidity)}`} />
+          <PoolStatRow label={t('utilisation')} value={`${stats.utilizationPercent.toFixed(2)}%`} />
+          <PoolStatRow label={t('aum')} value={`$${formatUsd(stats.aum)}`} bold />
         </div>
 
         {/* Amount input */}
@@ -171,8 +173,8 @@ export function LpPanel() {
         {/* Receive preview */}
         {amountNum > 0 && (
           <div className="space-y-1 text-[11px] border-t border-border pt-2.5">
-            <PoolStatRow label="You receive" value={youReceive} bold />
-            <PoolStatRow label="PLP balance" value={`${formatUsd(plpBalance)} PLP`} muted />
+            <PoolStatRow label={t('you_receive')} value={youReceive} bold />
+            <PoolStatRow label={t('plp_balance')} value={`${formatUsd(plpBalance)} PLP`} muted />
             <PoolStatRow
               label="Share of pool"
               value={

@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChainId } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Check, X, ChevronDown, Keyboard } from 'lucide-react'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -40,6 +41,7 @@ import { useSettingsStore } from '../store/settingsStore'
 type AmountUnit = 'usdc' | 'coin'
 
 export function Web3OrderForm() {
+  const { t } = useTranslation('perp')
   const { isConnected } = useAccount()
   const chainId = useChainId()
   const toast = useToast()
@@ -246,9 +248,9 @@ export function Web3OrderForm() {
   // ─── Validation ───
   const canSubmit = collateralNum > 0 && priceNum > 0 && !isSubmitting && collateralNum <= balance
   const validationMsg =
-    collateralNum <= 0 ? 'Enter amount' :
-    collateralNum > balance ? 'Insufficient balance' :
-    priceNum <= 0 ? 'Waiting for price...' : null
+    collateralNum <= 0 ? t('enter_amount') :
+    collateralNum > balance ? t('insufficient_balance') :
+    priceNum <= 0 ? t('waiting_for_price') : null
 
   // Show "Approve USDC then Long" only in live mode when allowance is too low.
   const requiresApproval = !isDemo && isConnected && collateralNum > 0 && needsApproval(collateralNum)
@@ -277,7 +279,7 @@ export function Web3OrderForm() {
               : 'text-text-muted hover:text-text-secondary hover:bg-panel-light'
           )}
         >
-          Long
+          {t('long')}
         </button>
         <button
           onClick={() => setOrderSide('short')}
@@ -288,7 +290,7 @@ export function Web3OrderForm() {
               : 'text-text-muted hover:text-text-secondary hover:bg-panel-light'
           )}
         >
-          Short
+          {t('short')}
         </button>
         <KeyboardShortcutsButton />
       </div>
@@ -305,14 +307,14 @@ export function Web3OrderForm() {
                 orderType === type ? 'bg-panel-light text-text-primary' : 'text-text-muted hover:text-text-secondary'
               )}
             >
-              {type}
+              {t(type)}
             </button>
           ))}
         </div>
 
         {/* Limit Price */}
         {orderType === 'limit' && (
-          <FieldGroup label="Limit Price">
+          <FieldGroup label={t('limit_price')}>
             <div className="flex items-center bg-surface border border-border rounded-md focus-within:border-accent/40 transition-colors">
               <input
                 type="number"
@@ -328,7 +330,7 @@ export function Web3OrderForm() {
 
         {/* Pay With Toggle */}
         <FieldGroup
-          label="Pay with"
+          label={t('pay_with')}
           right={
             <span className="text-[10px] text-text-muted font-mono truncate">
               Bal: ${formatUsd(balance)}
@@ -394,7 +396,7 @@ export function Web3OrderForm() {
 
         {/* Leverage */}
         <FieldGroup
-          label="Leverage"
+          label={t('leverage')}
           right={<span className="text-sm font-mono text-accent font-semibold">{leverage}x</span>}
         >
           <input
@@ -432,7 +434,7 @@ export function Web3OrderForm() {
           )}
         >
           <ChevronDown className={cn('w-3 h-3 transition-transform', showAdvanced && 'rotate-180')} />
-          Advanced
+          {t('advanced')}
         </button>
 
         {/* Advanced section */}
@@ -440,7 +442,7 @@ export function Web3OrderForm() {
           <div className="space-y-2.5 bg-surface/50 rounded-lg p-3">
             {/* Reduce Only */}
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-[11px] text-text-secondary">Reduce Only</span>
+              <span className="text-[11px] text-text-secondary">{t('reduce_only')}</span>
               <input
                 type="checkbox"
                 checked={reduceOnly}
@@ -452,7 +454,7 @@ export function Web3OrderForm() {
             {/* Take Profit */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-long uppercase tracking-wider font-semibold">Take Profit</label>
+                <label className="text-[10px] text-long uppercase tracking-wider font-semibold">{t('take_profit')}</label>
                 {tpPnl !== 0 && (
                   <span className={cn('text-[10px] font-mono', tpPnl >= 0 ? 'text-long' : 'text-short')}>
                     {tpPnl >= 0 ? '+' : ''}${formatUsd(tpPnl)} ({tpRoi >= 0 ? '+' : ''}{tpRoi.toFixed(1)}%)
@@ -471,7 +473,7 @@ export function Web3OrderForm() {
             {/* Stop Loss */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-short uppercase tracking-wider font-semibold">Stop Loss</label>
+                <label className="text-[10px] text-short uppercase tracking-wider font-semibold">{t('stop_loss')}</label>
                 {slPnl !== 0 && (
                   <span className={cn('text-[10px] font-mono', slPnl >= 0 ? 'text-long' : 'text-short')}>
                     {slPnl >= 0 ? '+' : ''}${formatUsd(slPnl)} ({slRoi >= 0 ? '+' : ''}{slRoi.toFixed(1)}%)
@@ -493,7 +495,7 @@ export function Web3OrderForm() {
         {collateralNum > 0 && priceNum > 0 && (
           <div className="space-y-1 text-[11px] border-t border-border pt-2.5">
             <SummaryRow
-              label="Position Size"
+              label={t('position_size')}
               value={`$${formatUsd(notional)}`}
               bold
               tooltip={{
@@ -501,10 +503,10 @@ export function Web3OrderForm() {
                 content: 'Total notional exposure: collateral × leverage. Your profit and loss scale with this number, not just your collateral.',
               }}
             />
-            <SummaryRow label="Collateral" value={`$${formatUsd(collateralNum)}`} />
-            <SummaryRow label="Entry Price" value={`$${formatUsd(effectiveEntry)}`} />
+            <SummaryRow label={t('collateral')} value={`$${formatUsd(collateralNum)}`} />
+            <SummaryRow label={t('entry_price')} value={`$${formatUsd(effectiveEntry)}`} />
             <SummaryRow
-              label="Liq. Price"
+              label={t('liq_price')}
               value={`$${formatUsd(liqPrice)}`}
               className="text-short"
               tooltip={{
@@ -513,7 +515,7 @@ export function Web3OrderForm() {
               }}
             />
             <SummaryRow
-              label="Fee"
+              label={t('fee')}
               value={`-$${formatUsd(openFee)}`}
               muted
               tooltip={{
@@ -545,11 +547,11 @@ export function Web3OrderForm() {
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              {demoSubmitting ? 'Executing...' :
-               status === 'approving' ? 'Approving USDC...' :
-               status === 'simulating' ? 'Checking...' :
-               status === 'submitting' ? 'Submitting...' :
-               status === 'confirming' ? 'Confirming...' : 'Processing...'}
+              {demoSubmitting ? t('executing') :
+               status === 'approving' ? t('approving_usdc') :
+               status === 'simulating' ? t('checking') :
+               status === 'submitting' ? t('submitting') :
+               status === 'confirming' ? t('confirming') : t('processing')}
             </span>
           ) : validationMsg ? (
             <span className="opacity-80">{validationMsg}</span>

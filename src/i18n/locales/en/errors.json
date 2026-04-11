@@ -8,5 +8,14 @@
   "rate_limited": "Rate limited. Please wait a moment.",
   "unknown_error": "Something went wrong. Please try again.",
   "wallet_not_connected": "Please connect your wallet first.",
-  "wrong_chain": "Please switch to the correct network."
+  "wrong_chain": "Please switch to the correct network.",
+  "backend_unreachable": "Backend API unreachable",
+  "backend_unreachable_detail": "Market stats, trade history, and the live trade tape are unavailable until the server is back. Positions are still read from chain.",
+  "wrong_network": "Wrong network",
+  "wrong_network_detail": "Your wallet is on chain {{chainId}}. Switch to Anvil (chain 31337) to trade.",
+  "connect_to_trade": "Connect a wallet to trade",
+  "connect_to_trade_detail": "You can view markets in live mode without a wallet, but opening or closing positions requires signing.",
+  "trade_feed_disconnected": "Trade feed disconnected",
+  "trade_feed_disconnected_detail": "Live trade updates paused. The connection will retry automatically.",
+  "checking": "Checking…"
 }

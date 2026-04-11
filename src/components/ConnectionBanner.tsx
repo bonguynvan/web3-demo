@@ -31,6 +31,7 @@
 
 import { useMemo, useState } from 'react'
 import { useAccount } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, WifiOff, X, RotateCw } from 'lucide-react'
 import { useServiceHealth } from '../hooks/useServiceHealth'
 import { useIsDemo } from '../store/modeStore'
@@ -49,6 +50,7 @@ interface BannerSpec {
 }
 
 export function ConnectionBanner() {
+  const { t } = useTranslation()
   const health = useServiceHealth()
   const isDemo = useIsDemo()
   const { isConnected } = useAccount()
@@ -82,9 +84,9 @@ export function ConnectionBanner() {
       return {
         key: 'backend-down',
         severity: 'error',
-        title: 'Backend API unreachable',
-        detail: 'Market stats, trade history, and the live trade tape are unavailable until the server is back. Positions are still read from chain.',
-        action: { label: retrying ? 'Checking…' : 'Retry', onClick: retryHealth },
+        title: t('errors:backend_unreachable'),
+        detail: t('errors:backend_unreachable_detail'),
+        action: { label: retrying ? t('errors:checking') : t('retry'), onClick: retryHealth },
         icon: WifiOff,
       }
     }
@@ -94,8 +96,8 @@ export function ConnectionBanner() {
       return {
         key: `wrong-chain-${health.chainId}`,
         severity: 'error',
-        title: 'Wrong network',
-        detail: `Your wallet is on chain ${health.chainId}. Switch to Anvil (chain 31337) to trade.`,
+        title: t('errors:wrong_network'),
+        detail: t('errors:wrong_network_detail', { chainId: String(health.chainId) }),
         icon: AlertTriangle,
       }
     }
@@ -105,8 +107,8 @@ export function ConnectionBanner() {
       return {
         key: 'wallet-disconnected',
         severity: 'warning',
-        title: 'Connect a wallet to trade',
-        detail: 'You can view markets in live mode without a wallet, but opening or closing positions requires signing.',
+        title: t('errors:connect_to_trade'),
+        detail: t('errors:connect_to_trade_detail'),
         icon: AlertTriangle,
       }
     }
@@ -116,8 +118,8 @@ export function ConnectionBanner() {
       return {
         key: 'ws-disconnected',
         severity: 'warning',
-        title: 'Trade feed disconnected',
-        detail: 'Live trade updates paused. The connection will retry automatically.',
+        title: t('errors:trade_feed_disconnected'),
+        detail: t('errors:trade_feed_disconnected_detail'),
         icon: WifiOff,
       }
     }
