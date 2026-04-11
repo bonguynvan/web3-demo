@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Wallet, LineChart, Inbox, History as HistoryIcon, AlertTriangle } from 'lucide-react'
 import { usePositions, type OnChainPosition } from '../hooks/usePositions'
 import { usePrices } from '../hooks/usePrices'
@@ -41,6 +42,7 @@ function EmptyState({
 type Tab = 'positions' | 'orders' | 'history'
 
 export function PositionsTable() {
+  const { t } = useTranslation('perp')
   const { isConnected } = useAccount()
   const { positions } = usePositions()
   const isDemo = useIsDemo()
@@ -77,14 +79,14 @@ export function PositionsTable() {
           !isConnected && !isDemo ? (
             <EmptyState
               icon={<Wallet className="w-5 h-5" />}
-              title="Wallet not connected"
-              subtitle="Connect a wallet from the header to view your open positions."
+              title={t('wallet_not_connected')}
+              subtitle={t('connect_to_trade')}
             />
           ) : positions.length === 0 ? (
             <EmptyState
               icon={<LineChart className="w-5 h-5" />}
-              title="No open positions"
-              subtitle="Place a market or limit order from the order form to start trading."
+              title={t('no_positions')}
+              subtitle={t('connect_to_trade')}
             />
           ) : (
             <table className="w-full text-xs">

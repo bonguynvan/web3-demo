@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Web3OrderForm } from './Web3OrderForm'
 import { LpPanel } from './LpPanel'
 import { SpotSwapForm } from './spot/SpotSwapForm'
@@ -16,6 +17,7 @@ type PanelTab = 'trade' | 'spot' | 'pool'
 type SpotSubTab = 'swap' | 'history'
 
 export function TradePanel() {
+  const { t } = useTranslation('perp')
   const [tab, setTab] = useState<PanelTab>('trade')
   const [spotSubTab, setSpotSubTab] = useState<SpotSubTab>('swap')
 
@@ -23,18 +25,18 @@ export function TradePanel() {
     <div className="flex flex-col h-full">
       {/* Top tabs */}
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'spot', 'pool'] as const).map(t => (
+        {(['trade', 'spot', 'pool'] as const).map(tabKey => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             className={cn(
               'flex-1 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md transition-colors cursor-pointer',
-              tab === t
+              tab === tabKey
                 ? 'bg-panel text-text-primary border border-border'
                 : 'bg-surface text-text-muted hover:text-text-secondary border border-transparent'
             )}
           >
-            {t}
+            {t(tabKey)}
           </button>
         ))}
       </div>

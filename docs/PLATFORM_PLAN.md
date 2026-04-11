@@ -259,30 +259,35 @@ const ARBITRUM_CONFIG = {
 
 ---
 
-## Development Sequence
+## Progress Tracker
 
-```
-Week 1-2: Foundation
-  ├── Market type abstraction (types + store refactor)
-  ├── 0x API client + token list
-  ├── i18n setup (react-i18next)
-  └── Arbitrum chain config (wagmi)
+### Phase 1: Spot Trading — DONE
+- [x] Types & constants (`spot.ts`, `spotConstants.ts`)
+- [x] 0x API client (`zeroXClient.ts`)
+- [x] Token list (`tokenList.ts`, `useTokenList.ts`)
+- [x] Spot utilities (`spotUtils.ts`)
+- [x] Zustand store (`spotStore.ts`)
+- [x] Quote hook (`useSwapQuote.ts`) — debounced, React Query
+- [x] Balance hook (`useErc20Balance.ts`) — generic ERC-20 + native ETH
+- [x] Swap execution (`useSwapExecution.ts`) — approval + swap state machine
+- [x] SpotSwapForm + TokenSelector + SwapQuoteDisplay
+- [x] TradePanel integration (Spot tab)
+- [x] Arbitrum chain config (wagmi)
+- [x] Swap history (`SwapHistory.tsx`, localStorage-backed)
 
-Week 3-4: Spot Core
-  ├── SpotSwapForm UI
-  ├── TokenSelector modal
-  ├── Quote polling + display
-  └── Swap execution (approve + send)
+### Phase 2: i18n — FOUNDATION DONE
+- [x] Install react-i18next + i18next
+- [x] i18n init with namespace splitting (common, spot, perp, errors)
+- [x] English translation files
+- [x] SpotSwapForm migrated to t() calls (reference pattern)
+- [ ] Migrate remaining components (Web3Header, PositionsTable, etc.)
+- [ ] Add language switcher UI
+- [ ] Add additional languages
 
-Week 5: Polish
-  ├── Swap history (on-chain events)
-  ├── Code splitting + lazy loading
-  ├── Error handling + edge cases
-  └── Mobile responsive spot UI
-
-Week 6: Testing + Deploy
-  ├── Unit tests for 0x client, hooks
-  ├── E2E tests for swap flow (Playwright)
-  ├── Arbitrum testnet deployment
-  └── Security review
-```
+### Remaining (not started)
+- [ ] Code splitting / lazy loading for spot module
+- [ ] Mobile responsive spot UI polish
+- [ ] Unit tests for spot utilities and hooks
+- [ ] E2E tests for swap flow (Playwright)
+- [ ] Arbitrum testnet deployment
+- [ ] Security review

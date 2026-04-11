@@ -11,7 +11,8 @@
  */
 
 import { useState } from 'react'
-import { Trash2, RotateCcw, Sun, Moon, AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Trash2, RotateCcw, Sun, Moon, AlertTriangle, Globe } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSettingsStore } from '../store/settingsStore'
 import { useThemeStore } from '../store/themeStore'
@@ -25,7 +26,17 @@ interface SettingsModalProps {
   onClose: () => void
 }
 
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  // Add new languages here:
+  // { code: 'vi', label: 'Tiếng Việt' },
+  // { code: 'zh', label: '中文' },
+  // { code: 'ja', label: '日本語' },
+  // { code: 'ko', label: '한국어' },
+] as const
+
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
+  const { i18n } = useTranslation()
   const theme = useThemeStore(s => s.theme)
   const toggleTheme = useThemeStore(s => s.toggleTheme)
   const warningPct = useSettingsStore(s => s.alertWarningPct)
@@ -53,6 +64,32 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               <Moon className="w-4 h-4 text-text-muted" />
             )}
           </button>
+        </Section>
+
+        {/* Language */}
+        <Section title="Language">
+          <div className="flex flex-wrap gap-1.5">
+            {LANGUAGES.map(lang => (
+              <button
+                key={lang.code}
+                onClick={() => i18n.changeLanguage(lang.code)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-md text-xs transition-colors cursor-pointer',
+                  i18n.language === lang.code
+                    ? 'bg-accent text-white'
+                    : 'bg-surface text-text-muted hover:text-text-primary border border-border',
+                )}
+              >
+                <Globe className="w-3 h-3" />
+                {lang.label}
+              </button>
+            ))}
+          </div>
+          {LANGUAGES.length === 1 && (
+            <div className="text-[10px] text-text-muted mt-1">
+              More languages coming soon. Add translations in src/i18n/locales/.
+            </div>
+          )}
         </Section>
 
         {/* Liquidation alerts */}
