@@ -5,13 +5,25 @@
  * panel without leaving the trading view.
  */
 
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Loader2 } from 'lucide-react'
 import { Web3OrderForm } from './Web3OrderForm'
 import { LpPanel } from './LpPanel'
-import { SpotSwapForm } from './spot/SpotSwapForm'
-import { SwapHistory } from './spot/SwapHistory'
 import { cn } from '../lib/format'
+
+// Lazy-load spot components — only fetched when user clicks the Spot tab.
+// Keeps the initial bundle focused on perp trading.
+const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
+const SwapHistory = lazy(() => import('./spot/SwapHistory').then(m => ({ default: m.SwapHistory })))
+
+function LazyFallback() {
+  return (
+    <div className="flex items-center justify-center h-32 text-text-muted">
+      <Loader2 className="w-4 h-4 animate-spin" />
+    </div>
+  )
+}
 
 type PanelTab = 'trade' | 'spot' | 'pool'
 type SpotSubTab = 'swap' | 'history'
@@ -65,7 +77,9 @@ export function TradePanel() {
               ))}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
-              {spotSubTab === 'swap' ? <SpotSwapForm /> : <SwapHistory />}
+              <Suspense fallback={<LazyFallback />}>
+                {spotSubTab === 'swap' ? <SpotSwapForm /> : <SwapHistory />}
+              </Suspense>
             </div>
           </div>
         )}
