@@ -5,6 +5,13 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['src/lib/fixedPoint.test.ts'],
+  },
   resolve: {
     alias: {
       // Public aliases used by dapp-demo imports
