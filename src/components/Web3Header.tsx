@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle } from 'lucide-react'
+import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle, PieChart, Target } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -21,6 +21,9 @@ import { Drawer } from './ui/Drawer'
 import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
+import { NotificationBell } from './NotificationBell'
+import { PriceAlertModal } from './PriceAlertModal'
+import { PortfolioModal } from './PortfolioModal'
 import { SettingsModal } from './SettingsModal'
 import { AboutModal } from './AboutModal'
 
@@ -86,6 +89,8 @@ export function Web3Header() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const [portfolioOpen, setPortfolioOpen] = useState(false)
 
   return (
     <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
@@ -251,6 +256,27 @@ export function Web3Header() {
       {/* Service health pill — green/yellow/red dot with click-to-diagnose */}
       <StatusPill />
 
+      {/* Portfolio + Alerts + Notifications — desktop only */}
+      {isConnected && (
+        <div className="hidden md:flex items-center gap-1">
+          <button
+            onClick={() => setPortfolioOpen(true)}
+            className="flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+            title="Portfolio"
+          >
+            <PieChart className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setAlertsOpen(true)}
+            className="flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+            title="Price Alerts"
+          >
+            <Target className="w-4 h-4" />
+          </button>
+          <NotificationBell />
+        </div>
+      )}
+
       {/* Mode Toggle — hidden on mobile, shown in drawer */}
       <div className="hidden md:flex items-center bg-surface rounded-md p-0.5 gap-0.5">
         <button
@@ -332,6 +358,8 @@ export function Web3Header() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <PriceAlertModal open={alertsOpen} onClose={() => setAlertsOpen(false)} />
+      <PortfolioModal open={portfolioOpen} onClose={() => setPortfolioOpen(false)} />
 
       {/* Wallet Section */}
       {isConnected ? (

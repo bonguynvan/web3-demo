@@ -18,6 +18,7 @@ import { useTradeFeed } from './hooks/useTradeFeed'
 import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from './hooks/useLiquidationAlerts'
 import { useFuturesSettlement } from './hooks/useFuturesSettlement'
+import { usePriceAlertWatcher } from './hooks/usePriceAlertWatcher'
 import { useDocumentTitle } from './hooks/useDocumentTitle'
 import { useIsMobile } from './hooks/useBreakpoint'
 import { useTradingStore } from './store/tradingStore'
@@ -45,6 +46,9 @@ function App() {
 
   // Auto-settle expired futures positions at current mark price.
   useFuturesSettlement()
+
+  // Check price alerts against live prices and fire notifications.
+  usePriceAlertWatcher()
 
   // Reflect the live price + active market in the browser tab title so users
   // can monitor multiple charts at once.

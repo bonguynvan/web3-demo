@@ -1,0 +1,23 @@
+{
+  "portfolio_overview": "Portfolio Overview",
+  "total_equity": "Total Equity",
+  "available": "Available",
+  "unrealized_pnl": "Unrealized PnL",
+  "positions": "Positions",
+  "asset_allocation": "Asset Allocation",
+  "all_positions": "All Positions",
+  "no_active_positions": "No active positions",
+  "notifications": "Notifications",
+  "mark_all_read": "Mark all read",
+  "clear": "Clear",
+  "no_notifications": "No notifications yet",
+  "price_alerts": "Price Alerts",
+  "new_alert": "New Alert",
+  "add_alert": "Add Alert",
+  "active_alerts": "Active",
+  "triggered_alerts": "Triggered",
+  "no_alerts": "No alerts set. Add one above.",
+  "above": "Above",
+  "below": "Below",
+  "now": "now"
+}
