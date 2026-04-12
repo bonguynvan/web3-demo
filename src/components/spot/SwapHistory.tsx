@@ -7,12 +7,14 @@
 
 import { useEffect } from 'react'
 import { useAccount } from 'wagmi'
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, Inbox, ArrowRight } from 'lucide-react'
 import { useSwapHistoryStore, type SwapHistoryEntry } from '../../store/swapHistoryStore'
 
 const ARBISCAN_TX = 'https://arbiscan.io/tx/'
 
 export function SwapHistory() {
+  const { t } = useTranslation('spot')
   const { address } = useAccount()
   const { entries, loadForAddress } = useSwapHistoryStore()
 
@@ -23,13 +25,13 @@ export function SwapHistory() {
 
   if (!address) {
     return (
-      <EmptyState message="Connect wallet to see swap history" />
+      <EmptyState message={t('common:connect_wallet')} />
     )
   }
 
   if (entries.length === 0) {
     return (
-      <EmptyState message="No swaps yet. Your swap history will appear here." />
+      <EmptyState message={t('no_swaps_yet')} />
     )
   }
 
@@ -75,7 +77,7 @@ function SwapRow({ entry }: { entry: SwapHistoryEntry }) {
             target="_blank"
             rel="noopener noreferrer"
             className="text-text-muted hover:text-accent transition-colors opacity-0 group-hover:opacity-100"
-            title="View on Arbiscan"
+            title={t('view_on_arbiscan')}
           >
             <ExternalLink className="w-3 h-3" />
           </a>
@@ -102,7 +104,7 @@ function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp
   const seconds = Math.floor(diff / 1000)
 
-  if (seconds < 60) return 'just now'
+  if (seconds < 60) return 'now'
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)

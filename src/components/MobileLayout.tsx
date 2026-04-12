@@ -31,7 +31,7 @@
 
 import { useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TrendingUp, TrendingDown, ArrowLeftRight, X, Loader2 } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowLeftRight, Landmark, X, Loader2 } from 'lucide-react'
 import { TradingChart } from './TradingChart'
 import { PositionsTable } from './PositionsTable'
 import { DepthBook } from './DepthBook'
@@ -42,6 +42,7 @@ import { useTradingStore } from '../store/tradingStore'
 import { cn } from '../lib/format'
 
 const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
+const MarginPanel = lazy(() => import('./margin/MarginPanel').then(m => ({ default: m.MarginPanel })))
 
 type MobileTab = 'positions' | 'book' | 'trades'
 
@@ -50,6 +51,7 @@ export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
   const [activeTab, setActiveTab] = useState<MobileTab>('positions')
   const [orderOpen, setOrderOpen] = useState(false)
   const [spotOpen, setSpotOpen] = useState(false)
+  const [marginOpen, setMarginOpen] = useState(false)
   const setOrderSide = useTradingStore(s => s.setOrderSide)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
 
@@ -128,10 +130,17 @@ export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
         </button>
         <button
           onClick={() => setSpotOpen(true)}
-          className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg font-semibold text-sm text-white bg-accent hover:bg-accent/90 transition-colors cursor-pointer shadow-sm"
+          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-lg font-semibold text-xs text-white bg-accent hover:bg-accent/90 transition-colors cursor-pointer shadow-sm"
         >
-          <ArrowLeftRight className="w-4 h-4" />
+          <ArrowLeftRight className="w-3.5 h-3.5" />
           {t('spot')}
+        </button>
+        <button
+          onClick={() => setMarginOpen(true)}
+          className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-lg font-semibold text-xs text-white bg-purple-600 hover:bg-purple-600/90 transition-colors cursor-pointer shadow-sm"
+        >
+          <Landmark className="w-3.5 h-3.5" />
+          {t('margin')}
         </button>
       </div>
 
@@ -140,6 +149,9 @@ export function MobileLayout({ chartLoading }: { chartLoading: boolean }) {
 
       {/* Full-screen spot swap modal */}
       {spotOpen && <MobileSpotModal onClose={() => setSpotOpen(false)} />}
+
+      {/* Full-screen margin modal */}
+      {marginOpen && <MobileMarginModal onClose={() => setMarginOpen(false)} />}
     </>
   )
 }
@@ -160,6 +172,36 @@ function MobileOrderModal({ onClose, title }: { onClose: () => void; title?: str
       <div className="flex-1 min-h-0 p-2">
         <ErrorBoundary name="OrderForm">
           <TradePanel />
+        </ErrorBoundary>
+      </div>
+    </div>
+  )
+}
+
+function MobileMarginModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('margin')
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-panel shrink-0">
+        <span className="text-sm font-semibold text-text-primary">{t('margin')}</span>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 p-2 overflow-y-auto">
+        <ErrorBoundary name="Margin">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-32 text-text-muted">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          }>
+            <MarginPanel />
+          </Suspense>
         </ErrorBoundary>
       </div>
     </div>

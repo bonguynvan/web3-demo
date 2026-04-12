@@ -4,6 +4,7 @@
  * Rows: exchange rate, price impact, estimated gas, route/sources.
  */
 
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { cn } from '../../lib/format'
 import { formatTokenAmount } from '../../lib/spotUtils'
@@ -17,6 +18,8 @@ interface SwapQuoteDisplayProps {
 }
 
 export function SwapQuoteDisplay({ quote, isLoading, error, slippageBps }: SwapQuoteDisplayProps) {
+  const { t } = useTranslation('spot')
+
   if (error) {
     return (
       <div className="text-xs text-short bg-short/10 rounded-lg px-3 py-2">
@@ -29,7 +32,7 @@ export function SwapQuoteDisplay({ quote, isLoading, error, slippageBps }: SwapQ
     return (
       <div className="flex items-center justify-center gap-2 text-xs text-text-muted py-3">
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        Fetching quote...
+        {t('fetching_quote')}
       </div>
     )
   }
@@ -48,29 +51,29 @@ export function SwapQuoteDisplay({ quote, isLoading, error, slippageBps }: SwapQ
         .filter(s => s.proportion > 0)
         .map(s => s.name)
         .join(' → ')
-    : 'Best route'
+    : t('route')
 
   return (
     <div className="space-y-1.5 text-xs">
       <QuoteRow
-        label="Rate"
+        label={t('rate')}
         value={`1 ${quote.sellToken.symbol} = ${quote.price.toFixed(6)} ${quote.buyToken.symbol}`}
       />
       <QuoteRow
-        label="Price Impact"
-        value={`${quote.estimatedPriceImpact >= 0 ? '' : ''}${quote.estimatedPriceImpact.toFixed(2)}%`}
+        label={t('price_impact')}
+        value={`${quote.estimatedPriceImpact.toFixed(2)}%`}
         valueClass={impactClass}
       />
       <QuoteRow
-        label="Min. Received"
+        label={t('min_received')}
         value={`${formatTokenAmount(minReceived, quote.buyToken.decimals, 6)} ${quote.buyToken.symbol}`}
       />
       <QuoteRow
-        label="Slippage"
+        label={t('slippage')}
         value={`${(slippageBps / 100).toFixed(1)}%`}
       />
       <QuoteRow
-        label="Route"
+        label={t('route')}
         value={routeLabel}
         valueClass="text-text-muted"
       />
