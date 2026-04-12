@@ -85,11 +85,6 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               </button>
             ))}
           </div>
-          {LANGUAGES.length === 1 && (
-            <div className="text-[10px] text-text-muted mt-1">
-              More languages coming soon. Add translations in src/i18n/locales/.
-            </div>
-          )}
         </Section>
 
         {/* Liquidation alerts */}
