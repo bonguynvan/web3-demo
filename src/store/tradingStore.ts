@@ -19,6 +19,11 @@ export interface MarketInfo {
 const MARKETS: MarketInfo[] = [
   { symbol: 'ETH-PERP', baseAsset: 'ETH' },
   { symbol: 'BTC-PERP', baseAsset: 'BTC' },
+  { symbol: 'SOL-PERP', baseAsset: 'SOL' },
+  { symbol: 'ARB-PERP', baseAsset: 'ARB' },
+  { symbol: 'DOGE-PERP', baseAsset: 'DOGE' },
+  { symbol: 'LINK-PERP', baseAsset: 'LINK' },
+  { symbol: 'AVAX-PERP', baseAsset: 'AVAX' },
 ]
 
 interface TradingState {

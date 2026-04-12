@@ -57,6 +57,11 @@ export interface DemoPrice {
 
 let ethPrice = 3480 + Math.random() * 40
 let btcPrice = 68200 + Math.random() * 600
+let solPrice = 178 + Math.random() * 4
+let arbPrice = 1.12 + Math.random() * 0.05
+let dogePrice = 0.165 + Math.random() * 0.005
+let linkPrice = 14.8 + Math.random() * 0.3
+let avaxPrice = 38.5 + Math.random() * 1
 
 function toRaw(price: number): bigint {
   return BigInt(Math.round(price * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
@@ -66,12 +71,22 @@ export function getDemoPrices(): DemoPrice[] {
   return [
     { symbol: 'ETH', market: 'ETH-PERP', price: ethPrice, raw: toRaw(ethPrice) },
     { symbol: 'BTC', market: 'BTC-PERP', price: btcPrice, raw: toRaw(btcPrice) },
+    { symbol: 'SOL', market: 'SOL-PERP', price: solPrice, raw: toRaw(solPrice) },
+    { symbol: 'ARB', market: 'ARB-PERP', price: arbPrice, raw: toRaw(arbPrice) },
+    { symbol: 'DOGE', market: 'DOGE-PERP', price: dogePrice, raw: toRaw(dogePrice) },
+    { symbol: 'LINK', market: 'LINK-PERP', price: linkPrice, raw: toRaw(linkPrice) },
+    { symbol: 'AVAX', market: 'AVAX-PERP', price: avaxPrice, raw: toRaw(avaxPrice) },
   ]
 }
 
 export function tickDemoPrices(): DemoPrice[] {
   ethPrice += (Math.random() - 0.48) * ethPrice * 0.0003
   btcPrice += (Math.random() - 0.48) * btcPrice * 0.0003
+  solPrice += (Math.random() - 0.48) * solPrice * 0.0004
+  arbPrice += (Math.random() - 0.48) * arbPrice * 0.0005
+  dogePrice += (Math.random() - 0.48) * dogePrice * 0.0005
+  linkPrice += (Math.random() - 0.48) * linkPrice * 0.0004
+  avaxPrice += (Math.random() - 0.48) * avaxPrice * 0.0004
   return getDemoPrices()
 }
 

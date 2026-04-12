@@ -33,6 +33,11 @@ export interface SimulatorConfig {
 const DEFAULT_PAIRS: SimPair[] = [
   { symbol: 'ETH-PERP', baseAsset: 'ETH', price: 3450, volatility: 0.04 },
   { symbol: 'BTC-PERP', baseAsset: 'BTC', price: 68500, volatility: 0.035 },
+  { symbol: 'SOL-PERP', baseAsset: 'SOL', price: 178, volatility: 0.06 },
+  { symbol: 'ARB-PERP', baseAsset: 'ARB', price: 1.12, volatility: 0.07 },
+  { symbol: 'DOGE-PERP', baseAsset: 'DOGE', price: 0.165, volatility: 0.08 },
+  { symbol: 'LINK-PERP', baseAsset: 'LINK', price: 14.8, volatility: 0.05 },
+  { symbol: 'AVAX-PERP', baseAsset: 'AVAX', price: 38.5, volatility: 0.055 },
 ]
 
 // Extra pairs for stress testing
