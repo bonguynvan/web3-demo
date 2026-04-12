@@ -1,0 +1,49 @@
+/**
+ * AppShell — shared layout wrapper for all pages.
+ *
+ * Provides: header, account bar, connection banner, toast container,
+ * and global hooks (price alerts, futures settlement, etc.).
+ * Each page renders inside the <Outlet />.
+ */
+
+import { Outlet } from 'react-router-dom'
+import { Web3Header } from './Web3Header'
+import { AccountBar } from './AccountBar'
+import { ConnectionBanner } from './ConnectionBanner'
+import { ToastContainer } from './ToastContainer'
+import { useMarketWs } from '../hooks/useMarketWs'
+import { useTradeFeed } from '../hooks/useTradeFeed'
+import { useLimitOrderWatcher } from '../hooks/useLimitOrderWatcher'
+import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
+import { useFuturesSettlement } from '../hooks/useFuturesSettlement'
+import { usePriceAlertWatcher } from '../hooks/usePriceAlertWatcher'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useTradingStore } from '../store/tradingStore'
+
+export function AppShell() {
+  const selectedMarket = useTradingStore(s => s.selectedMarket)
+
+  // Global hooks — run regardless of which page is active
+  useMarketWs({ wsUrl: null, market: selectedMarket.symbol })
+  useTradeFeed()
+  useLimitOrderWatcher()
+  useLiquidationAlerts()
+  useFuturesSettlement()
+  usePriceAlertWatcher()
+  useDocumentTitle()
+
+  return (
+    <div className="flex flex-col h-screen bg-surface">
+      <Web3Header />
+      <AccountBar />
+      <ConnectionBanner />
+
+      {/* Page content */}
+      <div className="flex-1 min-h-0">
+        <Outlet />
+      </div>
+
+      <ToastContainer />
+    </div>
+  )
+}

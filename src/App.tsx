@@ -1,114 +1,33 @@
 /**
- * App.tsx — Main trading layout for the Perp DEX.
+ * App.tsx — Router configuration for the DeFi Trading Platform.
+ *
+ * Routes:
+ *   /trade     — Perp + Futures trading (chart, order book, positions)
+ *   /swap      — Spot token swaps (clean, focused layout)
+ *   /earn      — Margin (Aave V3) + Pool (LP)
+ *   /portfolio — Full portfolio dashboard
  */
 
-import { Web3Header } from './components/Web3Header'
-import { AccountBar } from './components/AccountBar'
-import { ConnectionBanner } from './components/ConnectionBanner'
-import { TradingChart } from './components/TradingChart'
-import { DepthBook } from './components/DepthBook'
-import { TradePanel } from './components/TradePanel'
-import { PositionsTable } from './components/PositionsTable'
-import { RecentTrades } from './components/RecentTrades'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { ToastContainer } from './components/ToastContainer'
-import { MobileLayout } from './components/MobileLayout'
-import { useMarketWs } from './hooks/useMarketWs'
-import { useTradeFeed } from './hooks/useTradeFeed'
-import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
-import { useLiquidationAlerts } from './hooks/useLiquidationAlerts'
-import { useFuturesSettlement } from './hooks/useFuturesSettlement'
-import { usePriceAlertWatcher } from './hooks/usePriceAlertWatcher'
-import { useDocumentTitle } from './hooks/useDocumentTitle'
-import { useIsMobile } from './hooks/useBreakpoint'
-import { useTradingStore } from './store/tradingStore'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AppShell } from './components/AppShell'
+import { TradePage } from './pages/TradePage'
+import { SwapPage } from './pages/SwapPage'
+import { EarnPage } from './pages/EarnPage'
+import { PortfolioPage } from './pages/PortfolioPage'
 
 function App() {
-  const selectedMarket = useTradingStore(s => s.selectedMarket)
-  const isMobile = useIsMobile()
-
-  // Price data → candle generation
-  const { loading: chartLoading } = useMarketWs({
-    wsUrl: null,
-    market: selectedMarket.symbol,
-  })
-
-  // Stream trades into the trade tape
-  useTradeFeed()
-
-  // Auto-fire pending limit orders when the oracle price hits their trigger.
-  // Mounted at App level so it survives tab switches inside TradePanel.
-  useLimitOrderWatcher()
-
-  // Warn the user before the liquidator keeper force-closes a position.
-  // Informational only — no auto-close. See hook file for threshold details.
-  useLiquidationAlerts()
-
-  // Auto-settle expired futures positions at current mark price.
-  useFuturesSettlement()
-
-  // Check price alerts against live prices and fire notifications.
-  usePriceAlertWatcher()
-
-  // Reflect the live price + active market in the browser tab title so users
-  // can monitor multiple charts at once.
-  useDocumentTitle()
-
   return (
-    <div className="flex flex-col h-screen bg-surface">
-      <Web3Header />
-      <AccountBar />
-      <ConnectionBanner />
-
-      {isMobile ? (
-        <MobileLayout chartLoading={chartLoading} />
-      ) : (
-        <DesktopLayout chartLoading={chartLoading} />
-      )}
-
-      <ToastContainer />
-    </div>
-  )
-}
-
-function DesktopLayout({ chartLoading }: { chartLoading: boolean }) {
-  return (
-    <div className="flex-1 flex flex-col xl:flex-row gap-1 p-1 min-h-0">
-      {/* Left: Chart + Positions */}
-      <div className="flex-1 flex flex-col gap-1 min-w-0 min-h-0">
-        <div className="flex-[3] min-h-[300px] xl:min-h-0">
-          <ErrorBoundary name="Chart">
-            <TradingChart loading={chartLoading} />
-          </ErrorBoundary>
-        </div>
-        <div className="flex-[1.2] min-h-[200px] xl:min-h-0">
-          <ErrorBoundary name="Positions">
-            <PositionsTable />
-          </ErrorBoundary>
-        </div>
-      </div>
-
-      {/* Right: DepthBook + Trades + OrderForm */}
-      <div className="xl:w-[600px] flex flex-col xl:flex-row gap-1 shrink-0">
-        <div className="flex-1 flex flex-col gap-1 min-h-0">
-          <div className="flex-[2] min-h-[200px] xl:min-h-0">
-            <ErrorBoundary name="DepthBook">
-              <DepthBook />
-            </ErrorBoundary>
-          </div>
-          <div className="flex-1 min-h-[150px] xl:min-h-0">
-            <ErrorBoundary name="Trades">
-              <RecentTrades />
-            </ErrorBoundary>
-          </div>
-        </div>
-        <div className="xl:w-[280px] shrink-0 min-h-[400px] xl:min-h-0">
-          <ErrorBoundary name="OrderForm">
-            <TradePanel />
-          </ErrorBoundary>
-        </div>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/trade" element={<TradePage />} />
+          <Route path="/swap" element={<SwapPage />} />
+          <Route path="/earn" element={<EarnPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="*" element={<Navigate to="/trade" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 

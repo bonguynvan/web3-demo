@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle, PieChart, Target } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle, Target } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -23,7 +24,6 @@ import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
 import { NotificationBell } from './NotificationBell'
 import { PriceAlertModal } from './PriceAlertModal'
-import { PortfolioModal } from './PortfolioModal'
 import { SettingsModal } from './SettingsModal'
 import { AboutModal } from './AboutModal'
 
@@ -33,8 +33,17 @@ const CHAIN_NAMES: Record<number, string> = {
   8453: 'Base',
 }
 
+const NAV_ITEMS = [
+  { path: '/trade', label: 'Trade' },
+  { path: '/swap', label: 'Swap' },
+  { path: '/earn', label: 'Earn' },
+  { path: '/portfolio', label: 'Portfolio' },
+] as const
+
 export function Web3Header() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const location = useLocation()
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
 
   const { address, isConnected, connector } = useAccount()
@@ -90,15 +99,35 @@ export function Web3Header() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
-  const [portfolioOpen, setPortfolioOpen] = useState(false)
 
   return (
     <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
-      {/* Logo — text hidden on mobile to save space, icon stays */}
-      <div className="flex items-center gap-2 md:mr-2">
+      {/* Logo */}
+      <button
+        onClick={() => navigate('/trade')}
+        className="flex items-center gap-2 md:mr-2 cursor-pointer"
+      >
         <Zap className="w-5 h-5 text-accent shrink-0" />
-        <span className="hidden md:inline font-semibold text-text-primary text-sm">PERP DEX</span>
-      </div>
+        <span className="hidden md:inline font-semibold text-text-primary text-sm">DEX</span>
+      </button>
+
+      {/* Page navigation — hidden on mobile */}
+      <nav className="hidden md:flex items-center gap-0.5">
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.path}
+            onClick={() => navigate(item.path)}
+            className={cn(
+              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer',
+              location.pathname === item.path
+                ? 'bg-accent/10 text-accent'
+                : 'text-text-muted hover:text-text-primary hover:bg-surface',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
       {/* Market Selector */}
       <Dropdown
@@ -256,16 +285,9 @@ export function Web3Header() {
       {/* Service health pill — green/yellow/red dot with click-to-diagnose */}
       <StatusPill />
 
-      {/* Portfolio + Alerts + Notifications — desktop only */}
+      {/* Alerts + Notifications — desktop only */}
       {isConnected && (
         <div className="hidden md:flex items-center gap-1">
-          <button
-            onClick={() => setPortfolioOpen(true)}
-            className="flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-            title="Portfolio"
-          >
-            <PieChart className="w-4 h-4" />
-          </button>
           <button
             onClick={() => setAlertsOpen(true)}
             className="flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
@@ -359,7 +381,6 @@ export function Web3Header() {
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <PriceAlertModal open={alertsOpen} onClose={() => setAlertsOpen(false)} />
-      <PortfolioModal open={portfolioOpen} onClose={() => setPortfolioOpen(false)} />
 
       {/* Wallet Section */}
       {isConnected ? (
