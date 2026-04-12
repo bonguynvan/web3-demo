@@ -275,23 +275,36 @@ const ARBITRUM_CONFIG = {
 - [x] Arbitrum chain config (wagmi)
 - [x] Swap history (`SwapHistory.tsx`, localStorage-backed)
 
-### Phase 2: i18n — FOUNDATION DONE
+### Phase 2: i18n — DONE
 - [x] Install react-i18next + i18next
 - [x] i18n init with namespace splitting (common, spot, perp, errors)
-- [x] English translation files
-- [x] SpotSwapForm migrated to t() calls (reference pattern)
-- [ ] Migrate remaining components (Web3Header, PositionsTable, etc.)
-- [ ] Add language switcher UI
-- [ ] Add additional languages
+- [x] English translation files (~170 keys across 4 namespaces)
+- [x] All 11 components migrated to useTranslation()
+- [x] Language switcher in Settings modal
+- [ ] Add additional languages (copy en/ → vi/, translate, register)
 
-### Phase 3: Polish & Testing — DONE
-- [x] Code splitting / lazy loading for spot module
-- [x] Mobile responsive spot UI (bottom CTA, full-screen modal, touch targets)
-- [x] Unit tests (48 tests — Vitest)
-- [x] E2E tests (29 tests — Playwright, desktop + mobile)
+### Polish & Testing — DONE
+- [x] Code splitting / lazy loading for spot + margin modules
+- [x] Mobile responsive spot + margin UI (bottom CTA, full-screen modals)
+- [x] Security review + critical fixes (exact approvals, tx.to validation, demo key gating)
+- [x] Unit tests (54 tests — Vitest)
+- [x] E2E tests (43 tests — Playwright, desktop + mobile)
+
+### Phase 3: Margin Trading — DONE
+- [x] Aave V3 types, constants, ABIs (`margin.ts`, `aaveConstants.ts`)
+- [x] Aave client (`aaveClient.ts`) — getUserAccountData
+- [x] Margin store + tests (`marginStore.ts`)
+- [x] Position hook (`useAavePositions.ts`)
+- [x] Execution hook (`useMarginExecution.ts`) — supply/borrow/repay/withdraw
+- [x] HealthFactorGauge + MarginPositionCard + MarginPanel UI
+- [x] TradePanel integration (Margin tab, lazy-loaded)
+- [x] Mobile margin button + full-screen modal
+- [x] i18n — margin namespace (45 keys)
+- [x] Leverage loops (`useLeverageLoop.ts`, `LeverageForm.tsx`)
+  - One-click leveraged long/short via Aave + 0x
+  - Multi-step progress (supply → borrow → swap → re-supply)
 
 ### Remaining
+- [ ] Phase 4: Futures with expiry
 - [ ] Arbitrum testnet deployment (waiting for funded wallet)
-- [ ] Security review
-- [ ] Migrate remaining perp components to i18n (Web3Header, Web3OrderForm)
 - [ ] Add additional languages
