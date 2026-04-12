@@ -16,6 +16,7 @@ import { cn } from '../lib/format'
 // Keeps the initial bundle focused on perp trading.
 const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
 const SwapHistory = lazy(() => import('./spot/SwapHistory').then(m => ({ default: m.SwapHistory })))
+const MarginPanel = lazy(() => import('./margin/MarginPanel').then(m => ({ default: m.MarginPanel })))
 
 function LazyFallback() {
   return (
@@ -25,7 +26,7 @@ function LazyFallback() {
   )
 }
 
-type PanelTab = 'trade' | 'spot' | 'pool'
+type PanelTab = 'trade' | 'spot' | 'margin' | 'pool'
 type SpotSubTab = 'swap' | 'history'
 
 export function TradePanel() {
@@ -37,7 +38,7 @@ export function TradePanel() {
     <div className="flex flex-col h-full">
       {/* Top tabs */}
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'spot', 'pool'] as const).map(tabKey => (
+        {(['trade', 'spot', 'margin', 'pool'] as const).map(tabKey => (
           <button
             key={tabKey}
             onClick={() => setTab(tabKey)}
@@ -82,6 +83,11 @@ export function TradePanel() {
               </Suspense>
             </div>
           </div>
+        )}
+        {tab === 'margin' && (
+          <Suspense fallback={<LazyFallback />}>
+            <MarginPanel />
+          </Suspense>
         )}
         {tab === 'pool' && <LpPanel />}
       </div>
