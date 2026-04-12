@@ -17,6 +17,8 @@ import { cn } from '../lib/format'
 const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
 const SwapHistory = lazy(() => import('./spot/SwapHistory').then(m => ({ default: m.SwapHistory })))
 const MarginPanel = lazy(() => import('./margin/MarginPanel').then(m => ({ default: m.MarginPanel })))
+const FuturesOrderForm = lazy(() => import('./futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
+const FuturesPositionsTable = lazy(() => import('./futures/FuturesPositionsTable').then(m => ({ default: m.FuturesPositionsTable })))
 
 function LazyFallback() {
   return (
@@ -26,7 +28,7 @@ function LazyFallback() {
   )
 }
 
-type PanelTab = 'trade' | 'spot' | 'margin' | 'pool'
+type PanelTab = 'trade' | 'futures' | 'spot' | 'margin' | 'pool'
 type SpotSubTab = 'swap' | 'history'
 
 export function TradePanel() {
@@ -38,7 +40,7 @@ export function TradePanel() {
     <div className="flex flex-col h-full">
       {/* Top tabs */}
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'spot', 'margin', 'pool'] as const).map(tabKey => (
+        {(['trade', 'futures', 'spot', 'margin', 'pool'] as const).map(tabKey => (
           <button
             key={tabKey}
             onClick={() => setTab(tabKey)}
@@ -58,6 +60,18 @@ export function TradePanel() {
           contract reads from the inactive form. */}
       <div className="flex-1 min-h-0">
         {tab === 'trade' && <Web3OrderForm />}
+        {tab === 'futures' && (
+          <Suspense fallback={<LazyFallback />}>
+            <div className="flex flex-col h-full">
+              <div className="flex-[2] min-h-0">
+                <FuturesOrderForm />
+              </div>
+              <div className="flex-1 min-h-[150px] border-t border-border">
+                <FuturesPositionsTable />
+              </div>
+            </div>
+          </Suspense>
+        )}
         {tab === 'spot' && (
           <div className="flex flex-col h-full">
             {/* Spot sub-tabs */}

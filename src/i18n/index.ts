@@ -23,6 +23,7 @@ import enSpot from './locales/en/spot.json'
 import enPerp from './locales/en/perp.json'
 import enErrors from './locales/en/errors.json'
 import enMargin from './locales/en/margin.json'
+import enFutures from './locales/en/futures.json'
 
 const STORAGE_KEY = 'i18n-lang'
 
@@ -42,12 +43,13 @@ i18n.use(initReactI18next).init({
       perp: enPerp,
       errors: enErrors,
       margin: enMargin,
+      futures: enFutures,
     },
   },
   lng: getSavedLanguage(),
   fallbackLng: 'en',
   defaultNS: 'common',
-  ns: ['common', 'spot', 'perp', 'errors', 'margin'],
+  ns: ['common', 'spot', 'perp', 'errors', 'margin', 'futures'],
   interpolation: {
     escapeValue: false, // React already escapes
   },

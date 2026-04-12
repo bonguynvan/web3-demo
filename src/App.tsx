@@ -17,6 +17,7 @@ import { useMarketWs } from './hooks/useMarketWs'
 import { useTradeFeed } from './hooks/useTradeFeed'
 import { useLimitOrderWatcher } from './hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from './hooks/useLiquidationAlerts'
+import { useFuturesSettlement } from './hooks/useFuturesSettlement'
 import { useDocumentTitle } from './hooks/useDocumentTitle'
 import { useIsMobile } from './hooks/useBreakpoint'
 import { useTradingStore } from './store/tradingStore'
@@ -41,6 +42,9 @@ function App() {
   // Warn the user before the liquidator keeper force-closes a position.
   // Informational only — no auto-close. See hook file for threshold details.
   useLiquidationAlerts()
+
+  // Auto-settle expired futures positions at current mark price.
+  useFuturesSettlement()
 
   // Reflect the live price + active market in the browser tab title so users
   // can monitor multiple charts at once.

@@ -39,6 +39,7 @@
   "trade": "Trade",
   "pool": "Pool",
   "spot": "Spot",
+  "futures": "Futures",
   "swap": "Swap",
   "size": "Size",
   "price": "Price",
