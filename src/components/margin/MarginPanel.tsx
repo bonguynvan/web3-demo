@@ -27,9 +27,11 @@ import { MARGIN_SUPPORTED_TOKENS } from '../../lib/aaveConstants'
 import { cn } from '../../lib/format'
 import { HealthFactorGauge } from './HealthFactorGauge'
 import { MarginPositionCard } from './MarginPositionCard'
+import { LeverageForm } from './LeverageForm'
 import type { MarginAction, MarginStatus } from '../../types/margin'
 import type { Token } from '../../types/spot'
 
+type MarginMode = 'basic' | 'leverage'
 const ACTIONS: MarginAction[] = ['supply', 'borrow', 'repay', 'withdraw']
 
 export function MarginPanel() {
@@ -37,6 +39,7 @@ export function MarginPanel() {
   const { isConnected } = useAccount()
   const chainId = useChainId()
 
+  const [mode, setMode] = useState<MarginMode>('basic')
   const { action, selectedAsset, amount, setAction, setSelectedAsset, setAmount } = useMarginStore()
   const { status, error: execError, execute } = useMarginExecution()
   const { summary } = useAavePositions()
@@ -66,6 +69,41 @@ export function MarginPanel() {
   return (
     <div className="flex flex-col h-full bg-panel rounded-lg border border-border">
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* ─── Mode toggle: Basic / Leverage ─── */}
+        <div className="flex gap-1 bg-surface rounded-md p-0.5">
+          <button
+            onClick={() => setMode('basic')}
+            className={cn(
+              'flex-1 py-1.5 text-[10px] font-semibold rounded transition-colors cursor-pointer',
+              mode === 'basic'
+                ? 'bg-panel-light text-text-primary'
+                : 'text-text-muted hover:text-text-secondary',
+            )}
+          >
+            Basic
+          </button>
+          <button
+            onClick={() => setMode('leverage')}
+            className={cn(
+              'flex-1 py-1.5 text-[10px] font-semibold rounded transition-colors cursor-pointer',
+              mode === 'leverage'
+                ? 'bg-panel-light text-text-primary'
+                : 'text-text-muted hover:text-text-secondary',
+            )}
+          >
+            Leverage
+          </button>
+        </div>
+
+        {mode === 'leverage' ? (
+          <>
+            <LeverageForm />
+            <div className="border-t border-border pt-3">
+              <MarginPositionCard />
+            </div>
+          </>
+        ) : (
+        <>
         {/* ─── Action tabs ─── */}
         <div className="flex gap-0.5 bg-surface rounded-md p-0.5">
           {ACTIONS.map(a => (
@@ -174,10 +212,9 @@ export function MarginPanel() {
         <div className="border-t border-border pt-3">
           <MarginPositionCard />
         </div>
-      </div>
 
       {/* ─── Submit ─── */}
-      <div className="p-3 pt-0">
+      <div className="pb-3 px-0">
         <button
           onClick={handleSubmit}
           disabled={buttonDisabled || isWrongChain || !isConnected}
@@ -193,6 +230,9 @@ export function MarginPanel() {
         >
           {buttonLabel}
         </button>
+      </div>
+        </>
+        )}
       </div>
     </div>
   )
