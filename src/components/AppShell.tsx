@@ -10,6 +10,7 @@ import { Outlet } from 'react-router-dom'
 import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
 import { ConnectionBanner } from './ConnectionBanner'
+import { Sidebar } from './Sidebar'
 import { ToastContainer } from './ToastContainer'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useTradeFeed } from '../hooks/useTradeFeed'
@@ -33,17 +34,23 @@ export function AppShell() {
   useDocumentTitle()
 
   return (
-    <div className="flex flex-col h-screen bg-surface">
-      <Web3Header />
-      <AccountBar />
-      <ConnectionBanner />
+    <div className="flex h-screen bg-surface">
+      {/* Left sidebar — desktop only (hidden below md:) */}
+      <Sidebar />
 
-      {/* Page content */}
-      <div className="flex-1 min-h-0">
-        <Outlet />
+      {/* Right column: header + content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Web3Header />
+        <AccountBar />
+        <ConnectionBanner />
+
+        {/* Page content */}
+        <div className="flex-1 min-h-0">
+          <Outlet />
+        </div>
+
+        <ToastContainer />
       </div>
-
-      <ToastContainer />
     </div>
   )
 }

@@ -27,10 +27,14 @@ export interface SettingsState {
   alertCriticalPct: number
   /** True after the user dismisses the high-leverage risk modal. */
   hideHighLeverageRiskWarning: boolean
+  /** Desktop left sidebar collapsed to icons-only (60px vs 200px). */
+  sidebarCollapsed: boolean
 
   setAlertWarningPct: (v: number) => void
   setAlertCriticalPct: (v: number) => void
   setHideHighLeverageRiskWarning: (v: boolean) => void
+  setSidebarCollapsed: (v: boolean) => void
+  toggleSidebar: () => void
   reset: () => void
 }
 
@@ -38,6 +42,7 @@ const DEFAULTS = {
   alertWarningPct: 15,
   alertCriticalPct: 5,
   hideHighLeverageRiskWarning: false,
+  sidebarCollapsed: false,
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -47,6 +52,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAlertWarningPct: (v) => set({ alertWarningPct: clamp(v, 1, 50) }),
       setAlertCriticalPct: (v) => set({ alertCriticalPct: clamp(v, 0.5, 25) }),
       setHideHighLeverageRiskWarning: (v) => set({ hideHighLeverageRiskWarning: v }),
+      setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+      toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       reset: () => set(DEFAULTS),
     }),
     {

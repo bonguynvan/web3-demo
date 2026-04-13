@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Wallet, Zap, LogOut, Menu, Sun, Moon, Settings, HelpCircle, Target } from 'lucide-react'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
@@ -33,17 +33,12 @@ const CHAIN_NAMES: Record<number, string> = {
   8453: 'Base',
 }
 
-const NAV_ITEMS = [
-  { path: '/trade', label: 'Trade' },
-  { path: '/swap', label: 'Swap' },
-  { path: '/earn', label: 'Earn' },
-  { path: '/portfolio', label: 'Portfolio' },
-] as const
+// NAV_ITEMS moved to Sidebar.tsx for desktop. Mobile drawer still has its
+// own nav section via MobileMenuDrawer.
 
 export function Web3Header() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const location = useLocation()
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
 
   const { address, isConnected, connector } = useAccount()
@@ -92,42 +87,19 @@ export function Web3Header() {
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
 
-  // Mobile drawer for stats + mode + theme. Wallet stays visible in the
-  // header even on small screens because connection status is too important
-  // to bury behind a menu.
+  // Mobile drawer for stats + mode + theme. Desktop gets these via Sidebar.
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [aboutOpen, setAboutOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
 
   return (
-    <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-6 shrink-0">
-      {/* Logo */}
+    <header className="flex items-center h-14 bg-panel border-b border-border px-3 md:px-4 gap-3 md:gap-4 shrink-0">
+      {/* Logo — mobile only (desktop logo is in the sidebar) */}
       <button
         onClick={() => navigate('/trade')}
-        className="flex items-center gap-2 md:mr-2 cursor-pointer"
+        className="md:hidden flex items-center gap-2 cursor-pointer"
       >
         <Zap className="w-5 h-5 text-accent shrink-0" />
-        <span className="hidden md:inline font-semibold text-text-primary text-sm">DEX</span>
       </button>
-
-      {/* Page navigation — hidden on mobile */}
-      <nav className="hidden md:flex items-center gap-0.5">
-        {NAV_ITEMS.map(item => (
-          <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer',
-              location.pathname === item.path
-                ? 'bg-accent/10 text-accent'
-                : 'text-text-muted hover:text-text-primary hover:bg-surface',
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
 
       {/* Market Selector */}
       <Dropdown
@@ -299,56 +271,8 @@ export function Web3Header() {
         </div>
       )}
 
-      {/* Mode Toggle — hidden on mobile, shown in drawer */}
-      <div className="hidden md:flex items-center bg-surface rounded-md p-0.5 gap-0.5">
-        <button
-          onClick={() => setMode('demo')}
-          className={cn(
-            'px-3 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer',
-            mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
-          )}
-        >
-          Demo
-        </button>
-        <button
-          onClick={() => setMode('live')}
-          className={cn(
-            'px-3 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer',
-            mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary'
-          )}
-        >
-          Live
-        </button>
-      </div>
-
-      {/* Theme Toggle — hidden on mobile, shown in drawer */}
-      <button
-        onClick={toggleTheme}
-        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        title={appTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      >
-        {appTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-      </button>
-
-      {/* Settings — desktop only; mobile gets it via the drawer */}
-      <button
-        onClick={() => setSettingsOpen(true)}
-        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        title="Settings"
-        aria-label="Open settings"
-      >
-        <Settings className="w-4 h-4" />
-      </button>
-
-      {/* About — desktop only; mobile gets it via the drawer */}
-      <button
-        onClick={() => setAboutOpen(true)}
-        className="hidden md:flex items-center justify-center w-8 h-8 rounded-md bg-surface text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        title="About"
-        aria-label="About this app"
-      >
-        <HelpCircle className="w-4 h-4" />
-      </button>
+      {/* Mode/Theme/Settings/About moved to Sidebar for desktop.
+          Mobile still gets them via the drawer below. */}
 
       {/* Mobile menu button — drawer trigger */}
       <button
@@ -368,18 +292,11 @@ export function Web3Header() {
         setMode={setMode}
         theme={appTheme}
         toggleTheme={toggleTheme}
-        onOpenSettings={() => {
-          setDrawerOpen(false)
-          setSettingsOpen(true)
-        }}
-        onOpenAbout={() => {
-          setDrawerOpen(false)
-          setAboutOpen(true)
-        }}
       />
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      {/* SettingsModal + AboutModal now live in Sidebar (desktop) and
+          MobileMenuDrawer (mobile). Only PriceAlertModal stays here since
+          it's triggered from the header's alert bell. */}
       <PriceAlertModal open={alertsOpen} onClose={() => setAlertsOpen(false)} />
 
       {/* Wallet Section */}
@@ -521,16 +438,17 @@ interface MobileMenuDrawerProps {
   setMode: (m: AppMode) => void
   theme: 'light' | 'dark'
   toggleTheme: () => void
-  onOpenSettings: () => void
-  onOpenAbout: () => void
 }
 
 function MobileMenuDrawer({
-  open, onClose, stats, mode, setMode, theme, toggleTheme, onOpenSettings, onOpenAbout,
+  open, onClose, stats, mode, setMode, theme, toggleTheme,
 }: MobileMenuDrawerProps) {
   const { t } = useTranslation()
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   return (
+    <>
     <Drawer open={open} onClose={onClose} title={t('menu')} widthClass="w-[300px]">
       <div className="p-4 space-y-5">
         {/* Mode Toggle */}
@@ -577,14 +495,14 @@ function MobileMenuDrawer({
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('preferences')}</div>
           <div className="space-y-1.5">
             <button
-              onClick={onOpenSettings}
+              onClick={() => { onClose(); setSettingsOpen(true) }}
               className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
             >
               <span className="text-xs text-text-secondary">{t('settings')}…</span>
               <Settings className="w-4 h-4 text-text-muted" />
             </button>
             <button
-              onClick={onOpenAbout}
+              onClick={() => { onClose(); setAboutOpen(true) }}
               className="flex items-center justify-between w-full bg-surface hover:bg-panel-light rounded-md px-3 py-2.5 transition-colors cursor-pointer"
             >
               <span className="text-xs text-text-secondary">{t('about')}</span>
@@ -635,6 +553,10 @@ function MobileMenuDrawer({
         </section>
       </div>
     </Drawer>
+
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+    </>
   )
 }
 
