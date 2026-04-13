@@ -5,7 +5,7 @@
  * Returns data from the active mode only.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAccount, useChainId, useReadContracts } from 'wagmi'
 import { type Address } from 'viem'
 import { getContracts, getMarkets } from '../lib/contracts'
@@ -41,12 +41,17 @@ export function usePositions() {
 
   // ─── Demo path (always runs) ───
   const [demoPositions, setDemoPositions] = useState<OnChainPosition[]>([])
-
   const [demoVersion, setDemoVersion] = useState(0)
+
+  // Stable ref for Binance prices so the interval always reads the latest
+  // without restarting on every tick. Previously this hook called
+  // getDemoPrices() (the synthetic random-walk generator) instead of the
+  // real Binance prices — which made PnL diverge from what the chart shows.
+  const pricesRef = useRef(prices)
+  pricesRef.current = prices
 
   useEffect(() => {
     if (!isDemo) return
-    // Fast poll to detect changes (version-based)
     const id = setInterval(() => {
       const v = getDemoVersion()
       if (v !== demoVersion) setDemoVersion(v)
@@ -54,38 +59,41 @@ export function usePositions() {
     return () => clearInterval(id)
   }, [isDemo, demoVersion])
 
-  // Re-read positions when version changes or prices update
+  // Map prices into the DemoPrice shape getDemoPositions expects
+  const mapPrices = () => pricesRef.current.length > 0
+    ? pricesRef.current.map(p => ({ symbol: p.symbol, market: p.market, price: p.price, raw: p.raw }))
+    : getDemoPrices() // fallback before first Binance tick arrives
+
+  // Re-read positions when version changes (structural: open/close)
   useEffect(() => {
     if (!isDemo) return
-    const currentPrices = getDemoPrices()
-    const raw = getDemoPositions(currentPrices)
-    setDemoPositions(raw.map(d => ({
+    const raw = getDemoPositions(mapPrices())
+    setDemoPositions(raw.map(toDemoOnChain))
+  }, [isDemo, demoVersion])
+
+  // Update PnL every second from the REAL Binance prices (same source
+  // the chart uses), not the synthetic demo generator.
+  useEffect(() => {
+    if (!isDemo) return
+    const id = setInterval(() => {
+      const raw = getDemoPositions(mapPrices())
+      if (raw.length > 0) {
+        setDemoPositions(raw.map(toDemoOnChain))
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [isDemo])
+
+  // ─── Helper ───
+  function toDemoOnChain(d: ReturnType<typeof getDemoPositions>[number]): OnChainPosition {
+    return {
       key: d.key, market: d.market, baseAsset: d.baseAsset, indexToken: d.indexToken,
       side: d.side, size: d.size, sizeRaw: d.sizeRaw, collateral: d.collateral,
       collateralRaw: d.collateralRaw, entryPrice: d.entryPrice, entryPriceRaw: d.entryPriceRaw,
       markPrice: d.markPrice, leverage: d.leverage, pnl: d.pnl, pnlPercent: d.pnlPercent,
       liquidationPrice: d.liquidationPrice,
-    })))
-  }, [isDemo, demoVersion])
-
-  // Also update PnL on price ticks (every second)
-  useEffect(() => {
-    if (!isDemo) return
-    const id = setInterval(() => {
-      const currentPrices = getDemoPrices()
-      const raw = getDemoPositions(currentPrices)
-      if (raw.length > 0) {
-        setDemoPositions(raw.map(d => ({
-          key: d.key, market: d.market, baseAsset: d.baseAsset, indexToken: d.indexToken,
-          side: d.side, size: d.size, sizeRaw: d.sizeRaw, collateral: d.collateral,
-          collateralRaw: d.collateralRaw, entryPrice: d.entryPrice, entryPriceRaw: d.entryPriceRaw,
-          markPrice: d.markPrice, leverage: d.leverage, pnl: d.pnl, pnlPercent: d.pnlPercent,
-          liquidationPrice: d.liquidationPrice,
-        })))
-      }
-    }, 1000)
-    return () => clearInterval(id)
-  }, [isDemo])
+    }
+  }
 
   // ─── Live path (always runs, disabled when demo) ───
   let contracts: ReturnType<typeof getContracts> | null = null
