@@ -83,7 +83,7 @@ export function Sidebar() {
         </button>
 
         {/* Nav items */}
-        <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 flex flex-col py-2 px-2 gap-0.5 overflow-y-auto">
           {NAV_ITEMS.map(item => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
@@ -118,7 +118,7 @@ export function Sidebar() {
         </nav>
 
         {/* Bottom controls */}
-        <div className="border-t border-border py-2 px-2 space-y-0.5">
+        <div className="border-t border-border py-2 px-2 flex flex-col gap-0.5">
           {/* Mode toggle */}
           {collapsed ? (
             <Tooltip content={mode === 'demo' ? 'Switch to Live' : 'Switch to Demo'} side="right">
