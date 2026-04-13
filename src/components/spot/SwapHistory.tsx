@@ -45,6 +45,7 @@ export function SwapHistory() {
 }
 
 function SwapRow({ entry }: { entry: SwapHistoryEntry }) {
+  const { t } = useTranslation('spot')
   const timeStr = formatRelativeTime(entry.timestamp)
 
   return (

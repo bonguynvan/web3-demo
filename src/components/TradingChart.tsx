@@ -31,6 +31,11 @@ import { getDemoOrders, type DemoOrder } from '../lib/demoData'
 const BINANCE_SYMBOLS: Record<string, string> = {
   'ETH-PERP': 'ETHUSDT',
   'BTC-PERP': 'BTCUSDT',
+  'SOL-PERP': 'SOLUSDT',
+  'ARB-PERP': 'ARBUSDT',
+  'DOGE-PERP': 'DOGEUSDT',
+  'LINK-PERP': 'LINKUSDT',
+  'AVAX-PERP': 'AVAXUSDT',
 }
 
 

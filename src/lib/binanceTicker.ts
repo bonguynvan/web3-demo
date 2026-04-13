@@ -30,6 +30,11 @@ const WS_URL = 'wss://stream.binance.com:9443/ws/!miniTicker@arr'
 const SYMBOL_MAP: Record<string, string> = {
   'ETHUSDT': 'ETH-PERP',
   'BTCUSDT': 'BTC-PERP',
+  'SOLUSDT': 'SOL-PERP',
+  'ARBUSDT': 'ARB-PERP',
+  'DOGEUSDT': 'DOGE-PERP',
+  'LINKUSDT': 'LINK-PERP',
+  'AVAXUSDT': 'AVAX-PERP',
 }
 
 export interface TickerData {
