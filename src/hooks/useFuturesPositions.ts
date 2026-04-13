@@ -5,7 +5,7 @@
  * PnL from live prices.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getFuturesPositions, getFuturesVersion, getFuturesHistory } from '../lib/futuresData'
 import { usePrices } from './usePrices'
 import type { FuturesPosition, FuturesSettlementRecord } from '../types/futures'
@@ -15,22 +15,22 @@ export function useFuturesPositions() {
   const [positions, setPositions] = useState<FuturesPosition[]>([])
   const [history, setHistory] = useState<FuturesSettlementRecord[]>([])
 
-  const getPriceNum = useCallback(
-    (market: string): number | undefined => {
-      const p = getPrice(market)
-      return p?.price
-    },
-    [getPrice],
-  )
+  // Stable ref so the interval always reads the latest getPrice without
+  // restarting the effect on every price tick (which caused an infinite
+  // setState → re-render → effect → setState loop).
+  const getPriceRef = useRef(getPrice)
+  getPriceRef.current = getPrice
 
   useEffect(() => {
+    const getPriceNum = (market: string): number | undefined =>
+      getPriceRef.current(market)?.price
+
     let lastVersion = -1
     const interval = setInterval(() => {
       const currentVersion = getFuturesVersion()
       // Always update positions for price changes, but only
       // update history on structural changes
-      const newPositions = getFuturesPositions(getPriceNum)
-      setPositions(newPositions)
+      setPositions(getFuturesPositions(getPriceNum))
 
       if (currentVersion !== lastVersion) {
         lastVersion = currentVersion
@@ -43,7 +43,7 @@ export function useFuturesPositions() {
     setHistory(getFuturesHistory())
 
     return () => clearInterval(interval)
-  }, [getPriceNum])
+  }, []) // empty deps — interval + ref handle updates
 
   const activePositions = positions.filter(p => !p.isSettled)
   const settledPositions = positions.filter(p => p.isSettled)
