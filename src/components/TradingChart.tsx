@@ -289,8 +289,12 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const lastPriceRef = useRef(0)
 
   useEffect(() => {
-    // Skip when Binance handles price line
-    if (binanceConnectedRef.current) return
+    // ALWAYS drive the price line from usePrices (the shared binanceTicker
+    // source) — even when BinanceAdapter is connected for candle data.
+    // This ensures the chart's live price line matches the positions PnL,
+    // header price, and tab title exactly. Previously this was skipped when
+    // Binance was connected, letting the kline stream's price diverge from
+    // the miniTicker stream the rest of the app uses.
     const chart = chartRef.current
     if (!chart || !currentPrice || currentPrice.price === 0) return
     if (currentPrice.price === lastPriceRef.current) return
