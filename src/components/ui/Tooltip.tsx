@@ -31,7 +31,7 @@ interface TooltipProps {
   children: ReactNode
   /** Where the tooltip prefers to render. Falls back to the opposite side
    *  if the preferred side overflows the viewport. */
-  side?: 'top' | 'bottom'
+  side?: 'top' | 'bottom' | 'right'
 }
 
 export function Tooltip({ content, title, children, side = 'top' }: TooltipProps) {
@@ -53,17 +53,31 @@ export function Tooltip({ content, title, children, side = 'top' }: TooltipProps
       const trigger = triggerRef.current
       if (!trigger) return
       const rect = trigger.getBoundingClientRect()
-      const wantsTop = side === 'top'
-      const placeOnTop = wantsTop && rect.top > 80
+
+      let pos: CSSProperties
+
+      if (side === 'right') {
+        // Position to the right of the trigger — used by the collapsed sidebar
+        pos = {
+          position: 'fixed',
+          left: rect.right + OFFSET,
+          top: rect.top + rect.height / 2,
+          transform: 'translate(0, -50%)',
+        }
+      } else {
+        const wantsTop = side === 'top'
+        const placeOnTop = wantsTop && rect.top > 80
+        pos = {
+          position: 'fixed',
+          left: rect.left + rect.width / 2,
+          top: placeOnTop ? rect.top - OFFSET : rect.bottom + OFFSET,
+          transform: placeOnTop ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+        }
+      }
 
       // Position is computed in viewport coordinates because we render
       // through a portal at body level — no parent transform / scroll math.
-      setPosition({
-        position: 'fixed',
-        left: rect.left + rect.width / 2,
-        top: placeOnTop ? rect.top - OFFSET : rect.bottom + OFFSET,
-        transform: placeOnTop ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
-      })
+      setPosition(pos)
       setOpen(true)
     }, HOVER_DELAY_MS)
   }

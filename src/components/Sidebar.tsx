@@ -64,7 +64,7 @@ export function Sidebar() {
     <>
       <aside
         className={cn(
-          'hidden md:flex flex-col h-full bg-panel border-r border-border shrink-0 transition-[width] duration-200',
+          'hidden md:flex flex-col h-full bg-panel border-r border-border shrink-0 overflow-hidden transition-[width] duration-200',
           collapsed ? 'w-[60px]' : 'w-[200px]',
         )}
       >
@@ -108,7 +108,7 @@ export function Sidebar() {
             )
 
             return collapsed ? (
-              <Tooltip key={item.path} content={item.label} side="bottom">
+              <Tooltip key={item.path} content={item.label} side="right">
                 {button}
               </Tooltip>
             ) : (
@@ -121,7 +121,7 @@ export function Sidebar() {
         <div className="border-t border-border py-2 px-2 space-y-0.5">
           {/* Mode toggle */}
           {collapsed ? (
-            <Tooltip content={mode === 'demo' ? 'Switch to Live' : 'Switch to Demo'} side="bottom">
+            <Tooltip content={mode === 'demo' ? 'Switch to Live' : 'Switch to Demo'} side="right">
               <button
                 onClick={() => setMode(mode === 'demo' ? 'live' : 'demo')}
                 className={cn(
@@ -226,7 +226,7 @@ function SidebarButton({
   )
 
   return collapsed ? (
-    <Tooltip content={label} side="bottom">{button}</Tooltip>
+    <Tooltip content={label} side="right">{button}</Tooltip>
   ) : (
     button
   )
