@@ -1,44 +1,98 @@
+#!/usr/bin/env node
 /**
  * dev.mjs — Start the entire Perp DEX stack for local development.
  *
- * Launches: Anvil → Deploy contracts → Price updater → Liquidator → Backend server → Vite
- * Kills everything on Ctrl+C.
+ * Services launched (in order):
+ *   1. Anvil          — local Ethereum node
+ *   2. Contracts       — deploy via forge script (skipped if already deployed)
+ *   3. Price updater   — keeper that feeds oracle prices from Binance
+ *   4. Liquidator      — keeper that liquidates unhealthy positions
+ *   5. Backend server  — REST + WebSocket + event indexer (Hono + SQLite)
+ *   6. Vite            — frontend dev server
  *
- * Usage: node scripts/dev.mjs
+ * Ctrl+C kills everything cleanly.
  *
- * Note on port reuse: Anvil and the backend server are reused if already
- * running (we check ports 8545 and 3001 before launching). This makes it
- * safe to keep running `pnpm dev:full` from a fresh shell without first
- * stopping anything you started by hand.
+ * Usage:
+ *   node scripts/dev.mjs          # start all services
+ *   pnpm dev:full                 # same via package.json script
+ *
+ * Environment:
+ *   Services that need contract addresses read them from src/addresses.json
+ *   (written by step 2). No manual env vars needed for local Anvil dev.
+ *
+ * Keepers use Anvil Account 1 (0x7099…79C8) to avoid nonce collisions
+ * with the deployer (Account 0) or user trading accounts (Account 2-3).
  */
 
 import { spawn, execSync } from 'child_process'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
-// Find foundry binaries
+// ─── Config ─────────────────────────────────────────────────────────────────
+
+const PORTS = {
+  anvil: 8545,
+  backend: 3001,
+  backendWs: 3002,
+  vite: 5173,
+}
+
+// Anvil Account 1 — dedicated keeper key. NOT the deployer (Account 0),
+// so keepers and the user's trading wallet never fight over the same nonce.
+const KEEPER_PK = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
+
+// ─── Foundry binary discovery ───────────────────────────────────────────────
+
 const HOME = process.env.HOME || process.env.USERPROFILE || ''
 const FOUNDRY_BIN = resolve(HOME, '.foundry/bin')
+const FORGE = [resolve(FOUNDRY_BIN, 'forge'), resolve(FOUNDRY_BIN, 'forge.exe')].find(p => existsSync(p)) || 'forge'
+const ANVIL = [resolve(FOUNDRY_BIN, 'anvil'), resolve(FOUNDRY_BIN, 'anvil.exe')].find(p => existsSync(p)) || 'anvil'
 
-const FORGE_PATHS = [resolve(FOUNDRY_BIN, 'forge'), resolve(FOUNDRY_BIN, 'forge.exe')]
-const FORGE = FORGE_PATHS.find(p => existsSync(p)) || 'forge'
+// ─── Colors ─────────────────────────────────────────────────────────────────
 
-const ANVIL_PATHS = [resolve(FOUNDRY_BIN, 'anvil'), resolve(FOUNDRY_BIN, 'anvil.exe')]
-const ANVIL = ANVIL_PATHS.find(p => existsSync(p)) || 'anvil'
+const C = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+}
 
-// Track child processes for cleanup
+const SERVICE_COLORS = {
+  anvil: C.cyan,
+  keeper: C.yellow,
+  liquidator: C.magenta,
+  server: C.blue,
+  vite: C.green,
+}
+
+function prefixedLog(name, color, data) {
+  const lines = data.toString().split('\n').filter(l => l.trim())
+  for (const line of lines) {
+    // Skip noisy viem docs links
+    if (line.includes('Docs: https://viem.sh')) continue
+    if (line.includes('Version: viem@')) continue
+    console.log(`${color}[${name}]${C.reset} ${line}`)
+  }
+}
+
+// ─── Process management ─────────────────────────────────────────────────────
+
 const children = []
 
 function cleanup() {
-  console.log('\n\x1b[33mShutting down all services...\x1b[0m')
+  console.log(`\n${C.yellow}Shutting down all services...${C.reset}`)
   for (const child of children) {
     try { child.kill('SIGTERM') } catch {}
   }
-  // Also kill anvil
   try {
     if (process.platform === 'win32') {
       execSync('taskkill /F /IM anvil.exe', { stdio: 'ignore' })
@@ -46,53 +100,45 @@ function cleanup() {
       execSync('pkill -f anvil', { stdio: 'ignore' })
     }
   } catch {}
-  console.log('\x1b[32mAll services stopped.\x1b[0m')
+  console.log(`${C.green}All services stopped.${C.reset}`)
   process.exit(0)
 }
 
 process.on('SIGINT', cleanup)
 process.on('SIGTERM', cleanup)
-process.on('exit', cleanup)
 
-function run(cmd, args, opts = {}) {
-  // On Windows, use shell to resolve .cmd/.bat wrappers (npx, forge, etc.)
+function runService(name, cmd, args, opts = {}) {
   const isWin = process.platform === 'win32'
+  const color = SERVICE_COLORS[name] || C.white
   const child = spawn(cmd, args, {
-    stdio: opts.stdio || 'pipe',
+    stdio: 'pipe',
     cwd: opts.cwd || ROOT,
     shell: isWin,
-    windowsVerbatimArguments: false,
-    env: { ...process.env, FORCE_COLOR: '1' },
+    env: { ...process.env, FORCE_COLOR: '1', ...opts.env },
   })
   children.push(child)
-  return child
-}
 
-function runAndWait(cmd, args, opts = {}) {
-  return new Promise((resolve, reject) => {
-    const isWin = process.platform === 'win32'
-    const child = spawn(cmd, args, {
-      stdio: opts.stdio || 'pipe',
-      cwd: opts.cwd || ROOT,
-      shell: isWin,
-      windowsVerbatimArguments: false,
-      env: { ...process.env, FORCE_COLOR: '1' },
-    })
-    let stdout = ''
-    let stderr = ''
-    if (child.stdout) child.stdout.on('data', d => stdout += d)
-    if (child.stderr) child.stderr.on('data', d => stderr += d)
-    child.on('close', code => {
-      if (code === 0) resolve(stdout)
-      else reject(new Error(`${cmd} exited with code ${code}\n${stderr}`))
-    })
-    child.on('error', reject)
+  // Forward logs with colored prefix
+  if (!opts.silent) {
+    child.stdout?.on('data', d => prefixedLog(name, color, d))
+    child.stderr?.on('data', d => prefixedLog(name, color, d))
+  }
+
+  // Detect unexpected exits
+  child.on('close', (code) => {
+    if (code !== null && code !== 0) {
+      console.log(`${C.red}[${name}] exited with code ${code}${C.reset}`)
+    }
   })
+
+  return child
 }
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
+
+// ─── Health checks ──────────────────────────────────────────────────────────
 
 async function waitForRpc(maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
@@ -110,9 +156,6 @@ async function waitForRpc(maxAttempts = 30) {
 }
 
 async function isPortInUse(port) {
-  // Cheap port check via fetch — if anything responds (even with an error
-  // body), the port is taken. Used to skip launching the backend server
-  // when the user already has it running manually.
   try {
     const res = await fetch(`http://127.0.0.1:${port}/health`, {
       signal: AbortSignal.timeout(500),
@@ -123,41 +166,69 @@ async function isPortInUse(port) {
   }
 }
 
+async function waitForBackend(maxAttempts = 20) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${PORTS.backend}/health`, {
+        signal: AbortSignal.timeout(1000),
+      })
+      const body = await res.json()
+      if (body?.ok) return true
+    } catch {}
+    await sleep(500)
+  }
+  return false
+}
+
 async function checkContractsDeployed() {
-  // Check if the first deployed contract (USDC MockERC20) has code
-  // Default USDC address from DeployLocal deterministic deploy
+  // Read the USDC address from addresses.json if it exists, otherwise
+  // use the deterministic first-deploy address for a fresh Anvil.
+  let usdcAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+  try {
+    const addrs = JSON.parse(readFileSync(resolve(ROOT, 'src/addresses.json'), 'utf-8'))
+    if (addrs.usdc) usdcAddress = addrs.usdc
+  } catch {}
+
   try {
     const res = await fetch('http://127.0.0.1:8545', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 1, method: 'eth_getCode',
-        params: ['0x5FbDB2315678afecb367f032d93F642f64180aa3', 'latest'],
+        params: [usdcAddress, 'latest'],
       }),
     })
     const data = await res.json()
-    // If code is more than '0x' (empty), contract exists
     return data.result && data.result.length > 2
   } catch {
     return false
   }
 }
 
-// ─── Main ───
+function loadAddresses() {
+  try {
+    return JSON.parse(readFileSync(resolve(ROOT, 'src/addresses.json'), 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('\x1b[36m╔══════════════════════════════════════╗\x1b[0m')
-  console.log('\x1b[36m║     Perp DEX — Local Dev Stack       ║\x1b[0m')
-  console.log('\x1b[36m╚══════════════════════════════════════╝\x1b[0m')
+  const TOTAL_STEPS = 6
+
+  console.log(`${C.cyan}╔══════════════════════════════════════╗${C.reset}`)
+  console.log(`${C.cyan}║     Perp DEX — Local Dev Stack       ║${C.reset}`)
+  console.log(`${C.cyan}╚══════════════════════════════════════╝${C.reset}`)
   console.log()
 
-  // 1. Check if Anvil is already running (reuse it to keep deployed contracts)
+  // ── 1. Anvil ──────────────────────────────────────────────────────────────
+
   const anvilAlive = await waitForRpc(2)
-  let anvil = null
   if (anvilAlive) {
-    console.log('\x1b[32m[1/6] Anvil already running on :8545 (reusing)\x1b[0m')
+    console.log(`${C.green}[1/${TOTAL_STEPS}] Anvil already running on :${PORTS.anvil} (reusing)${C.reset}`)
   } else {
-    // Kill stale processes and start fresh
     try {
       if (process.platform === 'win32') {
         execSync('taskkill /F /IM anvil.exe', { stdio: 'ignore' })
@@ -165,133 +236,151 @@ async function main() {
         execSync('pkill -f anvil', { stdio: 'ignore' })
       }
     } catch {}
-    await sleep(1000)
+    await sleep(500)
 
-    console.log('\x1b[33m[1/6] Starting Anvil...\x1b[0m')
-    anvil = run(ANVIL, ['--host', '127.0.0.1', '--port', '8545'])
-    anvil.stderr?.on('data', () => {})
-    anvil.stdout?.on('data', () => {})
+    console.log(`${C.yellow}[1/${TOTAL_STEPS}] Starting Anvil...${C.reset}`)
+    runService('anvil', ANVIL, ['--host', '127.0.0.1', '--port', String(PORTS.anvil)], { silent: true })
 
     const rpcReady = await waitForRpc()
     if (!rpcReady) {
-      console.error('\x1b[31m  ✗ Anvil failed to start. Is it installed?\x1b[0m')
+      console.error(`${C.red}  ✗ Anvil failed to start. Is foundry installed?${C.reset}`)
+      console.log(`${C.dim}    Install: curl -L https://foundry.paradigm.xyz | bash && foundryup${C.reset}`)
       process.exit(1)
     }
-    console.log('\x1b[32m  ✓ Anvil running on :8545\x1b[0m')
+    console.log(`${C.green}  ✓ Anvil running on :${PORTS.anvil}${C.reset}`)
   }
 
-  // 2. Deploy contracts (skip if already deployed on this Anvil)
-  console.log('\x1b[33m[2/6] Deploying contracts...\x1b[0m')
+  // ── 2. Deploy contracts ───────────────────────────────────────────────────
+
+  console.log(`${C.yellow}[2/${TOTAL_STEPS}] Deploying contracts...${C.reset}`)
   const deployed = await checkContractsDeployed()
   if (deployed) {
-    console.log('\x1b[32m  ✓ Contracts already deployed (skipping)\x1b[0m')
+    console.log(`${C.green}  ✓ Contracts already deployed (skipping)${C.reset}`)
   } else {
     try {
       const { rmSync } = await import('fs')
       rmSync(resolve(ROOT, 'packages/contracts/broadcast'), { recursive: true, force: true })
     } catch {}
     try {
-      // Build + deploy in one execSync with generous timeout
       execSync(
-        `"${FORGE}" script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`,
+        `"${FORGE}" script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:${PORTS.anvil} --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`,
         { cwd: resolve(ROOT, 'packages/contracts'), stdio: ['pipe', 'pipe', 'pipe'], timeout: 300000 }
       )
-      console.log('\x1b[32m  ✓ Contracts deployed\x1b[0m')
+      console.log(`${C.green}  ✓ Contracts deployed${C.reset}`)
     } catch (err) {
-      const stdout = err.stdout?.toString() || ''
-      const stderr = err.stderr?.toString() || ''
-      const msg = stdout + stderr
+      const msg = (err.stdout?.toString() || '') + (err.stderr?.toString() || '')
       if (msg.includes('ONCHAIN EXECUTION COMPLETE') || msg.includes('nonce too low')) {
-        console.log('\x1b[32m  ✓ Contracts deployed (with warnings)\x1b[0m')
+        console.log(`${C.green}  ✓ Contracts deployed (with warnings)${C.reset}`)
       } else {
-        console.error('\x1b[31m  ✗ Deploy issue:', (stderr || err.message).slice(0, 300), '\x1b[0m')
-        console.log('\x1b[33m  Tip: Run manually: cd packages/contracts && forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80\x1b[0m')
+        console.error(`${C.red}  ✗ Deploy failed:${C.reset}`, (err.stderr?.toString() || err.message).slice(0, 200))
+        console.log(`${C.dim}    Run manually: cd packages/contracts && forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974...${C.reset}`)
       }
     }
   }
 
-  // 3b. Export addresses from broadcast to src/addresses.json
+  // Export addresses
   try {
     execSync('node scripts/export-addresses.mjs', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] })
-    console.log('\x1b[32m  ✓ Addresses exported to src/addresses.json\x1b[0m')
+    console.log(`${C.green}  ✓ Addresses exported to src/addresses.json${C.reset}`)
   } catch {
-    console.log('\x1b[33m  ⚠ Could not export addresses (run deploy manually first)\x1b[0m')
+    console.log(`${C.yellow}  ⚠ Could not export addresses${C.reset}`)
   }
 
-  // Read deployed addresses for env vars
-  let addrEnv = {}
-  try {
-    const { readFileSync } = await import('fs')
-    const addrs = JSON.parse(readFileSync(resolve(ROOT, 'src/addresses.json'), 'utf-8'))
-    addrEnv = {
-      USDC_ADDRESS: addrs.usdc,
-      WETH_ADDRESS: addrs.weth,
-      WBTC_ADDRESS: addrs.wbtc,
-      ETH_ORACLE_ADDRESS: addrs.ethOracle,
-      BTC_ORACLE_ADDRESS: addrs.btcOracle,
-      PRICE_FEED_ADDRESS: addrs.priceFeed,
-      VAULT_ADDRESS: addrs.vault,
-      POSITION_MANAGER_ADDRESS: addrs.positionManager,
-      ROUTER_ADDRESS: addrs.router,
-    }
-  } catch {}
+  // Build env vars from deployed addresses
+  const addrs = loadAddresses()
+  const addrEnv = addrs ? {
+    USDC_ADDRESS: addrs.usdc,
+    WETH_ADDRESS: addrs.weth,
+    WBTC_ADDRESS: addrs.wbtc,
+    ETH_ORACLE_ADDRESS: addrs.ethOracle,
+    BTC_ORACLE_ADDRESS: addrs.btcOracle,
+    PLP_ADDRESS: addrs.plp,
+    PRICE_FEED_ADDRESS: addrs.priceFeed,
+    VAULT_ADDRESS: addrs.vault,
+    POSITION_MANAGER_ADDRESS: addrs.positionManager,
+    ROUTER_ADDRESS: addrs.router,
+  } : {}
 
-  // 3. Start price updater
-  console.log('\x1b[33m[3/6] Starting price updater...\x1b[0m')
-  const priceUpdater = run('npx', ['tsx', 'src/price-updater.ts'], { cwd: resolve(ROOT, 'packages/keepers'), env: { ...process.env, ...addrEnv } })
-  priceUpdater.stdout?.on('data', () => {})
-  priceUpdater.stderr?.on('data', () => {})
-  console.log('\x1b[32m  ✓ Price updater running\x1b[0m')
+  // ── 3. Price updater keeper ───────────────────────────────────────────────
 
-  // 4. Start liquidator
-  console.log('\x1b[33m[4/6] Starting liquidator...\x1b[0m')
-  const liquidator = run('npx', ['tsx', 'src/liquidator.ts'], { cwd: resolve(ROOT, 'packages/keepers'), env: { ...process.env, ...addrEnv } })
-  liquidator.stdout?.on('data', () => {})
-  liquidator.stderr?.on('data', () => {})
-  console.log('\x1b[32m  ✓ Liquidator running\x1b[0m')
+  console.log(`${C.yellow}[3/${TOTAL_STEPS}] Starting price updater...${C.reset}`)
+  runService('keeper', 'npx', ['tsx', 'src/price-updater.ts'], {
+    cwd: resolve(ROOT, 'packages/keepers'),
+    env: { ...addrEnv, KEEPER_PRIVATE_KEY: KEEPER_PK },
+  })
+  await sleep(500)
+  console.log(`${C.green}  ✓ Price updater running (Account 1)${C.reset}`)
 
-  // 5. Start backend server (REST + WebSocket + event indexer)
-  // Reuse an already-running instance if port 3001 is taken — this is the
-  // common case when the user has `pnpm dev` already open in another terminal.
-  console.log('\x1b[33m[5/6] Starting backend server...\x1b[0m')
-  const serverAlive = await isPortInUse(3001)
+  // ── 4. Liquidator keeper ──────────────────────────────────────────────────
+
+  console.log(`${C.yellow}[4/${TOTAL_STEPS}] Starting liquidator...${C.reset}`)
+  runService('liquidator', 'npx', ['tsx', 'src/liquidator.ts'], {
+    cwd: resolve(ROOT, 'packages/keepers'),
+    env: { ...addrEnv, KEEPER_PRIVATE_KEY: KEEPER_PK },
+  })
+  await sleep(500)
+  console.log(`${C.green}  ✓ Liquidator running (Account 1)${C.reset}`)
+
+  // ── 5. Backend server ─────────────────────────────────────────────────────
+
+  console.log(`${C.yellow}[5/${TOTAL_STEPS}] Starting backend server...${C.reset}`)
+  const serverAlive = await isPortInUse(PORTS.backend)
   if (serverAlive) {
-    console.log('\x1b[32m  ✓ Backend already running on :3001 (reusing)\x1b[0m')
+    console.log(`${C.green}  ✓ Backend already running on :${PORTS.backend} (reusing)${C.reset}`)
   } else {
-    const server = run('npx', ['tsx', 'watch', 'src/index.ts'], {
+    runService('server', 'npx', ['tsx', 'watch', 'src/index.ts'], {
       cwd: resolve(ROOT, 'packages/server'),
-      env: { ...process.env, ...addrEnv },
+      env: addrEnv,
     })
-    server.stdout?.on('data', () => {})
-    server.stderr?.on('data', () => {})
-    // Give the server a moment to bind ports + run the indexer backfill
-    // before launching Vite, so the frontend's first API calls succeed.
-    await sleep(1500)
-    console.log('\x1b[32m  ✓ Backend running on :3001 (REST) + :3002 (WS)\x1b[0m')
+
+    const healthy = await waitForBackend()
+    if (healthy) {
+      console.log(`${C.green}  ✓ Backend healthy on :${PORTS.backend} (REST) + :${PORTS.backendWs} (WS)${C.reset}`)
+    } else {
+      console.log(`${C.yellow}  ⚠ Backend started but health check timed out — may still be indexing${C.reset}`)
+    }
   }
 
-  // 6. Start Vite
-  console.log('\x1b[33m[6/6] Starting Vite dev server...\x1b[0m')
+  // ── 6. Vite frontend ──────────────────────────────────────────────────────
+
+  console.log(`${C.yellow}[6/${TOTAL_STEPS}] Starting Vite dev server...${C.reset}`)
   console.log()
-  console.log('\x1b[36m══════════════════════════════════════\x1b[0m')
-  console.log('\x1b[32m  All services running!\x1b[0m')
+  console.log(`${C.cyan}══════════════════════════════════════${C.reset}`)
+  console.log(`${C.green}  All services running!${C.reset}`)
   console.log()
-  console.log('  Frontend:   \x1b[36mhttp://localhost:5173\x1b[0m')
-  console.log('  Backend:    \x1b[36mhttp://localhost:3001\x1b[0m  (REST)')
-  console.log('              \x1b[36mws://localhost:3002\x1b[0m    (WebSocket)')
-  console.log('  Anvil RPC:  \x1b[36mhttp://localhost:8545\x1b[0m')
+  console.log(`  Frontend:   ${C.cyan}http://localhost:${PORTS.vite}${C.reset}`)
+  console.log(`  Backend:    ${C.cyan}http://localhost:${PORTS.backend}${C.reset}  (REST)`)
+  console.log(`              ${C.cyan}ws://localhost:${PORTS.backendWs}${C.reset}    (WebSocket)`)
+  console.log(`  Anvil RPC:  ${C.cyan}http://localhost:${PORTS.anvil}${C.reset}`)
   console.log()
-  console.log('  \x1b[33mAnvil accounts pre-funded with USDC:\x1b[0m')
-  console.log('  Account 0 (deployer): 0xf39F...2266  — $1,000,000')
-  console.log('  Account 1:            0x7099...79C8  — $100,000')
-  console.log('  Account 2:            0x3C44...93BC  — $100,000')
+  console.log(`  ${C.yellow}Accounts:${C.reset}`)
+  console.log(`  Account 0 (deployer):  0xf39F...2266  — $1M USDC (admin only)`)
+  console.log(`  Account 1 (keepers):   0x7099...79C8  — reserved for keepers`)
+  console.log(`  Account 2 (trading):   0x3C44...93BC  — $100K USDC`)
+  console.log(`  Account 3 (trading):   0x90F7...b906  — $100K USDC`)
   console.log()
-  console.log('  Press \x1b[31mCtrl+C\x1b[0m to stop everything.')
-  console.log('\x1b[36m══════════════════════════════════════\x1b[0m')
+  console.log(`  ${C.dim}Keepers use Account 1 to avoid nonce collisions with your wallet.${C.reset}`)
+  console.log(`  ${C.dim}Connect Account 2 or 3 for trading in Live mode.${C.reset}`)
+  console.log()
+  console.log(`  Press ${C.red}Ctrl+C${C.reset} to stop everything.`)
+  console.log(`${C.cyan}══════════════════════════════════════${C.reset}`)
   console.log()
 
   // Vite runs in foreground with inherited stdio
-  const vite = run('npx', ['vite', '--host'], { stdio: 'inherit' })
+  const vite = runService('vite', 'npx', ['vite', '--host'], { silent: true })
+  // Forward only Vite's stdout (the URL output), skip noisy HMR logs
+  vite.stdout?.on('data', d => {
+    const text = d.toString()
+    if (text.includes('http') || text.includes('ready') || text.includes('error')) {
+      process.stdout.write(text)
+    }
+  })
+  vite.stderr?.on('data', d => {
+    const text = d.toString()
+    if (text.includes('error') || text.includes('Error')) {
+      prefixedLog('vite', SERVICE_COLORS.vite, d)
+    }
+  })
   vite.on('close', () => cleanup())
 }
 
