@@ -239,7 +239,10 @@ async function main() {
     await sleep(500)
 
     console.log(`${C.yellow}[1/${TOTAL_STEPS}] Starting Anvil...${C.reset}`)
-    runService('anvil', ANVIL, ['--host', '127.0.0.1', '--port', String(PORTS.anvil)], { silent: true })
+    // --block-time 1: mine a block every 1s instead of on every tx.
+    // Prevents Anvil from choking under concurrent RPC load from keeper +
+    // liquidator + indexer + frontend all hitting it simultaneously.
+    runService('anvil', ANVIL, ['--host', '127.0.0.1', '--port', String(PORTS.anvil), '--block-time', '1'], { silent: true })
 
     const rpcReady = await waitForRpc()
     if (!rpcReady) {

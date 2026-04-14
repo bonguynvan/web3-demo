@@ -24,7 +24,7 @@ const KEEPER_PK =
 
 export const publicClient = createPublicClient({
   chain: foundry,
-  transport: http(RPC_URL),
+  transport: http(RPC_URL, { timeout: 30_000 }),
 });
 
 export const keeperAccount = privateKeyToAccount(KEEPER_PK);
@@ -32,7 +32,7 @@ export const keeperAccount = privateKeyToAccount(KEEPER_PK);
 export const walletClient = createWalletClient({
   account: keeperAccount,
   chain: foundry,
-  transport: http(RPC_URL),
+  transport: http(RPC_URL, { timeout: 30_000 }),
 });
 
 // --- Contract Addresses ---

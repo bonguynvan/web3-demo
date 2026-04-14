@@ -53,7 +53,10 @@ export const config = {
 
 export const publicClient = createPublicClient({
   chain: foundry,
-  transport: http(RPC_URL),
+  // 30s timeout — Anvil chokes under concurrent load from keeper +
+  // liquidator + indexer + frontend. Prevents watch filters and the
+  // price poller from dying on temporary congestion.
+  transport: http(RPC_URL, { timeout: 30_000 }),
 })
 
 // Re-export the typechain shape so consumers don't need a second import.
