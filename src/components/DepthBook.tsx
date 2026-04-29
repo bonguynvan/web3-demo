@@ -1,22 +1,16 @@
 /**
- * DepthBook — synthetic orderbook for AMM trading (demo mode only).
+ * DepthBook — synthetic orderbook ladder.
  *
- * In demo mode we render a synthetic depth ladder to mimic a CEX orderbook
- * — useful for showing how liquidity, spread, and slippage move with price.
- *
- * In live mode the GMX-style AMM has no orderbook to render. Showing fake
- * depth would be dishonest, so we render a Pool Liquidity card instead with
- * the real vault state (pool / reserved / available / AUM / utilisation).
+ * Renders a synthetic depth ladder around the current venue price.
+ * Will be replaced with real orderbook via adapter.subscribeOrderBook
+ * once the venue-adapter trading path is wired up.
  */
 
 import { useMemo, useCallback, useRef, useEffect } from 'react'
 import { usePrices } from '../hooks/usePrices'
-import { useVault } from '../hooks/useVault'
 import { useTradingStore } from '../store/tradingStore'
-import { useIsDemo } from '../store/modeStore'
-import { cn, formatUsd, formatCompact } from '../lib/format'
+import { cn, formatCompact } from '../lib/format'
 import { FlashPrice } from './ui/FlashPrice'
-import { Skeleton } from './ui/Skeleton'
 
 const LEVELS = 15 // price levels per side
 const SPREAD_BPS = 10 // 0.1% spread (matches PriceFeed config)
@@ -29,21 +23,9 @@ interface DepthLevel {
 }
 
 export function DepthBook() {
-  const isDemo = useIsDemo()
-
-  // Live mode: AMM has no orderbook — show real vault state instead.
-  if (!isDemo) {
-    return <PoolLiquidityCard />
-  }
-
-  return <SyntheticDepthBook />
-}
-
-function SyntheticDepthBook() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const setOrderPrice = useTradingStore(s => s.setOrderPrice)
   const { getPrice } = usePrices()
-  const { stats } = useVault()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const currentPrice = getPrice(selectedMarket.symbol)
@@ -60,9 +42,7 @@ function SyntheticDepthBook() {
     // Step size scales with price: ~0.01% per level for crypto
     const step = midPrice * 0.0002
 
-    // Available liquidity determines depth
-    const poolLiquidity = stats.availableLiquidity
-    const maxSizePerLevel = poolLiquidity > 0 ? poolLiquidity / 20 : 50_000
+    const maxSizePerLevel = 50_000
 
     const askLevels: DepthLevel[] = []
     const bidLevels: DepthLevel[] = []
@@ -104,7 +84,7 @@ function SyntheticDepthBook() {
       spread: spreadAmount,
       spreadPercent: (spreadAmount / midPrice) * 100,
     }
-  }, [midPrice, stats.availableLiquidity])
+  }, [midPrice])
 
   // Auto-scroll to spread on mount
   useEffect(() => {
@@ -127,10 +107,6 @@ function SyntheticDepthBook() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
         <span className="text-xs font-medium text-text-primary">Depth</span>
-        <div className="flex items-center gap-2 text-[10px]">
-          <span className="text-text-muted">Pool</span>
-          <span className="text-text-primary font-mono">${formatUsd(stats.poolAmount)}</span>
-        </div>
       </div>
 
       {/* Column headers */}
@@ -223,126 +199,3 @@ function DepthRow({
   )
 }
 
-// ─── Live mode: AMM Pool Liquidity card ───────────────────────────────────
-
-/**
- * Replaces the synthetic orderbook in live mode. Shows the actual vault state
- * — pool, reserved (locked by open positions), available (free to back new
- * trades), AUM, utilisation, plus the current mark price.
- *
- * Click anywhere to focus the order form. Utilisation gets a coloured bar so
- * traders can see at a glance whether the pool can absorb a large entry.
- */
-function PoolLiquidityCard() {
-  const selectedMarket = useTradingStore(s => s.selectedMarket)
-  const { getPrice } = usePrices()
-  const { stats, isInitialLoad } = useVault()
-  const currentPrice = getPrice(selectedMarket.symbol)
-  const midPrice = currentPrice?.price ?? 0
-
-  const decimals = midPrice > 10000 ? 1 : midPrice > 100 ? 2 : midPrice > 1 ? 4 : 6
-
-  // Utilisation colour bands match the AccountBar margin-used widget.
-  const util = stats.utilizationPercent
-  const utilColor = util > 80 ? 'text-short' : util > 50 ? 'text-amber-400' : 'text-long'
-  const utilBgColor = util > 80 ? 'bg-short' : util > 50 ? 'bg-amber-400' : 'bg-long'
-
-  return (
-    <div className="flex flex-col h-full bg-panel rounded-lg border border-border overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-medium text-text-primary">Pool Liquidity</span>
-        <span className="text-[10px] text-text-muted uppercase tracking-wider">AMM</span>
-      </div>
-
-      {/* Mark price strip */}
-      <div className="flex items-center justify-center px-3 py-2 border-b border-border bg-surface/40">
-        {midPrice > 0 ? (
-          <FlashPrice value={midPrice} size="lg" showArrow format={n => `$${n.toFixed(decimals)}`} />
-        ) : (
-          <Skeleton className="h-6" width={120} subtle />
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {/* Utilisation bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider">Utilisation</span>
-            {isInitialLoad ? (
-              <Skeleton className="h-3" width={42} subtle />
-            ) : (
-              <span className={cn('text-xs font-mono font-semibold', utilColor)}>
-                {util.toFixed(2)}%
-              </span>
-            )}
-          </div>
-          <div className="h-1.5 bg-surface rounded-full overflow-hidden">
-            {isInitialLoad ? (
-              <Skeleton className="h-full" width="100%" subtle />
-            ) : (
-              <div
-                className={cn('h-full transition-all duration-500', utilBgColor)}
-                style={{ width: `${Math.min(util, 100)}%` }}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-2">
-          {isInitialLoad ? (
-            <>
-              <PoolStatSkeleton label="Pool" />
-              <PoolStatSkeleton label="Reserved" />
-              <PoolStatSkeleton label="Available" />
-              <PoolStatSkeleton label="AUM" />
-            </>
-          ) : (
-            <>
-              <PoolStat label="Pool" value={`$${formatCompact(stats.poolAmount)}`} />
-              <PoolStat label="Reserved" value={`$${formatCompact(stats.reservedAmount)}`} />
-              <PoolStat label="Available" value={`$${formatCompact(stats.availableLiquidity)}`} accent />
-              <PoolStat label="AUM" value={`$${formatCompact(stats.aum)}`} />
-            </>
-          )}
-        </div>
-
-        {/* Hint */}
-        <div className="text-[10px] text-text-muted leading-relaxed pt-1 border-t border-border">
-          GMX-style AMM trades against the pool at oracle price. There is no
-          orderbook — depth is the available pool liquidity above.
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PoolStatSkeleton({ label }: { label: string }) {
-  return (
-    <div className="bg-surface/50 rounded-md px-3 py-2 border border-border/60">
-      <div className="text-[9px] text-text-muted uppercase tracking-wider">{label}</div>
-      <Skeleton className="h-4 mt-1" width={64} subtle />
-    </div>
-  )
-}
-
-interface PoolStatProps {
-  label: string
-  value: string
-  accent?: boolean
-}
-
-function PoolStat({ label, value, accent }: PoolStatProps) {
-  return (
-    <div className="bg-surface/50 rounded-md px-3 py-2 border border-border/60">
-      <div className="text-[9px] text-text-muted uppercase tracking-wider">{label}</div>
-      <div className={cn(
-        'font-mono text-sm tabular-nums mt-0.5',
-        accent ? 'text-accent font-semibold' : 'text-text-primary'
-      )}>
-        {value}
-      </div>
-    </div>
-  )
-}

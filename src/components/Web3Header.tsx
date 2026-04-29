@@ -11,8 +11,6 @@ import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
-import { useVault } from '../hooks/useVault'
-import { useFaucet } from '../hooks/useFaucet'
 import { useMarketStats } from '../hooks/useMarketStats'
 import { useModeStore, type AppMode } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
@@ -49,8 +47,6 @@ export function Web3Header() {
 
   const { dollars: usdcBalance } = useUsdcBalance()
   const { getPrice } = usePrices()
-  const { stats: vaultStats } = useVault()
-  const { mint, minting, isAvailable: faucetAvailable } = useFaucet()
   const stats = useMarketStats()
   const { mode, setMode } = useModeStore()
   const { theme: appTheme, toggleTheme } = useThemeStore()
@@ -302,17 +298,6 @@ export function Web3Header() {
       {/* Wallet Section */}
       {isConnected ? (
         <div className="flex items-center gap-2 md:gap-3">
-          {/* Faucet — hidden on mobile, accessible via drawer if needed */}
-          {mode === 'demo' && faucetAvailable && (
-            <button
-              onClick={() => mint(10_000)}
-              disabled={minting}
-              className="hidden md:block w-[72px] text-[10px] bg-accent-dim text-accent px-2 py-1 rounded hover:bg-accent-dim/80 transition-colors cursor-pointer disabled:opacity-50 text-center"
-            >
-              {minting ? '...' : '+ 10K USDC'}
-            </button>
-          )}
-
           {/* Balance — desktop only */}
           <div className="hidden md:block text-xs">
             <span className="text-text-muted">USDC</span>
