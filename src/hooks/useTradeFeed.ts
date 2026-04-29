@@ -19,16 +19,10 @@ import { useEffect, useRef } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from './usePrices'
 import { useIsDemo } from '../store/modeStore'
-import { useOnChainTrades } from './useOnChainTrades'
 import type { Trade } from '../types/trading'
 
 export function useTradeFeed() {
   const isDemo = useIsDemo()
-
-  // Live trades — hook is internally a no-op in demo mode.
-  useOnChainTrades()
-
-  // Demo synthetic generator — internally a no-op in live mode.
   useDemoTradeFeed(isDemo)
 }
 

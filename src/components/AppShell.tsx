@@ -16,7 +16,6 @@ import { useMarketWs } from '../hooks/useMarketWs'
 import { useTradeFeed } from '../hooks/useTradeFeed'
 import { useLimitOrderWatcher } from '../hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
-import { useFuturesSettlement } from '../hooks/useFuturesSettlement'
 import { usePriceAlertWatcher } from '../hooks/usePriceAlertWatcher'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useTradingStore } from '../store/tradingStore'
@@ -29,7 +28,6 @@ export function AppShell() {
   useTradeFeed()
   useLimitOrderWatcher()
   useLiquidationAlerts()
-  useFuturesSettlement()
   usePriceAlertWatcher()
   useDocumentTitle()
 

@@ -8,13 +8,12 @@
 import { useMemo } from 'react'
 import { usePositions } from './usePositions'
 import { useFuturesPositions } from './useFuturesPositions'
-import { useAavePositions } from './useAavePositions'
 import { useUsdcBalance } from './useTokenBalance'
 import { useIsDemo } from '../store/modeStore'
 import { DEMO_ACCOUNT } from '../lib/demoData'
 
 export interface PortfolioPosition {
-  product: 'perp' | 'futures' | 'margin'
+  product: 'perp' | 'futures'
   market: string
   side: string
   size: number
@@ -22,7 +21,7 @@ export interface PortfolioPosition {
   markPrice: number
   pnl: number
   collateral: number
-  extra?: string // tenor for futures, leverage for perp
+  extra?: string
 }
 
 export interface AllocationSegment {
@@ -34,17 +33,14 @@ export interface AllocationSegment {
 export function usePortfolioData() {
   const { positions: perpPositions } = usePositions()
   const { positions: futuresActive } = useFuturesPositions()
-  const { summary: aaveSummary } = useAavePositions()
   const { dollars: usdcBalance } = useUsdcBalance()
   const isDemo = useIsDemo()
 
   const balance = isDemo ? DEMO_ACCOUNT.balance : usdcBalance
 
   return useMemo(() => {
-    // Normalize all positions
     const allPositions: PortfolioPosition[] = []
 
-    // Perp positions
     for (const p of perpPositions) {
       allPositions.push({
         product: 'perp',
@@ -58,7 +54,6 @@ export function usePortfolioData() {
       })
     }
 
-    // Futures positions
     for (const f of futuresActive) {
       allPositions.push({
         product: 'futures',
@@ -73,39 +68,19 @@ export function usePortfolioData() {
       })
     }
 
-    // Margin (Aave) — shown as a single summary row
-    if (aaveSummary && aaveSummary.totalCollateralUSD > 0) {
-      allPositions.push({
-        product: 'margin',
-        market: 'Aave V3',
-        side: aaveSummary.totalDebtUSD > 0 ? 'lending + borrowing' : 'lending',
-        size: aaveSummary.totalCollateralUSD,
-        entryPrice: 0,
-        markPrice: 0,
-        pnl: 0,
-        collateral: aaveSummary.totalCollateralUSD - aaveSummary.totalDebtUSD,
-      })
-    }
-
-    // Totals
     const totalPerpCollateral = perpPositions.reduce((s, p) => s + p.collateral, 0)
     const totalFuturesCollateral = futuresActive.reduce((s, f) => s + f.collateral, 0)
-    const totalMarginNet = aaveSummary
-      ? aaveSummary.totalCollateralUSD - aaveSummary.totalDebtUSD
-      : 0
     const totalUnrealizedPnl =
       perpPositions.reduce((s, p) => s + p.pnl, 0) +
       futuresActive.reduce((s, f) => s + f.pnl, 0)
 
-    const totalCollateral = totalPerpCollateral + totalFuturesCollateral + totalMarginNet
+    const totalCollateral = totalPerpCollateral + totalFuturesCollateral
     const totalEquity = balance + totalCollateral + totalUnrealizedPnl
 
-    // Allocation
     const allocation: AllocationSegment[] = []
     if (balance > 0) allocation.push({ label: 'Available', value: balance, color: '#6366f1' })
     if (totalPerpCollateral > 0) allocation.push({ label: 'Perps', value: totalPerpCollateral, color: '#22c55e' })
     if (totalFuturesCollateral > 0) allocation.push({ label: 'Futures', value: totalFuturesCollateral, color: '#f59e0b' })
-    if (totalMarginNet > 0) allocation.push({ label: 'Margin', value: totalMarginNet, color: '#a855f7' })
 
     return {
       totalEquity,
@@ -116,5 +91,5 @@ export function usePortfolioData() {
       allPositions,
       allocation,
     }
-  }, [perpPositions, futuresActive, aaveSummary, balance, isDemo])
+  }, [perpPositions, futuresActive, balance, isDemo])
 }
