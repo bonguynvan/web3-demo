@@ -1,22 +1,16 @@
 /**
- * TradePanel — Tab switcher between order entry and LP deposit/withdraw.
+ * TradePanel — tab switcher between perp order entry and futures.
  *
- * Lives in the right sidebar slot in App.tsx. Lets traders flip to the LP
- * panel without leaving the trading view.
+ * Lives in the right sidebar slot in App.tsx. Spot/margin/pool tabs were
+ * removed in the trading-terminal pivot.
  */
 
 import { useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { Web3OrderForm } from './Web3OrderForm'
-import { LpPanel } from './LpPanel'
 import { cn } from '../lib/format'
 
-// Lazy-load spot components — only fetched when user clicks the Spot tab.
-// Keeps the initial bundle focused on perp trading.
-const SpotSwapForm = lazy(() => import('./spot/SpotSwapForm').then(m => ({ default: m.SpotSwapForm })))
-const SwapHistory = lazy(() => import('./spot/SwapHistory').then(m => ({ default: m.SwapHistory })))
-const MarginPanel = lazy(() => import('./margin/MarginPanel').then(m => ({ default: m.MarginPanel })))
 const FuturesOrderForm = lazy(() => import('./futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
 const FuturesPositionsTable = lazy(() => import('./futures/FuturesPositionsTable').then(m => ({ default: m.FuturesPositionsTable })))
 
@@ -28,19 +22,16 @@ function LazyFallback() {
   )
 }
 
-type PanelTab = 'trade' | 'futures' | 'spot' | 'margin' | 'pool'
-type SpotSubTab = 'swap' | 'history'
+type PanelTab = 'trade' | 'futures'
 
 export function TradePanel() {
   const { t } = useTranslation('perp')
   const [tab, setTab] = useState<PanelTab>('trade')
-  const [spotSubTab, setSpotSubTab] = useState<SpotSubTab>('swap')
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top tabs */}
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'futures', 'spot', 'margin', 'pool'] as const).map(tabKey => (
+        {(['trade', 'futures'] as const).map(tabKey => (
           <button
             key={tabKey}
             onClick={() => setTab(tabKey)}
@@ -56,8 +47,6 @@ export function TradePanel() {
         ))}
       </div>
 
-      {/* Active panel — only mount the visible one to avoid duplicate
-          contract reads from the inactive form. */}
       <div className="flex-1 min-h-0">
         {tab === 'trade' && <Web3OrderForm />}
         {tab === 'futures' && (
@@ -72,38 +61,6 @@ export function TradePanel() {
             </div>
           </Suspense>
         )}
-        {tab === 'spot' && (
-          <div className="flex flex-col h-full">
-            {/* Spot sub-tabs */}
-            <div className="flex items-center border-b border-border px-1 shrink-0">
-              {(['swap', 'history'] as const).map(st => (
-                <button
-                  key={st}
-                  onClick={() => setSpotSubTab(st)}
-                  className={cn(
-                    'px-3 py-2 text-[10px] font-medium capitalize transition-colors cursor-pointer border-b-2',
-                    spotSubTab === st
-                      ? 'text-text-primary border-accent'
-                      : 'text-text-muted border-transparent hover:text-text-secondary'
-                  )}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <Suspense fallback={<LazyFallback />}>
-                {spotSubTab === 'swap' ? <SpotSwapForm /> : <SwapHistory />}
-              </Suspense>
-            </div>
-          </div>
-        )}
-        {tab === 'margin' && (
-          <Suspense fallback={<LazyFallback />}>
-            <MarginPanel />
-          </Suspense>
-        )}
-        {tab === 'pool' && <LpPanel />}
       </div>
     </div>
   )
