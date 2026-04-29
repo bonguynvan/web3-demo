@@ -27,7 +27,7 @@ export const FlashPrice = memo(function FlashPrice({
 }: FlashPriceProps) {
   const prevRef = useRef(value)
   const [flash, setFlash] = useState<'up' | 'down' | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (value === prevRef.current || value === 0) return

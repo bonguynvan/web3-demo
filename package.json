@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.96.2",
+    "@tradecanvas/chart": "^0.6.0",
+    "@wagmi/core": "^3.4.7",
     "i18next": "^26.0.4",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",

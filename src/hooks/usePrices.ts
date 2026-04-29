@@ -12,7 +12,8 @@ import { getContracts, getMarkets } from '../lib/contracts'
 import { priceToNumber } from '../lib/precision'
 import { useIsDemo } from '../store/modeStore'
 import { tickDemoPrices, getDemoPrices } from '../lib/demoData'
-import { binanceTicker, type TickerData } from '../lib/binanceTicker'
+import { getActiveAdapter } from '../adapters/registry'
+import type { Ticker, Unsubscribe } from '../adapters/types'
 
 const PRICE_PRECISION = 10n ** 30n
 
@@ -27,8 +28,9 @@ function priceToRaw(price: number): bigint {
   return BigInt(Math.round(price * 1e6)) * (PRICE_PRECISION / 10n ** 6n)
 }
 
-function tickerToTokenPrice(t: TickerData): TokenPrice {
-  return { symbol: t.symbol, market: t.market, raw: priceToRaw(t.price), price: t.price }
+function tickerToTokenPrice(t: Ticker): TokenPrice {
+  const symbol = t.marketId.split('-')[0]
+  return { symbol, market: t.marketId, raw: priceToRaw(t.price), price: t.price }
 }
 
 export function usePrices() {
@@ -44,22 +46,45 @@ export function usePrices() {
   useEffect(() => {
     if (!isDemo) return
 
-    // Subscribe to the singleton ticker stream
-    const unsub = binanceTicker.subscribe((tickers) => {
+    // Subscribe to every market the active venue exposes. Adapter API is
+    // per-market, so we maintain a local map and rebuild the array on each
+    // tick. rAF coalesces bursts of updates into one React state set.
+    const adapter = getActiveAdapter()
+    const tickerMap = new Map<string, Ticker>()
+    const unsubs: Unsubscribe[] = []
+    let rafId = 0
+
+    const flush = () => {
+      rafId = 0
       const next: TokenPrice[] = []
-      for (const t of tickers.values()) {
+      for (const t of tickerMap.values()) {
         next.push(tickerToTokenPrice(t))
       }
       if (next.length > 0) {
         wsActiveRef.current = true
         setDemoPrices(next)
       }
+    }
+    const schedule = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(flush)
+    }
+
+    let cancelled = false
+    void adapter.connect().then(() => adapter.listMarkets()).then((markets) => {
+      if (cancelled) return
+      for (const m of markets) {
+        const u = adapter.subscribeTicker(m.id, (t) => {
+          tickerMap.set(t.marketId, t)
+          schedule()
+        })
+        unsubs.push(u)
+      }
     })
 
-    // Fallback simulation — only updates state when WebSocket isn't delivering
+    // Fallback simulation — runs while the venue stream hasn't delivered.
     const fallbackId = setInterval(() => {
       if (wsActiveRef.current) {
-        // WebSocket is providing data — keep demoData in sync silently
         tickDemoPrices()
         return
       }
@@ -68,18 +93,11 @@ export function usePrices() {
       })))
     }, 500)
 
-    // If no ticker arrives within 3 seconds, mark as inactive (use sim)
-    const timeoutId = setTimeout(() => {
-      if (!wsActiveRef.current) {
-        // WebSocket failed or hasn't delivered — fall back to simulation
-        wsActiveRef.current = false
-      }
-    }, 3000)
-
     return () => {
-      unsub()
+      cancelled = true
+      for (const u of unsubs) u()
+      if (rafId) cancelAnimationFrame(rafId)
       clearInterval(fallbackId)
-      clearTimeout(timeoutId)
       wsActiveRef.current = false
     }
   }, [isDemo])

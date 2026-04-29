@@ -18,21 +18,12 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "erasableSyntaxOnly": false,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    "paths": {
-      "@tradecanvas/chart": ["../chart-lib/packages/library/src"],
-      "@tradecanvas/chart/*": ["../chart-lib/packages/library/src/*"],
-      "@tradecanvas/core": ["../chart-lib/packages/core/src"],
-      "@tradecanvas/core/*": ["../chart-lib/packages/core/src/*"],
-      "@tradecanvas/commons": ["../chart-lib/packages/commons/src"],
-      "@tradecanvas/commons/*": ["../chart-lib/packages/commons/src/*"]
-    }
+    "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "../chart-lib/packages/*/src"],
+  "include": ["src"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

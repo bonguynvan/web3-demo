@@ -73,10 +73,12 @@ export function demoConnector(params: { account: DemoAccount }) {
     name: demoAccount.label,
     type: 'demo' as const,
 
+    // @ts-expect-error wagmi v3.4 connect() signature is generic over withCapabilities;
+    // this demo connector ignores capabilities and is slated for deletion in the trading-terminal pivot.
     async connect() {
       const chainId = foundry.id
       return {
-        accounts: [viemAccount.address],
+        accounts: [viemAccount.address] as readonly `0x${string}`[],
         chainId,
       }
     },

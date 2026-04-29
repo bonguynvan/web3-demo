@@ -13,8 +13,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from './usePrices'
+import { getActiveAdapter } from '../adapters/registry'
 import type { CandleData } from '../types/trading'
 import type { TimeFrame } from '@tradecanvas/chart'
+import type { TimeFrame as AdapterTimeFrame } from '../adapters/types'
 
 // Timeframe → candle interval in milliseconds
 const TF_INTERVALS: Record<string, number> = {
@@ -139,13 +141,52 @@ export function useMarketWs({ wsUrl: _wsUrl, market, disabled }: UseMarketWsOpti
     setLoading(false)
   }, [seedKey, intervalMs, setCandles])
 
-  // Try oracle price first
+  // Primary path: real klines from the active venue. Subscribe to live
+  // kline pushes so each finalized/updating candle replaces the last bar.
+  // Falls back to simulation only if the venue fetch rejects.
   useEffect(() => {
-    if (!currentPrice || currentPrice.price === 0 || seededRef.current === seedKey) return
-    seedFromPrice(currentPrice.price)
-  }, [currentPrice, seedKey, seedFromPrice])
+    if (disabled) return
+    let cancelled = false
+    let unsubKlines: (() => void) | null = null
 
-  // Fallback: simulation mode if no oracle price within 3s
+    const adapter = getActiveAdapter()
+    const adapterTf = timeframe as AdapterTimeFrame
+
+    void (async () => {
+      try {
+        const candles = await adapter.getKlines(market, adapterTf, { limit: 300 })
+        if (cancelled || candles.length === 0) return
+        seededRef.current = seedKey
+        currentCandleRef.current = candles[candles.length - 1]
+        setCandles(candles)
+        setLoading(false)
+
+        unsubKlines = adapter.subscribeKlines(market, adapterTf, (c) => {
+          if (cancelled || seededRef.current !== seedKey) return
+          updateCandle(c.close, intervalMs, addCandle, currentCandleRef)
+        })
+      } catch {
+        // Venue fetch failed — leave seed unset so the simulation fallback
+        // effect below takes over after its 3s grace window.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (unsubKlines) unsubKlines()
+    }
+  }, [disabled, market, timeframe, seedKey, intervalMs, addCandle, setCandles])
+
+  // Secondary path: oracle ticks still drive the current candle while
+  // klines are flowing. Harmless when both run — updateCandle is idempotent
+  // on the close field for the same time bucket.
+  useEffect(() => {
+    if (!currentPrice || currentPrice.price === 0 || seededRef.current !== seedKey) return
+    updateCandle(currentPrice.price, intervalMs, addCandle, currentCandleRef)
+  }, [currentPrice, seedKey, intervalMs, addCandle])
+
+  // Final fallback: pure simulation if neither venue klines nor oracle
+  // prices have seeded within 3 seconds (offline dev / network down).
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (seededRef.current === seedKey) return
@@ -154,34 +195,18 @@ export function useMarketWs({ wsUrl: _wsUrl, market, disabled }: UseMarketWsOpti
       seedFromPrice(basePrice)
       simPriceRef.current = basePrice
 
-      // Sim ticks — faster for small timeframes, slower for large
       const simTickMs = Math.min(500, intervalMs / 10)
-
       simIntervalRef.current = setInterval(() => {
         const volScale = Math.sqrt(intervalMs / 60_000)
         const volatility = simPriceRef.current * 0.0003 * volScale
         const change = (Math.random() - 0.48) * volatility
         simPriceRef.current += change
-
-        const price = simPriceRef.current
-        updateCandle(price, intervalMs, addCandle, currentCandleRef)
+        updateCandle(simPriceRef.current, intervalMs, addCandle, currentCandleRef)
       }, simTickMs)
     }, 3000)
 
     return () => clearTimeout(timeout)
   }, [market, seedKey, seedFromPrice, intervalMs, addCandle])
-
-  // Update candles from live oracle ticks
-  useEffect(() => {
-    if (!currentPrice || currentPrice.price === 0 || seededRef.current !== seedKey) return
-    // Real data flowing — stop simulation
-    if (simIntervalRef.current) {
-      clearInterval(simIntervalRef.current)
-      simIntervalRef.current = null
-    }
-
-    updateCandle(currentPrice.price, intervalMs, addCandle, currentCandleRef)
-  }, [currentPrice, seedKey, intervalMs, addCandle])
 
   return { loading }
 }
