@@ -86,8 +86,10 @@ export class BinanceAdapter implements VenueAdapter {
   readonly displayName = 'Binance'
 
   readonly capabilities: VenueCapabilities = {
+    // We currently target api.binance.com (spot). Switch to fapi.binance.com
+    // and flip perp=true if/when USD-M futures are wired.
     spot: true,
-    perp: true,
+    perp: false,
     trading: false,                  // flips true after authenticate()
     websocketTickers: true,
     websocketOrderBook: true,
@@ -171,10 +173,13 @@ export class BinanceAdapter implements VenueAdapter {
 
       ranked.push({
         market: {
-          id: `${s.baseAsset}-PERP`,
+          // Binance v3/api endpoints are spot, not perp. Reflect that
+          // honestly in the id so the dropdown does not mislead.
+          // Switch to fapi.binance.com if you ever want real perps.
+          id: `${s.baseAsset}/${s.quoteAsset}`,
           base: s.baseAsset,
           quote: s.quoteAsset,
-          kind: 'perp',
+          kind: 'spot',
           venueSymbol: s.symbol,
           tickSize: Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01,
           stepSize: Number.isFinite(stepSize) && stepSize > 0 ? stepSize : 0.001,

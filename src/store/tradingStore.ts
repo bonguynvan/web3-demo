@@ -69,12 +69,15 @@ export const useTradingStore = create<TradingState>((set, get) => ({
   setMarkets: (markets: MarketInfo[]) => {
     if (markets.length === 0) return
     set(state => {
-      // Keep the current selection if it still exists in the new list,
-      // otherwise fall back to the first market.
-      const stillThere = markets.find(m => m.symbol === state.selectedMarket.symbol)
+      // Preserve selection by baseAsset across venue switches — venues
+      // use different id formats (e.g. "BTC/USDT" on Binance spot vs
+      // "BTC-PERP" on Hyperliquid perps), so matching by full symbol
+      // would always reset to the first market.
+      const sameBase = markets.find(m => m.baseAsset === state.selectedMarket.baseAsset)
+      const sameSymbol = markets.find(m => m.symbol === state.selectedMarket.symbol)
       return {
         markets,
-        selectedMarket: stillThere ?? markets[0],
+        selectedMarket: sameSymbol ?? sameBase ?? markets[0],
       }
     })
   },
