@@ -15,6 +15,7 @@ import { ToastContainer } from './ToastContainer'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
+import { useBotEngine } from '../hooks/useBotEngine'
 import { useTradeFeed } from '../hooks/useTradeFeed'
 import { useLimitOrderWatcher } from '../hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
@@ -28,6 +29,7 @@ export function AppShell() {
   // Global hooks — run regardless of which page is active
   useSyncMarkets()
   useSignalAlerts()
+  useBotEngine()
   useMarketWs({ wsUrl: null, market: selectedMarket.symbol })
   useTradeFeed()
   useLimitOrderWatcher()

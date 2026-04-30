@@ -14,6 +14,7 @@ import { RecentTrades } from '../components/RecentTrades'
 import { PositionsTable } from '../components/PositionsTable'
 import { Web3OrderForm } from '../components/Web3OrderForm'
 import { SignalsPanel } from '../components/SignalsPanel'
+import { BotsPanel } from '../components/BotsPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { MobileTradeLayout } from '../components/MobileTradeLayout'
 import { useIsMobile } from '../hooks/useBreakpoint'
@@ -26,7 +27,7 @@ import { Loader2 } from 'lucide-react'
 const FuturesOrderForm = lazy(() => import('../components/futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
 const FuturesPositionsTable = lazy(() => import('../components/futures/FuturesPositionsTable').then(m => ({ default: m.FuturesPositionsTable })))
 
-type TradeTab = 'perp' | 'futures' | 'signals'
+type TradeTab = 'perp' | 'futures' | 'signals' | 'bots'
 
 export function TradePage() {
   const { t } = useTranslation('perp')
@@ -80,9 +81,9 @@ export function TradePage() {
           </div>
         </div>
         <div className="xl:w-[280px] shrink-0 min-h-[400px] xl:min-h-0 flex flex-col">
-          {/* Trade / Futures / Signals toggle */}
+          {/* Trade / Futures / Signals / Bots toggle */}
           <div className="flex gap-1 mb-1 shrink-0">
-            {(['perp', 'futures', 'signals'] as const).map(tab => (
+            {(['perp', 'futures', 'signals', 'bots'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setTradeTab(tab)}
@@ -93,7 +94,10 @@ export function TradePage() {
                     : 'bg-surface text-text-muted hover:text-text-secondary border border-transparent',
                 )}
               >
-                {tab === 'perp' ? t('trade') : tab === 'futures' ? t('futures') : 'Signals'}
+                {tab === 'perp' ? t('trade')
+                  : tab === 'futures' ? t('futures')
+                  : tab === 'signals' ? 'Signals'
+                  : 'Bots'}
               </button>
             ))}
           </div>
@@ -105,6 +109,8 @@ export function TradePage() {
                 </Suspense>
               ) : tradeTab === 'signals' ? (
                 <SignalsPanel />
+              ) : tradeTab === 'bots' ? (
+                <BotsPanel />
               ) : (
                 <Web3OrderForm />
               )}
