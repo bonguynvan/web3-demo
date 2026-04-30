@@ -7,10 +7,11 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2 } from 'lucide-react'
+import { Bot, Power, Trash2, Plus } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
+import { BotConfigForm } from './BotConfigForm'
 import type { BotConfig, BotStats, BotTrade } from '../bots/types'
 
 const STATS_TICK_MS = 5_000
@@ -21,6 +22,7 @@ export function BotsPanel() {
   const toggleBot = useBotStore(s => s.toggleBot)
   const removeBot = useBotStore(s => s.removeBot)
   const [, force] = useState(0)
+  const [showForm, setShowForm] = useState(false)
 
   // Heartbeat — drives unrealized PnL display from the adapter ticker
   // cache without forcing a sub for every market.
@@ -29,10 +31,6 @@ export function BotsPanel() {
     return () => clearInterval(id)
   }, [])
 
-  if (bots.length === 0) {
-    return <EmptyState />
-  }
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
@@ -40,19 +38,35 @@ export function BotsPanel() {
           <Bot className="w-3.5 h-3.5 text-accent" />
           Paper bots
         </span>
-        <span className="text-[10px] text-text-muted">{bots.length} configured</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-text-muted">{bots.length} configured</span>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              title="Create new bot"
+              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {bots.map(bot => (
-          <BotCard
-            key={bot.id}
-            bot={bot}
-            trades={trades.filter(t => t.botId === bot.id)}
-            onToggle={() => toggleBot(bot.id)}
-            onRemove={() => removeBot(bot.id)}
-          />
-        ))}
+        {showForm && <BotConfigForm onClose={() => setShowForm(false)} />}
+        {bots.length === 0 && !showForm ? (
+          <EmptyState onCreate={() => setShowForm(true)} />
+        ) : (
+          bots.map(bot => (
+            <BotCard
+              key={bot.id}
+              bot={bot}
+              trades={trades.filter(t => t.botId === bot.id)}
+              onToggle={() => toggleBot(bot.id)}
+              onRemove={() => removeBot(bot.id)}
+            />
+          ))
+        )}
       </div>
 
       <div className="px-3 py-2 border-t border-border shrink-0 text-[10px] text-text-muted leading-relaxed">
@@ -62,7 +76,7 @@ export function BotsPanel() {
   )
 }
 
-function EmptyState() {
+function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-2">
       <Bot className="w-6 h-6 text-text-muted" />
@@ -71,6 +85,12 @@ function EmptyState() {
         Bots auto-execute trades when matching signals fire. Run in paper mode
         to validate strategy before enabling live trading.
       </span>
+      <button
+        onClick={onCreate}
+        className="mt-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
+      >
+        Create your first bot
+      </button>
     </div>
   )
 }
