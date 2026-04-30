@@ -239,16 +239,39 @@ export interface ComputeInputs {
   markets: Market[]
   tickers: Map<string, Ticker>
   selectedMarketId: string
+  /** Live candles for the actively-charted market — drives TA on the
+   *  selected market even before the multi-market fetch resolves. */
   candles: CandleData[]
+  /** Top-N market candles fetched in the background for cross-market
+   *  TA scanning. May be empty during the first ~1s after a venue
+   *  switch while the fetch runs. */
+  candlesByMarket: Map<string, CandleData[]>
   largeTrades: PublicTrade[]
 }
 
 export function computeSignals(inputs: ComputeInputs, now: number = Date.now()): Signal[] {
-  const { venue, markets, tickers, selectedMarketId, candles, largeTrades } = inputs
-  return [
-    ...fundingSignals(venue, markets, tickers, now),
-    ...crossoverSignals(venue, selectedMarketId, candles, 9, 21, now),
-    ...volatilitySignals(venue, selectedMarketId, candles, now),
-    ...whaleFlowSignals(venue, selectedMarketId, largeTrades, now),
-  ].sort((a, b) => b.confidence - a.confidence)
+  const { venue, markets, tickers, selectedMarketId, candles, candlesByMarket, largeTrades } = inputs
+  const out: Signal[] = []
+
+  out.push(...fundingSignals(venue, markets, tickers, now))
+  out.push(...whaleFlowSignals(venue, selectedMarketId, largeTrades, now))
+
+  // Run TA across every market in the multi-market cache.
+  for (const [marketId, c] of candlesByMarket) {
+    out.push(...crossoverSignals(venue, marketId, c, 9, 21, now))
+    out.push(...volatilitySignals(venue, marketId, c, now))
+  }
+
+  // Also run TA on the live store candles for the selected market —
+  // catches TA changes between background-refresh ticks and works
+  // before the first multi-market fetch completes.
+  if (!candlesByMarket.has(selectedMarketId)) {
+    out.push(...crossoverSignals(venue, selectedMarketId, candles, 9, 21, now))
+    out.push(...volatilitySignals(venue, selectedMarketId, candles, now))
+  }
+
+  // Dedup by id (same signal may surface from both code paths)
+  const byId = new Map<string, Signal>()
+  for (const s of out) byId.set(s.id, s)
+  return Array.from(byId.values()).sort((a, b) => b.confidence - a.confidence)
 }
