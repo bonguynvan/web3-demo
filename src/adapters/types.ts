@@ -180,11 +180,52 @@ export interface VenueCapabilities {
   postOnly: boolean
 }
 
-export interface VenueCredentials {
+/**
+ * Venue auth comes in two flavors:
+ *
+ * - API-key venues (Binance, Bybit, OKX): user pastes a key + secret
+ *   into a settings page. Server-side proxy holds the key and signs
+ *   each REST call. UI never sees the secret.
+ *
+ * - Wallet venues (Hyperliquid, dYdX v4): user signs each action with
+ *   their connected wallet via EIP-712 typed-data. No key custody —
+ *   the signing fn comes from wagmi/viem's WalletClient.
+ *
+ * Discriminator is `kind`. Adapters narrow on it inside authenticate().
+ */
+export type VenueCredentials = ApiKeyCredentials | WalletCredentials
+
+export interface ApiKeyCredentials {
+  kind: 'apiKey'
   apiKey: string
   apiSecret: string
   passphrase?: string           // Bybit / OKX
   readOnly?: boolean
+}
+
+export interface WalletCredentials {
+  kind: 'wallet'
+  address: `0x${string}`
+  /**
+   * EIP-712 typed-data signer. Shape matches viem's WalletClient.signTypedData
+   * so wagmi consumers can pass it directly.
+   */
+  signTypedData: (params: {
+    domain: TypedDataDomain
+    types: Record<string, Array<{ name: string; type: string }>>
+    primaryType: string
+    message: Record<string, unknown>
+  }) => Promise<`0x${string}`>
+  /** Optional sub-key (HL "API wallet" pattern) — set after first approveAgent. */
+  agentPrivateKey?: `0x${string}`
+}
+
+export interface TypedDataDomain {
+  name?: string
+  version?: string
+  chainId?: number
+  verifyingContract?: `0x${string}`
+  salt?: `0x${string}`
 }
 
 export interface VenueError extends Error {

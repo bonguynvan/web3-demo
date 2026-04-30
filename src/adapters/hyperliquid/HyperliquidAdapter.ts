@@ -31,6 +31,7 @@ import type {
   VenueCredentials,
   VenueError,
   VenueId,
+  WalletCredentials,
 } from '../types'
 
 const REST_URL = 'https://api.hyperliquid.xyz/info'
@@ -128,6 +129,7 @@ export class HyperliquidAdapter implements VenueAdapter {
   private ws: WebSocket | null = null
   private wsConnecting = false
   private subs = new Map<string, Set<(payload: unknown) => void>>()
+  private auth: WalletCredentials | null = null
 
   // ─── Lifecycle ──────────────────────────────────────────────────────
 
@@ -145,8 +147,17 @@ export class HyperliquidAdapter implements VenueAdapter {
     this.subs.clear()
   }
 
-  async authenticate(_creds: VenueCredentials): Promise<void> {
-    throw notImplemented('authenticate')
+  async authenticate(creds: VenueCredentials): Promise<void> {
+    if (creds.kind !== 'wallet') {
+      throw venueError(
+        'Hyperliquid requires wallet credentials (kind: "wallet")',
+        false, true,
+      )
+    }
+    this.auth = creds
+    // capabilities is `readonly` at the type level; cast through to flip
+    // the runtime flag without leaking mutability into the public type.
+    ;(this.capabilities as { trading: boolean }).trading = true
   }
 
   // ─── Market metadata ────────────────────────────────────────────────
@@ -372,7 +383,91 @@ export class HyperliquidAdapter implements VenueAdapter {
   async getOpenOrders(_marketId?: string): Promise<Order[]> { throw notImplemented('getOpenOrders') }
   subscribeOrders(_cb: (o: Order) => void): Unsubscribe { return () => {} }
   subscribeFills(_cb: (f: Fill) => void): Unsubscribe { return () => {} }
-  async placeOrder(_intent: PlaceOrderIntent): Promise<Order> { throw notImplemented('placeOrder') }
+  /**
+   * placeOrder — sketch only; signing not yet wired.
+   *
+   * What works:
+   *   - Validates intent shape and authentication state
+   *   - Resolves market → asset index
+   *   - Formats price/size strings against the market's pxDecimals/szDecimals
+   *   - Builds the canonical Hyperliquid order action JSON
+   *
+   * What's missing (next session, validate against testnet first):
+   *
+   *   1. Action hash (keccak256 of msgpack-encoded action || nonce || vaultAddr).
+   *      msgpack-encoding is non-trivial — recommend importing
+   *      `@msgpack/msgpack` or using Hyperliquid's official TS SDK rather
+   *      than hand-rolling.
+   *
+   *   2. EIP-712 sign via this.auth.signTypedData with:
+   *        domain      = { name: "Exchange", version: "1", chainId: 1337,
+   *                        verifyingContract: "0x0000000000000000000000000000000000000000" }
+   *        types.Agent = [{name:"source", type:"string"},
+   *                       {name:"connectionId", type:"bytes32"}]
+   *        primaryType = "Agent"
+   *        message     = { source: "a" /-mainnet- or "b" /-testnet-/,
+   *                        connectionId: <action_hash> }
+   *      The `source` discriminator + chainId 1337 are intentional — verify
+   *      against the current Hyperliquid signing docs before live use, the
+   *      domain has changed historically.
+   *
+   *   3. POST to https://api.hyperliquid.xyz/exchange with
+   *        { action, nonce, signature: { r, s, v }, vaultAddress: null }
+   *      Map response (`status: "ok"` / `"err"`) to canonical Order.
+   *
+   *   4. Builder code: inject env VITE_HYPERLIQUID_BUILDER_CODE into the
+   *      action.builder field so this venue's per-trade rebate routes here.
+   */
+  async placeOrder(intent: PlaceOrderIntent): Promise<Order> {
+    if (!this.auth) {
+      throw venueError('not authenticated — call authenticate(walletCreds) first', false, true)
+    }
+    const market = this.getMarket(intent.marketId)
+    if (!market) {
+      throw venueError(`unknown market ${intent.marketId}`, false, true)
+    }
+    const assetIndex = this.markets.findIndex(m => m.id === market.id)
+    if (assetIndex < 0) {
+      throw venueError(`asset index lookup failed for ${intent.marketId}`, false, true)
+    }
+    if (intent.size === undefined && intent.notional === undefined) {
+      throw venueError('intent must specify size or notional', false, true)
+    }
+
+    // Build wire-shape order. HL accepts price as string with up to
+    // (6 - szDecimals) decimal places; size with up to szDecimals.
+    const pxDecimals = 6 - Math.round(Math.log10(1 / market.stepSize))
+    const sizeBase = intent.size ?? (intent.notional! / (intent.price ?? 0))
+    if (!Number.isFinite(sizeBase) || sizeBase <= 0) {
+      throw venueError('cannot derive size from intent', false, true)
+    }
+
+    const _wireOrder = {
+      a: assetIndex,
+      b: intent.side === 'buy',
+      p: intent.price !== undefined ? intent.price.toFixed(Math.max(pxDecimals, 0)) : '0',
+      s: sizeBase.toFixed(Math.round(Math.log10(1 / market.stepSize))),
+      r: intent.reduceOnly ?? false,
+      t: intent.type === 'market'
+        ? { limit: { tif: 'Ioc' as const } }   // HL has no native market — IOC limit at slippage cap
+        : { limit: { tif: intent.tif === 'post_only' ? ('Alo' as const) : ('Gtc' as const) } },
+    }
+    const _action = {
+      type: 'order' as const,
+      orders: [_wireOrder],
+      grouping: 'na' as const,
+    }
+    const _nonce = Date.now()
+
+    // The remaining steps are documented in the JSDoc above. Don't ship
+    // signed transactions without testnet validation.
+    throw venueError(
+      'placeOrder signing not yet wired. See the JSDoc above for the exact ' +
+      'EIP-712 + msgpack recipe; validate against api.hyperliquid-testnet.xyz ' +
+      'before enabling on mainnet.',
+      false, true,
+    )
+  }
   async cancelOrder(_args: { marketId: string; orderId: string }): Promise<void> {
     throw notImplemented('cancelOrder')
   }
