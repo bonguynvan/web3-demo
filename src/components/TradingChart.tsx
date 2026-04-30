@@ -17,7 +17,7 @@ import { useModeStore } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
 import { useIsDemo } from '../store/modeStore'
 import { useToast } from '../store/toastStore'
-import { PERP_THEME, getChartTheme } from '../lib/chartConfig'
+import { getChartTheme } from '../lib/chartConfig'
 import { ChartToolbar } from './ChartToolbar'
 import { DrawToolsSidebar } from './DrawToolsSidebar'
 import { ChartSettings, DEFAULT_SETTINGS, type ChartSettingsState } from './ChartSettings'
@@ -63,6 +63,14 @@ export function TradingChart({ loading }: { loading: boolean }) {
   const toast = useToast()
   const { positions } = usePositions()
 
+  // App theme — read here so the chart is born with the right colors.
+  // Capture in a ref so the create effect can read it without listing
+  // appTheme in its deps (which would tear down + rebuild the chart on
+  // every theme switch and lose drawings/indicators).
+  const appTheme = useThemeStore(s => s.theme)
+  const appThemeRef = useRef(appTheme)
+  appThemeRef.current = appTheme
+
   // Create chart only once, when container has dimensions
   useEffect(() => {
     const el = containerRef.current
@@ -81,7 +89,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
       // First time container has size — create chart
       chart = new Chart(el, {
         chartType: activeChartType,
-        theme: PERP_THEME,
+        theme: getChartTheme(appThemeRef.current),
         autoScale: true,
         rightMargin: 5,
         minBarSpacing: 2,
@@ -148,13 +156,14 @@ export function TradingChart({ loading }: { loading: boolean }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync chart theme with app theme
-  const appTheme = useThemeStore(s => s.theme)
+  // Sync chart theme with app theme. chartReady is in the deps so this
+  // also fires once after the async chart creation completes — that's
+  // what catches the "refresh in light mode → chart starts dark" bug.
   useEffect(() => {
     const chart = chartRef.current
-    if (!chart) return
+    if (!chart || !chartReady) return
     chart.setTheme(getChartTheme(appTheme))
-  }, [appTheme])
+  }, [appTheme, chartReady])
 
   // Update watermark on market change
   useEffect(() => {
@@ -508,7 +517,7 @@ export function TradingChart({ loading }: { loading: boolean }) {
         // Apply theme changes
         if (patch.candleUpColor || patch.candleDownColor || patch.candleUpWick || patch.candleDownWick || patch.backgroundColor || patch.gridColor) {
           chart.setTheme({
-            ...PERP_THEME,
+            ...getChartTheme(appThemeRef.current),
             candleUp: next.candleUpColor,
             candleDown: next.candleDownColor,
             candleUpWick: next.candleUpWick,
