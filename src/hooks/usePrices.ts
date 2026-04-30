@@ -13,6 +13,7 @@ import { priceToNumber } from '../lib/precision'
 import { useIsDemo } from '../store/modeStore'
 import { tickDemoPrices, getDemoPrices } from '../lib/demoData'
 import { getActiveAdapter } from '../adapters/registry'
+import { useActiveVenue } from './useActiveVenue'
 import type { Ticker, Unsubscribe } from '../adapters/types'
 
 const PRICE_PRECISION = 10n ** 30n
@@ -35,6 +36,7 @@ function tickerToTokenPrice(t: Ticker): TokenPrice {
 
 export function usePrices() {
   const isDemo = useIsDemo()
+  const venueId = useActiveVenue()
   const chainId = useChainId()
 
   // ─── Demo path: Binance WebSocket with simulation fallback ───
@@ -100,7 +102,7 @@ export function usePrices() {
       clearInterval(fallbackId)
       wsActiveRef.current = false
     }
-  }, [isDemo])
+  }, [isDemo, venueId])
 
   // ─── Live path (always runs, disabled when demo) ───
   let contracts: ReturnType<typeof getContracts> | null = null

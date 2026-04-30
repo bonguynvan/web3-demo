@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { usePrices } from './usePrices'
 import { getActiveAdapter } from '../adapters/registry'
+import { useActiveVenue } from './useActiveVenue'
 import type { CandleData } from '../types/trading'
 import type { TimeFrame } from '@tradecanvas/chart'
 import type { TimeFrame as AdapterTimeFrame } from '../adapters/types'
@@ -73,6 +74,7 @@ function generateSeedCandles(basePrice: number, count: number, intervalMs: numbe
 
 export function useMarketWs({ wsUrl: _wsUrl, market, disabled }: UseMarketWsOptions) {
   const { getPrice } = usePrices()
+  const venueId = useActiveVenue()
   const addCandle = useTradingStore(s => s.addCandle)
   const setCandles = useTradingStore(s => s.setCandles)
   const timeframe = useTradingStore(s => s.timeframe)
@@ -175,7 +177,7 @@ export function useMarketWs({ wsUrl: _wsUrl, market, disabled }: UseMarketWsOpti
       cancelled = true
       if (unsubKlines) unsubKlines()
     }
-  }, [disabled, market, timeframe, seedKey, intervalMs, addCandle, setCandles])
+  }, [disabled, market, timeframe, venueId, seedKey, intervalMs, addCandle, setCandles])
 
   // Secondary path: oracle ticks still drive the current candle while
   // klines are flowing. Harmless when both run — updateCandle is idempotent

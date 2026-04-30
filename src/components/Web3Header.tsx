@@ -20,6 +20,7 @@ import { Drawer } from './ui/Drawer'
 import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { StatusPill } from './StatusPill'
+import { VenueSwitcher } from './VenueSwitcher'
 import { NotificationBell } from './NotificationBell'
 import { PriceAlertModal } from './PriceAlertModal'
 import { SettingsModal } from './SettingsModal'
@@ -131,6 +132,11 @@ export function Web3Header() {
           )
         })}
       </Dropdown>
+
+      {/* Venue switcher — desktop only */}
+      <div className="hidden md:flex items-center">
+        <VenueSwitcher />
+      </div>
 
       {/* Market Stats Bar — hidden on mobile, shown in drawer instead */}
       <div className="hidden md:flex items-center gap-4 text-xs overflow-hidden">
