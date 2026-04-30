@@ -19,10 +19,8 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Zap,
+  BarChart3,
   LineChart,
-  ArrowLeftRight,
-  Landmark,
   PieChart,
   Sun,
   Moon,
@@ -41,8 +39,6 @@ import { cn } from '../lib/format'
 
 const NAV_ITEMS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
-  { path: '/swap', label: 'Swap', icon: ArrowLeftRight },
-  { path: '/earn', label: 'Earn', icon: Landmark },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
 ] as const
 
@@ -68,17 +64,22 @@ export function Sidebar() {
           collapsed ? 'w-[60px]' : 'w-[200px]',
         )}
       >
-        {/* Logo */}
+        {/* Logo — clicking returns to the marketing landing */}
         <button
-          onClick={() => navigate('/trade')}
+          onClick={() => navigate('/')}
+          title="Back to TradingDek home"
           className={cn(
-            'flex items-center gap-2.5 px-4 h-14 border-b border-border cursor-pointer shrink-0',
+            'flex items-center gap-2.5 px-4 h-14 border-b border-border cursor-pointer shrink-0 hover:bg-panel-light transition-colors',
             collapsed && 'justify-center px-0',
           )}
         >
-          <Zap className="w-5 h-5 text-accent shrink-0" />
+          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-accent text-white shrink-0">
+            <BarChart3 className="w-4 h-4" />
+          </div>
           {!collapsed && (
-            <span className="font-bold text-text-primary text-sm tracking-tight">DEX</span>
+            <span className="font-bold text-text-primary text-sm tracking-tight">
+              Trading<span className="text-accent">Dek</span>
+            </span>
           )}
         </button>
 

@@ -18,7 +18,7 @@ export function LandingPage() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     const trimmed = email.trim()
@@ -26,15 +26,37 @@ export function LandingPage() {
       setError('Please enter a valid email')
       return
     }
+
+    // Local backup — survives even if the network call fails.
     try {
       const raw = localStorage.getItem(WAITLIST_KEY)
       const list = raw ? JSON.parse(raw) as { email: string; ts: number }[] : []
-      // Idempotent — same email twice is treated as success
       if (!list.some(e => e.email.toLowerCase() === trimmed.toLowerCase())) {
         list.push({ email: trimmed, ts: Date.now() })
         localStorage.setItem(WAITLIST_KEY, JSON.stringify(list))
       }
     } catch { /* full or denied */ }
+
+    // Optional ESP / form-handler endpoint. Set VITE_WAITLIST_ENDPOINT to
+    // a Formspree, Buttondown, Loops, or custom URL that accepts a JSON
+    // POST body { email }. If unset, we keep the localStorage-only path.
+    const endpoint = import.meta.env.VITE_WAITLIST_ENDPOINT
+    if (endpoint) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: trimmed }),
+        })
+        if (!res.ok) {
+          setError('Could not subscribe right now — please try again')
+          return
+        }
+      } catch {
+        setError('Network issue — please try again')
+        return
+      }
+    }
     setSubmitted(true)
   }
 
