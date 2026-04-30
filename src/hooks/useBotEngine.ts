@@ -17,6 +17,8 @@ import type { BotConfig, BotTrade } from '../bots/types'
 import type { Signal } from '../signals/types'
 
 const TICK_MS = 5_000
+const REVERSAL_MIN_CONFIDENCE = 0.7
+const REVERSAL_MIN_HOLD_MS = 2 * 60_000   // 2 min — prevents instant flip-flop
 
 export function useBotEngine(): void {
   const signals = useSignals()
@@ -83,6 +85,32 @@ export function useBotEngine(): void {
     }, TICK_MS)
     return () => clearInterval(id)
   }, [trades, closeTrade])
+
+  // ─── Early-close on opposing confluence signal ─────────────────────
+  //
+  // When a high-confidence confluence signal points the opposite way
+  // on a market we're already long/short, exit early at the current
+  // mark. Saves drawdown on reversals — and the opening-loop above
+  // will then ride the new direction if any bot's filter accepts it.
+  // The MIN_HOLD guard prevents instant flip-flops on noisy bars.
+  useEffect(() => {
+    const now = Date.now()
+    const adapter = getActiveAdapter()
+    for (const t of trades) {
+      if (t.closedAt) continue
+      if (now - t.openedAt < REVERSAL_MIN_HOLD_MS) continue
+      const reversal = signals.find(s =>
+        s.source === 'confluence' &&
+        s.marketId === t.marketId &&
+        s.direction !== t.direction &&
+        s.confidence >= REVERSAL_MIN_CONFIDENCE,
+      )
+      if (!reversal) continue
+      const ticker = adapter.getTicker(t.marketId)
+      const closePrice = ticker?.price ?? t.entryPrice
+      closeTrade(t.id, closePrice, now)
+    }
+  }, [signals, trades, closeTrade])
 }
 
 function matches(bot: BotConfig, signal: Signal): boolean {
