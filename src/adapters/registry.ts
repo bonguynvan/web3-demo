@@ -10,6 +10,7 @@
  */
 
 import { BinanceAdapter } from './binance/BinanceAdapter'
+import { HyperliquidAdapter } from './hyperliquid/HyperliquidAdapter'
 import type { VenueAdapter } from './VenueAdapter'
 import type { VenueId } from './types'
 
@@ -23,6 +24,7 @@ function register(adapter: VenueAdapter): void {
 }
 
 register(new BinanceAdapter())
+register(new HyperliquidAdapter())
 activeId = 'binance'
 
 export function getActiveAdapter(): VenueAdapter {
