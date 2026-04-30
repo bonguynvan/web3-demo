@@ -9,6 +9,7 @@ import { useState, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { Web3OrderForm } from './Web3OrderForm'
+import { SignalsPanel } from './SignalsPanel'
 import { cn } from '../lib/format'
 
 const FuturesOrderForm = lazy(() => import('./futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
@@ -22,7 +23,7 @@ function LazyFallback() {
   )
 }
 
-type PanelTab = 'trade' | 'futures'
+type PanelTab = 'trade' | 'futures' | 'signals'
 
 export function TradePanel() {
   const { t } = useTranslation('perp')
@@ -31,7 +32,7 @@ export function TradePanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex gap-1 mb-1 shrink-0">
-        {(['trade', 'futures'] as const).map(tabKey => (
+        {(['trade', 'futures', 'signals'] as const).map(tabKey => (
           <button
             key={tabKey}
             onClick={() => setTab(tabKey)}
@@ -42,7 +43,7 @@ export function TradePanel() {
                 : 'bg-surface text-text-muted hover:text-text-secondary border border-transparent'
             )}
           >
-            {t(tabKey)}
+            {tabKey === 'signals' ? 'Signals' : t(tabKey)}
           </button>
         ))}
       </div>
@@ -61,6 +62,7 @@ export function TradePanel() {
             </div>
           </Suspense>
         )}
+        {tab === 'signals' && <SignalsPanel />}
       </div>
     </div>
   )

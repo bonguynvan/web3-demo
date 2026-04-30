@@ -13,6 +13,7 @@ import { DepthBook } from '../components/DepthBook'
 import { RecentTrades } from '../components/RecentTrades'
 import { PositionsTable } from '../components/PositionsTable'
 import { Web3OrderForm } from '../components/Web3OrderForm'
+import { SignalsPanel } from '../components/SignalsPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { MobileTradeLayout } from '../components/MobileTradeLayout'
 import { useIsMobile } from '../hooks/useBreakpoint'
@@ -25,7 +26,7 @@ import { Loader2 } from 'lucide-react'
 const FuturesOrderForm = lazy(() => import('../components/futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
 const FuturesPositionsTable = lazy(() => import('../components/futures/FuturesPositionsTable').then(m => ({ default: m.FuturesPositionsTable })))
 
-type TradeTab = 'perp' | 'futures'
+type TradeTab = 'perp' | 'futures' | 'signals'
 
 export function TradePage() {
   const { t } = useTranslation('perp')
@@ -79,9 +80,9 @@ export function TradePage() {
           </div>
         </div>
         <div className="xl:w-[280px] shrink-0 min-h-[400px] xl:min-h-0 flex flex-col">
-          {/* Perp / Futures toggle */}
+          {/* Trade / Futures / Signals toggle */}
           <div className="flex gap-1 mb-1 shrink-0">
-            {(['perp', 'futures'] as const).map(tab => (
+            {(['perp', 'futures', 'signals'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setTradeTab(tab)}
@@ -92,7 +93,7 @@ export function TradePage() {
                     : 'bg-surface text-text-muted hover:text-text-secondary border border-transparent',
                 )}
               >
-                {tab === 'perp' ? t('trade') : t('futures')}
+                {tab === 'perp' ? t('trade') : tab === 'futures' ? t('futures') : 'Signals'}
               </button>
             ))}
           </div>
@@ -102,6 +103,8 @@ export function TradePage() {
                 <Suspense fallback={<LazyFallback />}>
                   <FuturesOrderForm />
                 </Suspense>
+              ) : tradeTab === 'signals' ? (
+                <SignalsPanel />
               ) : (
                 <Web3OrderForm />
               )}
