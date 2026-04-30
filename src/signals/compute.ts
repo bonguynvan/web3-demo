@@ -173,6 +173,65 @@ export function whaleFlowSignals(
   }]
 }
 
+// ─── Source 4: Volatility spike on the active market's candles ──────
+//
+// Compares the most recent bar's high-low range to the rolling mean of
+// the prior LOOKBACK bars. Fires when the range exceeds MULTIPLE x the
+// baseline. Direction inferred from the bar's body: bullish close = long
+// (breakout up), bearish close = short (breakdown).
+
+const VOL_LOOKBACK = 20
+const VOL_MULTIPLE = 3
+const VOL_TTL = 15 * 60 * 1000
+
+export function volatilitySignals(
+  venue: VenueId,
+  marketId: string,
+  candles: CandleData[],
+  now: number = Date.now(),
+): Signal[] {
+  if (candles.length < VOL_LOOKBACK + 1) return []
+
+  const last = candles[candles.length - 1]
+  const lastRange = last.high - last.low
+  if (lastRange <= 0) return []
+
+  // Rolling mean range over the prior LOOKBACK bars (excluding current)
+  let sum = 0
+  for (let i = candles.length - 1 - VOL_LOOKBACK; i < candles.length - 1; i++) {
+    const c = candles[i]
+    sum += c.high - c.low
+  }
+  const avgRange = sum / VOL_LOOKBACK
+  if (avgRange <= 0) return []
+
+  const multiple = lastRange / avgRange
+  if (multiple < VOL_MULTIPLE) return []
+
+  // Body direction — bullish close above open = long-side breakout
+  const bullish = last.close >= last.open
+  const direction = bullish ? 'long' : 'short'
+
+  // Confidence: scale extra multiples above threshold, cap at 1
+  const confidence = Math.min(1, (multiple - VOL_MULTIPLE) / VOL_MULTIPLE)
+
+  return [{
+    id: `volatility:${marketId}:${last.time}`,
+    source: 'volatility',
+    venue,
+    marketId,
+    direction,
+    confidence,
+    triggeredAt: now,
+    expiresAt: now + VOL_TTL,
+    title: `${multiple.toFixed(1)}x volatility spike`,
+    detail: `${marketId} last bar range ${multiple.toFixed(1)}x its 20-bar avg — ${
+      bullish ? 'upside' : 'downside'
+    } breakout`,
+    suggestedPrice: last.close,
+  }]
+}
+
 // ─── Aggregator ───────────────────────────────────────────────────────
 
 export interface ComputeInputs {
@@ -189,6 +248,7 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
   return [
     ...fundingSignals(venue, markets, tickers, now),
     ...crossoverSignals(venue, selectedMarketId, candles, 9, 21, now),
+    ...volatilitySignals(venue, selectedMarketId, candles, now),
     ...whaleFlowSignals(venue, selectedMarketId, largeTrades, now),
   ].sort((a, b) => b.confidence - a.confidence)
 }
