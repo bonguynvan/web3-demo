@@ -153,6 +153,30 @@ visible in the shipped JS bundle.**
 
 ---
 
+## Brand assets — generating the OG share image
+
+`index.html` references `/og.png` for Twitter/Discord/Slack share-card
+previews, but the file is created by you, not generated at build time.
+Workflow:
+
+1. Run `pnpm dev` and open `http://localhost:5173/og-template.html`.
+2. Set the browser viewport to 1200×630 (Chrome DevTools → Device
+   toolbar → Responsive → 1200×630). The `.canvas` element fills the
+   viewport exactly.
+3. Capture: in DevTools, run `Capture screenshot` (Cmd+Shift+P →
+   "Capture screenshot"). Or use any screenshot tool aimed at the
+   canvas.
+4. Save as `public/og.png` and commit.
+
+The favicon at `public/favicon.svg` is already pointed to TradingDek's
+brand mark — modern browsers render SVG favicons natively. If you need
+a PNG fallback for older browsers, screenshot it at 32×32 and save as
+`public/favicon.png`.
+
+When the site is live, validate the share card with:
+- [opengraph.xyz](https://www.opengraph.xyz/) — checks all OG meta
+- [cards-dev.twitter.com/validator](https://cards-dev.twitter.com/validator) — Twitter
+
 ## Security headers
 
 Vite SPAs benefit from these response headers. On Vercel, add them via
