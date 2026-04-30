@@ -57,15 +57,18 @@ export function BotsPanel() {
         {bots.length === 0 && !showForm ? (
           <EmptyState onCreate={() => setShowForm(true)} />
         ) : (
-          bots.map(bot => (
-            <BotCard
-              key={bot.id}
-              bot={bot}
-              trades={trades.filter(t => t.botId === bot.id)}
-              onToggle={() => toggleBot(bot.id)}
-              onRemove={() => removeBot(bot.id)}
-            />
-          ))
+          <>
+            <PortfolioSummary bots={bots} trades={trades} />
+            {bots.map(bot => (
+              <BotCard
+                key={bot.id}
+                bot={bot}
+                trades={trades.filter(t => t.botId === bot.id)}
+                onToggle={() => toggleBot(bot.id)}
+                onRemove={() => removeBot(bot.id)}
+              />
+            ))}
+          </>
         )}
       </div>
 
@@ -203,6 +206,108 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
         {livePnl >= 0 ? '+' : ''}${formatUsd(livePnl)}
       </span>
       <span className="text-text-muted w-8 text-right">{isOpen ? 'open' : 'closed'}</span>
+    </div>
+  )
+}
+
+function PortfolioSummary({ bots, trades }: { bots: BotConfig[]; trades: BotTrade[] }) {
+  const adapter = getActiveAdapter()
+  const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
+
+  // Best / worst bot by total PnL
+  let best: { name: string; pnl: number } | null = null
+  let worst: { name: string; pnl: number } | null = null
+  for (const bot of bots) {
+    const botStats = computeStats(
+      trades.filter(t => t.botId === bot.id),
+      marketId => adapter.getTicker(marketId)?.price,
+    )
+    if (best === null || botStats.totalPnlUsd > best.pnl) {
+      best = { name: bot.name, pnl: botStats.totalPnlUsd }
+    }
+    if (worst === null || botStats.totalPnlUsd < worst.pnl) {
+      worst = { name: bot.name, pnl: botStats.totalPnlUsd }
+    }
+  }
+
+  const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const realizedColor = stats.realizedPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const unrealizedColor = stats.unrealizedPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const enabledCount = bots.filter(b => b.enabled).length
+
+  return (
+    <div className="border-b border-border bg-surface/30 px-3 py-3">
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider">Portfolio P&L</div>
+          <div className={cn('text-2xl font-mono font-bold tabular-nums', pnlColor)}>
+            {stats.totalPnlUsd >= 0 ? '+' : ''}${formatUsd(stats.totalPnlUsd)}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider">Win rate</div>
+          <div className="text-lg font-mono text-text-primary tabular-nums">
+            {stats.closed > 0 ? `${Math.round(stats.winRate * 100)}%` : '—'}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1.5 mb-3">
+        <SmallStat
+          label="Realized"
+          value={`${stats.realizedPnlUsd >= 0 ? '+' : ''}$${formatUsd(stats.realizedPnlUsd)}`}
+          valueClass={realizedColor}
+        />
+        <SmallStat
+          label="Unrealized"
+          value={`${stats.unrealizedPnlUsd >= 0 ? '+' : ''}$${formatUsd(stats.unrealizedPnlUsd)}`}
+          valueClass={unrealizedColor}
+        />
+        <SmallStat label="Open" value={`${stats.open}`} />
+        <SmallStat label="Closed" value={`${stats.closed}`} />
+      </div>
+
+      {(best || worst) && best?.name !== worst?.name && (
+        <div className="flex items-center gap-2 text-[10px]">
+          {best && (
+            <div className="flex-1 bg-surface/50 rounded px-2 py-1 border border-border/60">
+              <div className="text-text-muted">Top bot</div>
+              <div className="flex items-center justify-between gap-2 mt-0.5">
+                <span className="text-text-primary font-medium truncate">{best.name}</span>
+                <span className={cn('font-mono', best.pnl >= 0 ? 'text-long' : 'text-short')}>
+                  {best.pnl >= 0 ? '+' : ''}${formatUsd(best.pnl)}
+                </span>
+              </div>
+            </div>
+          )}
+          {worst && (
+            <div className="flex-1 bg-surface/50 rounded px-2 py-1 border border-border/60">
+              <div className="text-text-muted">Worst</div>
+              <div className="flex items-center justify-between gap-2 mt-0.5">
+                <span className="text-text-primary font-medium truncate">{worst.name}</span>
+                <span className={cn('font-mono', worst.pnl >= 0 ? 'text-long' : 'text-short')}>
+                  {worst.pnl >= 0 ? '+' : ''}${formatUsd(worst.pnl)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="text-[10px] text-text-muted mt-2">
+        {bots.length} bot{bots.length === 1 ? '' : 's'} · {enabledCount} active
+      </div>
+    </div>
+  )
+}
+
+function SmallStat({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="bg-surface/50 rounded px-2 py-1 border border-border/60">
+      <div className="text-[9px] text-text-muted uppercase tracking-wider">{label}</div>
+      <div className={cn('text-[11px] font-mono mt-0.5 tabular-nums truncate', valueClass ?? 'text-text-primary')}>
+        {value}
+      </div>
     </div>
   )
 }
