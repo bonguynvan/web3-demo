@@ -13,6 +13,7 @@ import { ConnectionBanner } from './ConnectionBanner'
 import { Sidebar } from './Sidebar'
 import { ToastContainer } from './ToastContainer'
 import { useMarketWs } from '../hooks/useMarketWs'
+import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useTradeFeed } from '../hooks/useTradeFeed'
 import { useLimitOrderWatcher } from '../hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
@@ -24,6 +25,7 @@ export function AppShell() {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
 
   // Global hooks — run regardless of which page is active
+  useSyncMarkets()
   useMarketWs({ wsUrl: null, market: selectedMarket.symbol })
   useTradeFeed()
   useLimitOrderWatcher()

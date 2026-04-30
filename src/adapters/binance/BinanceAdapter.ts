@@ -39,25 +39,24 @@ const TF_TO_BINANCE: Record<TimeFrame, string> = {
   '1d':  '1d',  '1w':  '1w',
 }
 
-/** Phase-1 markets — mirror SYMBOL_MAP in src/lib/binanceTicker.ts. */
-const MARKETS: Market[] = [
-  mkMarket('ETH-PERP', 'ETH', 'USDT', 'ETHUSDT'),
-  mkMarket('BTC-PERP', 'BTC', 'USDT', 'BTCUSDT'),
-  mkMarket('SOL-PERP', 'SOL', 'USDT', 'SOLUSDT'),
-  mkMarket('ARB-PERP', 'ARB', 'USDT', 'ARBUSDT'),
-  mkMarket('DOGE-PERP', 'DOGE', 'USDT', 'DOGEUSDT'),
-  mkMarket('LINK-PERP', 'LINK', 'USDT', 'LINKUSDT'),
-  mkMarket('AVAX-PERP', 'AVAX', 'USDT', 'AVAXUSDT'),
-]
+/**
+ * Curated whitelist of base assets to surface in the UI. Binance lists
+ * ~700 spot pairs; pulling all of them would make the dropdown unusable.
+ * Refine by extending this list — exchangeInfo will reject unknown bases.
+ */
+const BASE_WHITELIST = new Set<string>([
+  'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'TRX', 'TON',
+  'AVAX', 'LINK', 'MATIC', 'DOT', 'NEAR', 'APT', 'ARB', 'OP', 'SUI',
+  'INJ', 'TIA', 'SEI', 'PEPE', 'WIF', 'JUP', 'FIL', 'LDO', 'ATOM',
+  'RNDR', 'ORDI', 'FET',
+])
 
-function mkMarket(id: string, base: string, quote: string, venueSymbol: string): Market {
-  return {
-    id, base, quote,
-    kind: 'perp',
-    venueSymbol,
-    tickSize: 0.01,
-    stepSize: 0.001,
-  }
+interface BinanceSymbolInfo {
+  symbol: string
+  status: string
+  baseAsset: string
+  quoteAsset: string
+  filters: Array<{ filterType: string; tickSize?: string; stepSize?: string; [k: string]: unknown }>
 }
 
 function tickerFromBinance(t: TickerData): Ticker {
@@ -98,10 +97,14 @@ export class BinanceAdapter implements VenueAdapter {
     postOnly: true,
   }
 
+  // ─── Internal state ─────────────────────────────────────────────────
+
+  private markets: Market[] = []
+
   // ─── Lifecycle ──────────────────────────────────────────────────────
 
   async connect(): Promise<void> {
-    // binanceTicker is lazy — connects on first subscriber. No-op here.
+    if (this.markets.length === 0) await this.refreshMarkets()
   }
 
   async disconnect(): Promise<void> {
@@ -115,11 +118,60 @@ export class BinanceAdapter implements VenueAdapter {
   // ─── Market metadata ────────────────────────────────────────────────
 
   async listMarkets(): Promise<Market[]> {
-    return MARKETS
+    if (this.markets.length === 0) await this.refreshMarkets()
+    return this.markets
   }
 
   getMarket(marketId: string): Market | undefined {
-    return MARKETS.find(m => m.id === marketId)
+    return this.markets.find(m => m.id === marketId)
+  }
+
+  private async refreshMarkets(): Promise<void> {
+    const res = await fetch(`${REST_BASE}/api/v3/exchangeInfo`)
+    if (!res.ok) {
+      throw this.toError(`exchangeInfo ${res.status}`, res.status >= 500, res.status < 500)
+    }
+    const data = await res.json() as { symbols?: BinanceSymbolInfo[] }
+    if (!Array.isArray(data.symbols)) {
+      throw this.toError('exchangeInfo: malformed response', true, false)
+    }
+
+    const next: Market[] = []
+    for (const s of data.symbols) {
+      if (s.status !== 'TRADING') continue
+      if (s.quoteAsset !== 'USDT') continue
+      if (!BASE_WHITELIST.has(s.baseAsset)) continue
+
+      const tickSize = parseFloat(
+        s.filters.find(f => f.filterType === 'PRICE_FILTER')?.tickSize ?? '0.01',
+      )
+      const stepSize = parseFloat(
+        s.filters.find(f => f.filterType === 'LOT_SIZE')?.stepSize ?? '0.001',
+      )
+
+      next.push({
+        id: `${s.baseAsset}-PERP`,
+        base: s.baseAsset,
+        quote: s.quoteAsset,
+        kind: 'perp',
+        venueSymbol: s.symbol,
+        tickSize: Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01,
+        stepSize: Number.isFinite(stepSize) && stepSize > 0 ? stepSize : 0.001,
+      })
+    }
+
+    // Stable order: whitelist insertion order so the UI list does not
+    // shuffle between refreshes.
+    const order = new Map(Array.from(BASE_WHITELIST).map((b, i) => [b, i]))
+    next.sort((a, b) => (order.get(a.base) ?? 99) - (order.get(b.base) ?? 99))
+
+    this.markets = next
+
+    // Push the symbol filter into the ticker singleton so its WS
+    // dispatcher only forwards frames for pairs the UI cares about.
+    const symbolMap: Record<string, string> = {}
+    for (const m of next) symbolMap[m.venueSymbol] = m.id
+    binanceTicker.setSymbols(symbolMap)
   }
 
   // ─── Tickers ────────────────────────────────────────────────────────

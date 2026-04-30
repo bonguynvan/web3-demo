@@ -26,15 +26,13 @@
 
 const WS_URL = 'wss://stream.binance.com:9443/ws/!miniTicker@arr'
 
-// Symbols we care about (Binance → our market mapping)
-const SYMBOL_MAP: Record<string, string> = {
+// Symbols we care about (Binance → canonical market id). Defaults
+// keep the singleton usable before the adapter has called setSymbols.
+// The adapter overrides this on first refreshMarkets so the WS filter
+// matches whatever pairs the dropdown surfaces.
+let SYMBOL_MAP: Record<string, string> = {
   'ETHUSDT': 'ETH-PERP',
   'BTCUSDT': 'BTC-PERP',
-  'SOLUSDT': 'SOL-PERP',
-  'ARBUSDT': 'ARB-PERP',
-  'DOGEUSDT': 'DOGE-PERP',
-  'LINKUSDT': 'LINK-PERP',
-  'AVAXUSDT': 'AVAX-PERP',
 }
 
 export interface TickerData {
@@ -91,6 +89,20 @@ class BinanceTickerStream {
   // Notification batching: collect updates, flush once per frame
   private dirty = false
   private rafId = 0
+
+  /**
+   * Replace the Binance-symbol → canonical-market-id map. Called by
+   * BinanceAdapter after it loads /api/v3/exchangeInfo so the WS
+   * filter matches whatever pairs the UI surfaces. Existing cached
+   * tickers for symbols dropped from the map are evicted.
+   */
+  setSymbols(map: Record<string, string>): void {
+    SYMBOL_MAP = map
+    // Drop cached entries for symbols no longer in the map.
+    for (const sym of Array.from(this.tickers.keys())) {
+      if (!(sym in map)) this.tickers.delete(sym)
+    }
+  }
 
   /** Subscribe to ticker updates. Returns unsubscribe function. */
   subscribe(cb: Subscriber): () => void {

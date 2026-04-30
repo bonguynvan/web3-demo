@@ -16,14 +16,11 @@ export interface MarketInfo {
   baseAsset: string
 }
 
-const MARKETS: MarketInfo[] = [
+// Seed list — keeps selectedMarket non-null on first render before
+// useSyncMarkets replaces this with the active venue's real list.
+const SEED_MARKETS: MarketInfo[] = [
   { symbol: 'ETH-PERP', baseAsset: 'ETH' },
   { symbol: 'BTC-PERP', baseAsset: 'BTC' },
-  { symbol: 'SOL-PERP', baseAsset: 'SOL' },
-  { symbol: 'ARB-PERP', baseAsset: 'ARB' },
-  { symbol: 'DOGE-PERP', baseAsset: 'DOGE' },
-  { symbol: 'LINK-PERP', baseAsset: 'LINK' },
-  { symbol: 'AVAX-PERP', baseAsset: 'AVAX' },
 ]
 
 interface TradingState {
@@ -31,6 +28,7 @@ interface TradingState {
   markets: MarketInfo[]
   selectedMarket: MarketInfo
   setSelectedMarket: (symbol: string) => void
+  setMarkets: (markets: MarketInfo[]) => void
 
   // Timeframe
   timeframe: TimeFrame
@@ -58,15 +56,27 @@ interface TradingState {
   setOrderSize: (size: string) => void
 }
 
-export const useTradingStore = create<TradingState>((set) => ({
+export const useTradingStore = create<TradingState>((set, get) => ({
   // Market selection
-  markets: MARKETS,
-  selectedMarket: MARKETS[0],
+  markets: SEED_MARKETS,
+  selectedMarket: SEED_MARKETS[0],
   setSelectedMarket: (symbol: string) => {
-    const market = MARKETS.find(m => m.symbol === symbol)
+    const market = get().markets.find(m => m.symbol === symbol)
     if (market) {
       set({ selectedMarket: market, candles: [], orderPrice: '' })
     }
+  },
+  setMarkets: (markets: MarketInfo[]) => {
+    if (markets.length === 0) return
+    set(state => {
+      // Keep the current selection if it still exists in the new list,
+      // otherwise fall back to the first market.
+      const stillThere = markets.find(m => m.symbol === state.selectedMarket.symbol)
+      return {
+        markets,
+        selectedMarket: stillThere ?? markets[0],
+      }
+    })
   },
 
   // Timeframe
