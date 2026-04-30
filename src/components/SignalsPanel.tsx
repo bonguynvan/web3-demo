@@ -9,17 +9,37 @@
  * come (liquidations, news, whales).
  */
 
+import { useEffect, useState } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignals } from '../hooks/useSignals'
+import {
+  getSignalAlertsEnabled,
+  setSignalAlertsEnabled,
+  ALERT_TOGGLE_EVENT,
+} from '../hooks/useSignalAlerts'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff } from 'lucide-react'
 
 export function SignalsPanel() {
   const signals = useSignals()
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
   const setOrderPrice = useTradingStore(s => s.setOrderPrice)
   const setOrderSide = useTradingStore(s => s.setOrderSide)
+
+  const [alertsEnabled, setAlertsEnabled] = useState(() => getSignalAlertsEnabled())
+  // Sync if another tab/component flips the toggle
+  useEffect(() => {
+    const sync = () => setAlertsEnabled(getSignalAlertsEnabled())
+    window.addEventListener(ALERT_TOGGLE_EVENT, sync)
+    return () => window.removeEventListener(ALERT_TOGGLE_EVENT, sync)
+  }, [])
+
+  const toggleAlerts = async () => {
+    const next = !alertsEnabled
+    await setSignalAlertsEnabled(next)
+    setAlertsEnabled(next)
+  }
 
   const handleClick = (s: Signal) => {
     setSelectedMarket(s.marketId)
@@ -36,7 +56,21 @@ export function SignalsPanel() {
           <Zap className="w-3.5 h-3.5 text-accent" />
           Live signals
         </span>
-        <span className="text-[10px] text-text-muted">{signals.length} active</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-text-muted">{signals.length} active</span>
+          <button
+            onClick={toggleAlerts}
+            title={alertsEnabled ? 'Alerts on — click to disable' : 'Alerts off — click to enable'}
+            className={cn(
+              'flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer',
+              alertsEnabled
+                ? 'text-accent hover:bg-accent-dim/40'
+                : 'text-text-muted hover:text-text-primary hover:bg-panel-light',
+            )}
+          >
+            {alertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
 
       {signals.length === 0 ? (
