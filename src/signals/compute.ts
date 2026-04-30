@@ -173,7 +173,94 @@ export function whaleFlowSignals(
   }]
 }
 
-// ─── Source 4: Volatility spike on the active market's candles ──────
+// ─── Source 4: RSI overbought/oversold cross ────────────────────────
+//
+// Wilder's smoothed RSI on the closes. Fires the moment RSI crosses
+// into an extreme zone (above 70 = overbought = short bias; below 30
+// = oversold = long bias). Cross-on-entry only — does not re-fire
+// while the indicator stays in the zone.
+
+const RSI_PERIOD = 14
+const RSI_OVERBOUGHT = 70
+const RSI_OVERSOLD = 30
+const RSI_TTL = 30 * 60 * 1000
+
+function rsiFrom(avgGain: number, avgLoss: number): number {
+  if (avgLoss === 0) return 100
+  const rs = avgGain / avgLoss
+  return 100 - 100 / (1 + rs)
+}
+
+function rsiSeries(closes: number[], period: number = RSI_PERIOD): number[] {
+  if (closes.length < period + 1) return []
+  let avgGain = 0
+  let avgLoss = 0
+  for (let i = 1; i <= period; i++) {
+    const change = closes[i] - closes[i - 1]
+    if (change > 0) avgGain += change
+    else avgLoss -= change
+  }
+  avgGain /= period
+  avgLoss /= period
+
+  const out: number[] = [rsiFrom(avgGain, avgLoss)]
+  for (let i = period + 1; i < closes.length; i++) {
+    const change = closes[i] - closes[i - 1]
+    const gain = change > 0 ? change : 0
+    const loss = change < 0 ? -change : 0
+    avgGain = (avgGain * (period - 1) + gain) / period
+    avgLoss = (avgLoss * (period - 1) + loss) / period
+    out.push(rsiFrom(avgGain, avgLoss))
+  }
+  return out
+}
+
+export function rsiSignals(
+  venue: VenueId,
+  marketId: string,
+  candles: CandleData[],
+  now: number = Date.now(),
+): Signal[] {
+  if (candles.length < RSI_PERIOD + 2) return []
+  const series = rsiSeries(candles.map(c => c.close))
+  if (series.length < 2) return []
+
+  const last = series[series.length - 1]
+  const prev = series[series.length - 2]
+
+  const enteredOversold = prev > RSI_OVERSOLD && last <= RSI_OVERSOLD
+  const enteredOverbought = prev < RSI_OVERBOUGHT && last >= RSI_OVERBOUGHT
+  if (!enteredOversold && !enteredOverbought) return []
+
+  const direction = enteredOversold ? 'long' : 'short'
+  const lastBar = candles[candles.length - 1]
+
+  // Confidence: 0.4 baseline for the fresh cross + scaled depth.
+  // Scale to RSI 0/100 so a barely-touched threshold is mid-confidence
+  // and a deep extreme caps at 1.0.
+  const depth = direction === 'long'
+    ? (RSI_OVERSOLD - last) / RSI_OVERSOLD
+    : (last - RSI_OVERBOUGHT) / (100 - RSI_OVERBOUGHT)
+  const confidence = Math.min(1, 0.4 + Math.max(0, depth) * 0.6)
+
+  return [{
+    id: `rsi:${marketId}:${lastBar.time}`,
+    source: 'rsi',
+    venue,
+    marketId,
+    direction,
+    confidence,
+    triggeredAt: now,
+    expiresAt: now + RSI_TTL,
+    title: `RSI ${enteredOversold ? 'oversold' : 'overbought'}`,
+    detail: `${marketId} RSI(14) ${
+      enteredOversold ? 'crossed below ' + RSI_OVERSOLD : 'crossed above ' + RSI_OVERBOUGHT
+    } — currently ${last.toFixed(1)}`,
+    suggestedPrice: lastBar.close,
+  }]
+}
+
+// ─── Source 5: Volatility spike on the active market's candles ──────
 //
 // Compares the most recent bar's high-low range to the rolling mean of
 // the prior LOOKBACK bars. Fires when the range exceeds MULTIPLE x the
@@ -259,6 +346,7 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
   // Run TA across every market in the multi-market cache.
   for (const [marketId, c] of candlesByMarket) {
     out.push(...crossoverSignals(venue, marketId, c, 9, 21, now))
+    out.push(...rsiSignals(venue, marketId, c, now))
     out.push(...volatilitySignals(venue, marketId, c, now))
   }
 
@@ -267,6 +355,7 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
   // before the first multi-market fetch completes.
   if (!candlesByMarket.has(selectedMarketId)) {
     out.push(...crossoverSignals(venue, selectedMarketId, candles, 9, 21, now))
+    out.push(...rsiSignals(venue, selectedMarketId, candles, now))
     out.push(...volatilitySignals(venue, selectedMarketId, candles, now))
   }
 

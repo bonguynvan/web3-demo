@@ -11,7 +11,8 @@ import type { VenueId } from '../adapters/types'
 
 export type SignalSource =
   | 'funding'        // funding-rate extremes on a perp market
-  | 'crossover'      // moving-average / RSI crossover from candles
+  | 'crossover'      // moving-average crossover from candles
+  | 'rsi'            // RSI overbought/oversold extreme cross
   | 'volatility'     // outsized bar range vs rolling baseline
   | 'liquidation'    // forced position liquidation observed
   | 'news'           // market-moving news headline
