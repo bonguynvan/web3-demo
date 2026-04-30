@@ -108,11 +108,15 @@ function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }
   const Arrow = isLong ? TrendingUp : TrendingDown
   const dirColor = isLong ? 'text-long' : 'text-short'
   const dirBg = isLong ? 'bg-long/10' : 'bg-short/10'
+  const isConfluence = signal.source === 'confluence'
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer"
+      className={cn(
+        'w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer',
+        isConfluence && 'border-l-2 border-l-accent bg-accent-dim/10',
+      )}
     >
       <div className="flex items-start gap-2">
         <div className={cn('shrink-0 w-7 h-7 rounded-md flex items-center justify-center', dirBg)}>

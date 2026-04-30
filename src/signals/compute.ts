@@ -319,6 +319,58 @@ export function volatilitySignals(
   }]
 }
 
+// ─── Synthesizer: confluence ─────────────────────────────────────────
+//
+// When ≥2 distinct sources fire on the same market in the same
+// direction, emit a top-priority synthesis signal. Raw signals stay
+// in the feed below — the confluence card explains *why* they align.
+
+const CONFLUENCE_TTL = 30 * 60 * 1000
+
+export function confluenceSignals(base: Signal[], now: number = Date.now()): Signal[] {
+  // Group by `${marketId}:${direction}`
+  const groups = new Map<string, Signal[]>()
+  for (const s of base) {
+    if (s.source === 'confluence') continue   // never fold in synthesized signals
+    const key = `${s.marketId}:${s.direction}`
+    const arr = groups.get(key) ?? []
+    arr.push(s)
+    groups.set(key, arr)
+  }
+
+  const out: Signal[] = []
+  for (const [key, group] of groups) {
+    const uniqueSources = new Set(group.map(s => s.source))
+    if (uniqueSources.size < 2) continue
+
+    const [marketId, direction] = key.split(':') as [string, 'long' | 'short']
+    const venue = group[0].venue
+    const sourceCount = uniqueSources.size
+    const maxConfidence = Math.max(...group.map(s => s.confidence))
+    // Confidence: at least 0.7 for 2 sources, 0.85 for 3, 0.95 for 4+,
+    // bumped up to maxConfidence if any single contributor was already
+    // higher.
+    const baseFromCount = Math.min(0.95, 0.55 + sourceCount * 0.15)
+    const confidence = Math.max(maxConfidence, baseFromCount)
+    const sourceList = Array.from(uniqueSources).sort().join(' + ')
+
+    out.push({
+      id: `confluence:${marketId}:${direction}:${Math.floor(now / 60_000)}`,
+      source: 'confluence',
+      venue,
+      marketId,
+      direction,
+      confidence,
+      triggeredAt: now,
+      expiresAt: now + CONFLUENCE_TTL,
+      title: `${sourceCount}-source confluence`,
+      detail: `${marketId} ${direction} aligned across ${sourceList}`,
+      suggestedPrice: group[0].suggestedPrice,
+    })
+  }
+  return out
+}
+
 // ─── Aggregator ───────────────────────────────────────────────────────
 
 export interface ComputeInputs {
@@ -362,5 +414,11 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
   // Dedup by id (same signal may surface from both code paths)
   const byId = new Map<string, Signal>()
   for (const s of out) byId.set(s.id, s)
-  return Array.from(byId.values()).sort((a, b) => b.confidence - a.confidence)
+  const base = Array.from(byId.values())
+
+  // Synthesize confluence signals on top of the deduped base, then
+  // sort the union — confluence signals tend to land at the top
+  // because of their score floor.
+  const synthesized = confluenceSignals(base, now)
+  return [...synthesized, ...base].sort((a, b) => b.confidence - a.confidence)
 }

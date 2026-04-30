@@ -17,6 +17,7 @@ export type SignalSource =
   | 'liquidation'    // forced position liquidation observed
   | 'news'           // market-moving news headline
   | 'whale'          // large wallet position open/close
+  | 'confluence'     // synthesized — ≥2 distinct sources agreeing
 
 export type SignalDirection = 'long' | 'short'
 
