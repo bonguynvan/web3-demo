@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getActiveAdapter } from '../adapters/registry'
 import { useActiveVenue } from './useActiveVenue'
+import { useLargeTrades } from './useLargeTrades'
 import { useTradingStore } from '../store/tradingStore'
 import { computeSignals } from '../signals/compute'
 import { isLive, type Signal } from '../signals/types'
@@ -27,6 +28,7 @@ export function useSignals(): Signal[] {
   const markets = useTradingStore(s => s.markets)
   const candles = useTradingStore(s => s.candles)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
+  const largeTrades = useLargeTrades()
   const [tick, setTick] = useState(0)
 
   // Heartbeat — pulls fresh tickers from the adapter cache without
@@ -59,8 +61,9 @@ export function useSignals(): Signal[] {
       tickers,
       selectedMarketId: selectedMarket.symbol,
       candles,
+      largeTrades,
     }, now).filter(s => isLive(s, now))
     // tick is intentionally a dep — drives re-eval on the heartbeat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [venueId, markets, candles, selectedMarket.symbol, tick])
+  }, [venueId, markets, candles, selectedMarket.symbol, largeTrades, tick])
 }
