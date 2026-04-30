@@ -37,6 +37,9 @@ import type {
 const REST_URL = 'https://api.hyperliquid.xyz/info'
 const WS_URL = 'wss://api.hyperliquid.xyz/ws'
 
+/** Cap the dropdown at this many pairs, ranked by 24h notional volume desc. */
+const MAX_PAIRS = 30
+
 const TF_TO_HL: Record<TimeFrame, string> = {
   '1m':  '1m',  '3m':  '3m',  '5m':  '5m',  '15m': '15m', '30m': '30m',
   '1h':  '1h',  '2h':  '2h',  '4h':  '4h',
@@ -179,37 +182,49 @@ export class HyperliquidAdapter implements VenueAdapter {
       throw venueError('metaAndAssetCtxs: malformed response', true, false)
     }
     const [meta, ctxs] = data
-    this.markets = meta.universe.map((u, i): Market => ({
-      id: `${u.name}-PERP`,
-      base: u.name,
-      quote: 'USD',
-      kind: 'perp',
-      venueSymbol: u.name,
-      // HL perps: pxDecimals = 6 - szDecimals; tick = 10^-pxDec, step = 10^-szDec
-      tickSize: Math.pow(10, -(6 - u.szDecimals)),
-      stepSize: Math.pow(10, -u.szDecimals),
-      maxLeverage: u.maxLeverage,
-    }))
+
+    // Pair each universe entry with its asset context so we can rank by
+    // 24h notional volume (dayNtlVlm) before slicing.
+    type Ranked = { market: Market; ctx: HlAssetCtx; volume: number }
+    const ranked: Ranked[] = []
+    for (let i = 0; i < meta.universe.length; i++) {
+      const u = meta.universe[i]
+      const ctx = ctxs[i]
+      if (!ctx) continue
+      const market: Market = {
+        id: `${u.name}-PERP`,
+        base: u.name,
+        quote: 'USD',
+        kind: 'perp',
+        venueSymbol: u.name,
+        // HL perps: pxDecimals = 6 - szDecimals; tick = 10^-pxDec, step = 10^-szDec
+        tickSize: Math.pow(10, -(6 - u.szDecimals)),
+        stepSize: Math.pow(10, -u.szDecimals),
+        maxLeverage: u.maxLeverage,
+      }
+      ranked.push({ market, ctx, volume: parseFloat(ctx.dayNtlVlm) || 0 })
+    }
+    ranked.sort((a, b) => b.volume - a.volume)
+    const top = ranked.slice(0, MAX_PAIRS)
+
+    this.markets = top.map(r => r.market)
     this.marketByCoin.clear()
     for (const m of this.markets) this.marketByCoin.set(m.venueSymbol, m)
 
     // Seed ticker cache from the same call (saves a RTT)
     const now = Date.now()
-    for (let i = 0; i < this.markets.length; i++) {
-      const m = this.markets[i]
-      const ctx = ctxs[i]
-      if (!ctx) continue
-      const price = parseFloat(ctx.markPx)
-      const open = parseFloat(ctx.prevDayPx)
-      this.tickerCache.set(m.id, {
-        marketId: m.id,
+    for (const r of top) {
+      const price = parseFloat(r.ctx.markPx)
+      const open = parseFloat(r.ctx.prevDayPx)
+      this.tickerCache.set(r.market.id, {
+        marketId: r.market.id,
         price,
         open24h: open,
         high24h: 0,
         low24h: 0,
         change24hPct: open > 0 ? ((price - open) / open) * 100 : 0,
-        volume24hQuote: parseFloat(ctx.dayNtlVlm),
-        fundingRate: parseFloat(ctx.funding),
+        volume24hQuote: r.volume,
+        fundingRate: parseFloat(r.ctx.funding),
         receivedAt: now,
       })
     }

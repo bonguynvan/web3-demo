@@ -40,16 +40,12 @@ const TF_TO_BINANCE: Record<TimeFrame, string> = {
 }
 
 /**
- * Curated whitelist of base assets to surface in the UI. Binance lists
- * ~700 spot pairs; pulling all of them would make the dropdown unusable.
- * Refine by extending this list — exchangeInfo will reject unknown bases.
+ * Cap the Binance dropdown at this many pairs. Sorted by 24h quote
+ * volume (USDT) descending so the most actively-traded markets surface
+ * first. Tune this if the dropdown feels too long or too short — the
+ * underlying fetch covers all USDT pairs regardless.
  */
-const BASE_WHITELIST = new Set<string>([
-  'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'TRX', 'TON',
-  'AVAX', 'LINK', 'MATIC', 'DOT', 'NEAR', 'APT', 'ARB', 'OP', 'SUI',
-  'INJ', 'TIA', 'SEI', 'PEPE', 'WIF', 'JUP', 'FIL', 'LDO', 'ATOM',
-  'RNDR', 'ORDI', 'FET',
-])
+const MAX_PAIRS = 30
 
 interface BinanceSymbolInfo {
   symbol: string
@@ -57,6 +53,11 @@ interface BinanceSymbolInfo {
   baseAsset: string
   quoteAsset: string
   filters: Array<{ filterType: string; tickSize?: string; stepSize?: string; [k: string]: unknown }>
+}
+
+interface BinanceTicker24h {
+  symbol: string
+  quoteVolume: string
 }
 
 function tickerFromBinance(t: TickerData): Ticker {
@@ -127,20 +128,39 @@ export class BinanceAdapter implements VenueAdapter {
   }
 
   private async refreshMarkets(): Promise<void> {
-    const res = await fetch(`${REST_BASE}/api/v3/exchangeInfo`)
-    if (!res.ok) {
-      throw this.toError(`exchangeInfo ${res.status}`, res.status >= 500, res.status < 500)
+    // Two endpoints in parallel:
+    //   exchangeInfo: market metadata (status, filters, decimals)
+    //   ticker/24hr: 24h quote volume for ranking
+    // ticker/24hr returns ~700 entries (~200KB) but is one-shot per
+    // venue connect, so the bandwidth is fine.
+    const [infoRes, tickRes] = await Promise.all([
+      fetch(`${REST_BASE}/api/v3/exchangeInfo`),
+      fetch(`${REST_BASE}/api/v3/ticker/24hr`),
+    ])
+    if (!infoRes.ok) {
+      throw this.toError(`exchangeInfo ${infoRes.status}`, infoRes.status >= 500, infoRes.status < 500)
     }
-    const data = await res.json() as { symbols?: BinanceSymbolInfo[] }
-    if (!Array.isArray(data.symbols)) {
-      throw this.toError('exchangeInfo: malformed response', true, false)
+    if (!tickRes.ok) {
+      throw this.toError(`ticker/24hr ${tickRes.status}`, tickRes.status >= 500, tickRes.status < 500)
+    }
+    const info = await infoRes.json() as { symbols?: BinanceSymbolInfo[] }
+    const ticks = await tickRes.json() as BinanceTicker24h[]
+    if (!Array.isArray(info.symbols) || !Array.isArray(ticks)) {
+      throw this.toError('refreshMarkets: malformed response', true, false)
     }
 
-    const next: Market[] = []
-    for (const s of data.symbols) {
+    const volumeBySymbol = new Map<string, number>()
+    for (const t of ticks) {
+      const v = parseFloat(t.quoteVolume)
+      if (Number.isFinite(v)) volumeBySymbol.set(t.symbol, v)
+    }
+
+    // Pair each TRADING USDT symbol with its 24h quote volume.
+    type Ranked = { market: Market; volume: number }
+    const ranked: Ranked[] = []
+    for (const s of info.symbols) {
       if (s.status !== 'TRADING') continue
       if (s.quoteAsset !== 'USDT') continue
-      if (!BASE_WHITELIST.has(s.baseAsset)) continue
 
       const tickSize = parseFloat(
         s.filters.find(f => f.filterType === 'PRICE_FILTER')?.tickSize ?? '0.01',
@@ -149,21 +169,23 @@ export class BinanceAdapter implements VenueAdapter {
         s.filters.find(f => f.filterType === 'LOT_SIZE')?.stepSize ?? '0.001',
       )
 
-      next.push({
-        id: `${s.baseAsset}-PERP`,
-        base: s.baseAsset,
-        quote: s.quoteAsset,
-        kind: 'perp',
-        venueSymbol: s.symbol,
-        tickSize: Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01,
-        stepSize: Number.isFinite(stepSize) && stepSize > 0 ? stepSize : 0.001,
+      ranked.push({
+        market: {
+          id: `${s.baseAsset}-PERP`,
+          base: s.baseAsset,
+          quote: s.quoteAsset,
+          kind: 'perp',
+          venueSymbol: s.symbol,
+          tickSize: Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01,
+          stepSize: Number.isFinite(stepSize) && stepSize > 0 ? stepSize : 0.001,
+        },
+        volume: volumeBySymbol.get(s.symbol) ?? 0,
       })
     }
 
-    // Stable order: whitelist insertion order so the UI list does not
-    // shuffle between refreshes.
-    const order = new Map(Array.from(BASE_WHITELIST).map((b, i) => [b, i]))
-    next.sort((a, b) => (order.get(a.base) ?? 99) - (order.get(b.base) ?? 99))
+    // Sort by 24h quote volume desc, take top N.
+    ranked.sort((a, b) => b.volume - a.volume)
+    const next = ranked.slice(0, MAX_PAIRS).map(r => r.market)
 
     this.markets = next
 
