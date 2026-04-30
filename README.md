@@ -1,21 +1,42 @@
-# Perp DEX — Perpetual Futures Trading Platform
+# TradingDek
 
-A full-stack decentralized perpetual futures exchange built on the GMX v1 AMM architecture. Traders trade against a USDC liquidity pool at Chainlink oracle prices with up to 20x leverage.
+**Your trading deck. One screen.**
 
-![Stack](https://img.shields.io/badge/React_19-blue) ![Stack](https://img.shields.io/badge/TypeScript-blue) ![Stack](https://img.shields.io/badge/Solidity_0.8.24-gray) ![Stack](https://img.shields.io/badge/Foundry-red) ![Stack](https://img.shields.io/badge/Vite_8-purple) ![Stack](https://img.shields.io/badge/Tailwind_v4-cyan) ![Stack](https://img.shields.io/badge/wagmi_viem-orange)
+Live signal scanner and paper-trading bots across Binance and Hyperliquid.
+Multi-venue chart, orderbook, signals, and execution in one workstation.
 
-## Quick Start
+![React 19](https://img.shields.io/badge/React_19-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-blue)
+![Vite 8](https://img.shields.io/badge/Vite_8-purple)
+![Tailwind v4](https://img.shields.io/badge/Tailwind_v4-cyan)
+![wagmi/viem](https://img.shields.io/badge/wagmi_viem-orange)
+
+---
+
+## What it is
+
+TradingDek combines four tools active traders pay for separately:
+
+- **Multi-venue terminal** — chart, orderbook, ticker streams across Binance and Hyperliquid, swap with one click
+- **Live signal scanner** — funding extremes, EMA crossovers, RSI, volatility spikes, whale flow, and a confluence layer that surfaces the highest-confidence trades
+- **Browser + in-app alerts** — high-confidence signals ping you while you do other things
+- **Paper-trading bots** — auto-execute on matching signals, full portfolio dashboard with live P&L, win rate, equity-curve sparkline
+
+All free during the first wave. Wallet-signed live trading via Hyperliquid is the next milestone.
+
+---
+
+## Quick start
 
 ```bash
-npm install
-npm run dev:full    # Starts everything: Anvil → Deploy → Keepers → Vite
+nvm use 20.19    # or 22+
+pnpm install
+pnpm dev         # http://localhost:5173
 ```
 
-Or run just the frontend (demo mode, no backend needed):
+Open `/` for the landing page or `/trade` for the workstation.
 
-```bash
-npm run dev         # http://localhost:5173 — demo mode works out of the box
-```
+No backend, no API keys, no env vars required for the first run — Binance and Hyperliquid public endpoints are enough.
 
 ---
 
@@ -23,206 +44,133 @@ npm run dev         # http://localhost:5173 — demo mode works out of the box
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Frontend (React + Vite)                                         │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐          │
-│  │  Chart   │ │  Depth   │ │  Order   │ │ Positions │          │
-│  │(chart-lib)│ │  Book    │ │  Form    │ │  Table    │          │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘          │
-│       │             │            │              │                │
-│  ┌────┴─────────────┴────────────┴──────────────┴────────────┐  │
-│  │  Hooks: usePrices, usePositions, useTradeExecution, ...   │  │
-│  │  Mode: Demo (simulated) ←→ Live (on-chain via wagmi)      │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│       │ Demo mode          │ Live mode                          │
-│  ┌────┴──────┐        ┌────┴──────────────────────────────┐    │
-│  │ demoData  │        │ wagmi/viem → Anvil/Testnet RPC    │    │
-│  │ TickEngine│        │ Router, PositionManager, PriceFeed │    │
-│  └───────────┘        └───────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  Smart Contracts (Foundry, Solidity 0.8.24)                      │
-│  Vault ← PositionManager → Router ← PriceFeed (Chainlink)       │
-│  120 tests passing, Slither audited, security hardened           │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  Keepers (Node.js + viem)                                        │
-│  - Liquidation bot: scans positions, liquidates underwater ones  │
-│  - Price updater: simulates oracle price movement for local dev  │
+│  Frontend (Vite + React 19)                                      │
+│                                                                  │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+│  │  Chart  │ │  Depth  │ │  Trade  │ │ Signals │ │  Bots   │    │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘    │
+│       │           │           │           │           │          │
+│  ┌────┴───────────┴───────────┴───────────┴───────────┴───────┐ │
+│  │  Hooks: usePrices, useMarketWs, useSignals, useBotEngine   │ │
+│  └─────────────────────┬───────────────────────────────────────┘ │
+│                        ↓                                         │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │  Venue Adapter Registry                                     │ │
+│  │  ┌───────────────────┐  ┌─────────────────────────────────┐ │ │
+│  │  │ BinanceAdapter    │  │ HyperliquidAdapter              │ │ │
+│  │  │ /api/v3/* + ws    │  │ /info + ws (wallet signed soon) │ │ │
+│  │  └───────────────────┘  └─────────────────────────────────┘ │ │
+│  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
----
+Adding a new venue is one file: implement the `VenueAdapter` interface in
+`src/adapters/<venue>/<Venue>Adapter.ts` and register it in
+`src/adapters/registry.ts`. The UI rebinds automatically.
 
-## Demo / Live Mode
+### Key directories
 
-The app has a **[Demo] / [Live]** toggle in the header:
+```
+src/
+├── adapters/        Venue adapter layer (Binance, Hyperliquid)
+├── signals/         Signal compute (funding, crossover, RSI, volatility, whale, confluence)
+├── bots/            Bot framework types
+├── components/      React UI (TradingChart, SignalsPanel, BotsPanel, ...)
+├── hooks/           useSignals, useBotEngine, useTopMarketsCandles, ...
+├── pages/           LandingPage, TradePage, PortfolioPage
+├── store/           Zustand stores (trading, theme, mode, bots, notifications)
+└── lib/             Shared helpers (formatting, binanceTicker singleton)
 
-| Feature | Demo Mode | Live Mode |
-|---------|-----------|-----------|
-| Prices | Simulated (tick every 500ms) | Chainlink oracle via PriceFeed contract |
-| Balance | $100,000 demo USDC | Real on-chain USDC balance |
-| Trading | Instant simulation with fees | Router.increasePosition contract call |
-| Positions | In-memory demo store | PositionManager.getPosition on-chain |
-| Wallet | Not required | MetaMask or Demo Account connector |
+public/
+├── favicon.svg      Brand mark
+└── og-template.html Screenshot at 1200×630 → public/og.png
 
-Demo mode works with zero setup — no Anvil, no wallet, no backend.
-
----
-
-## Frontend Features
-
-### Trading Interface
-- **Full chart** with 23 technical indicators, 23 drawing tools (TradingView-style left sidebar), 7 timeframes, 7 chart types
-- **Chart settings** dialog (candle colors, grid, volume, crosshair mode, log scale)
-- **Synthetic depth book** with 15 ask/bid levels, spread display, click-to-fill
-- **Trade tape** with streaming trades, whale highlighting, flash animation
-- **Price flash** (FlashPrice component) — green ▲ / red ▼ on tick
-
-### Order Entry
-- Long/Short with market/limit order types
-- Leverage slider (1-20x) with presets
-- **TP/SL** (Take Profit / Stop Loss) with PnL preview
-- **Reduce-only** toggle
-- Collateral % buttons (10/25/50/75/100% of balance)
-- Full fee breakdown: open fee, spread, net collateral, effective entry, liquidation price
-
-### Fee Model
-| Fee | Rate | Description |
-|-----|------|-------------|
-| Open fee | 0.1% | Deducted from collateral on entry |
-| Close fee | 0.1% | Deducted from payout on exit |
-| Spread | 0.05% | Applied to entry price (longs pay higher) |
-| Funding | ~0.01%/8h | Continuously accrued on open positions |
-| Liquidation | $5 flat | Charged on forced liquidation |
-
-### Position Management
-- Live PnL with flash animation
-- **Partial close** with % slider (25/50/75/100%)
-- Close fee and realized PnL shown on close
-- TP/SL orders appear in Orders tab
-- Trade history with P&L summary (total, fees, net)
-
-### Account
-- **Account equity bar**: equity, available, margin used, unrealized PnL, daily P&L, health bar
-- **Demo accounts**: 4 pre-funded Anvil accounts, no MetaMask needed
-- **Faucet**: mint $10K test USDC on Anvil
-- **Toast notifications**: trade confirmations, errors, warnings
-
-### Performance
-- **TickEngine**: zero-allocation ring buffer (Float64Array) for 1000+ ticks/sec
-- rAF-throttled chart updates (60fps max), store updates (15fps for React)
-- Dirty-layer rendering in chart (only redraws changed layers)
-- Selector-based Zustand subscriptions (no unnecessary re-renders)
-
----
-
-## Smart Contracts
-
-GMX v1-style AMM perpetual futures protocol:
-
-| Contract | Purpose |
-|----------|---------|
-| **Vault** | USDC liquidity pool, LP deposit/withdraw, PLP token |
-| **PositionManager** | Open/close/liquidate leveraged positions |
-| **Router** | User entry point with slippage protection |
-| **PriceFeed** | Chainlink oracle wrapper with staleness/deviation/sequencer checks |
-| **PLP** | LP share token (ERC20) |
-| **Libraries** | PriceMath (decimal conversion), PositionMath (PnL/liquidation), Constants |
-
-### Security
-- 120 unit + fuzz tests passing
-- Slither static analysis (20 findings, all mitigated)
-- Manual security audit: CRIT-4 fixes (minter front-run, Router PLP transfer, oracle phase boundary)
-- Zero-address guards, max fee/spread caps, admin events
-
-```bash
-cd packages/contracts
-forge test           # run all tests
-forge test --gas     # with gas reporting
+docs/
+└── DEPLOYMENT.md    Step-by-step deploy guide (Vercel, Netlify, Cloudflare)
 ```
 
 ---
 
-## Project Structure
+## Signal sources
 
-```
-├── src/                        # React frontend
-│   ├── components/             # UI components
-│   │   ├── TradingChart.tsx    # Full chart with indicators + drawings
-│   │   ├── ChartToolbar.tsx    # Top toolbar (timeframes, chart type, indicators)
-│   │   ├── DrawToolsSidebar.tsx# Left sidebar drawing tools (TradingView style)
-│   │   ├── ChartSettings.tsx   # Settings dialog (colors, display, scale)
-│   │   ├── DepthBook.tsx       # Synthetic AMM depth visualization
-│   │   ├── Web3OrderForm.tsx   # Order entry with TP/SL and fees
-│   │   ├── PositionsTable.tsx  # Positions + Orders + History tabs
-│   │   ├── RecentTrades.tsx    # Streaming trade tape
-│   │   ├── Web3Header.tsx      # Market stats, funding rate, wallet
-│   │   ├── AccountBar.tsx      # Equity, margin, PnL summary
-│   │   ├── ToastContainer.tsx  # Notification system
-│   │   └── ui/                 # Reusable: FlashPrice, Dropdown
-│   ├── hooks/                  # Data hooks (demo + live paths)
-│   │   ├── usePrices.ts        # Oracle prices (demo: simulated, live: PriceFeed)
-│   │   ├── usePositions.ts     # Open positions (demo: store, live: on-chain)
-│   │   ├── useTradeExecution.ts# Approve → trade flow
-│   │   ├── useMarketStats.ts   # 24h stats, funding rate countdown
-│   │   ├── useTradeFeed.ts     # Streaming fake trade generator
-│   │   ├── useTickEngine.ts    # High-perf tick → chart bridge
-│   │   └── ...
-│   ├── lib/                    # Core libraries
-│   │   ├── tickEngine.ts       # Zero-alloc tick ingestion (Float64Array ring)
-│   │   ├── demoData.ts         # Demo mode state (positions, orders, history)
-│   │   ├── demoConnector.ts    # wagmi connector for Anvil demo accounts
-│   │   ├── contracts.ts        # ABI + address config
-│   │   ├── precision.ts        # 6/18/30 decimal converters
-│   │   └── ...
-│   └── store/                  # Zustand stores
-│       ├── tradingStore.ts     # UI state (market, timeframe, candles, form)
-│       ├── modeStore.ts        # Demo/Live mode switch
-│       └── toastStore.ts       # Notification state
-├── packages/
-│   ├── contracts/              # Foundry smart contracts
-│   ├── keepers/                # Liquidation bot + price updater
-│   ├── server/                 # Backend (Hono + SQLite + WebSocket)
-│   ├── commons/                # Chart library: types, constants, utils
-│   ├── core/                   # Chart library: renderers, indicators, drawings
-│   └── library/                # Chart library: Chart class, public API
-└── scripts/
-    ├── dev.mjs                 # Full stack launcher (Anvil → deploy → all services)
-    └── export-addresses.mjs    # Extract deployed addresses from forge broadcast
-```
+| Source | Trigger | Coverage |
+|---|---|---|
+| **Funding** | Funding rate ≥ ±0.01%/hr | Every perp market |
+| **Crossover** | EMA9 crosses EMA21 on a closed bar | Top 10 markets by 24h volume |
+| **RSI** | Wilder(14) crosses 30 / 70 | Top 10 markets |
+| **Volatility** | Bar range ≥ 3× rolling 20-bar avg | Top 10 markets |
+| **Whale flow** | 60s notional ≥ $100k with ≥60% directional skew | Active market live |
+| **Confluence** | ≥2 distinct sources align on direction | Synthesizer over above |
+
+All thresholds are tunable in one file — `src/signals/compute.ts`.
 
 ---
 
-## Dev Stack (`npm run dev:full`)
+## Bot framework
 
-Starts 5 services with one command:
+Bots are defined by a `BotConfig`:
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Anvil | :8545 | Local EVM chain |
-| Contracts | — | Auto-deploy on startup |
-| Price Updater | — | GBM oracle simulation |
-| Liquidator | — | Underwater position scanner |
-| Vite | :5173 | Frontend with HMR |
+```ts
+{
+  name: 'Confluence Sniper',
+  enabled: true,
+  mode: 'paper',                     // 'live' gated on Phase 2d signing
+  allowedSources: ['confluence'],
+  allowedMarkets: [],                // empty = any
+  minConfidence: 0.7,
+  positionSizeUsd: 100,
+  holdMinutes: 60,
+  maxTradesPerDay: 10,
+}
+```
 
-Press `Ctrl+C` to stop everything.
+The engine watches the live signal feed, opens virtual positions on matches,
+holds for `holdMinutes` (or exits early on opposing confluence with ≥0.7
+confidence), and books realized P&L at the current mark.
+
+The Bots tab shows a live portfolio summary — total P&L, win rate, top/worst
+bot, equity-curve sparkline, plus per-bot cards with the last 5 fills.
+
+State persists in `localStorage` key `tc-bots-v1`. Server-backed bots come
+in Phase B2.
 
 ---
 
-## Tech Stack
+## Deployment
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Frontend | React 19, TypeScript, Vite 8 | Component model, type safety, instant HMR |
-| Styling | Tailwind CSS v4 | Custom theme tokens, utility-first |
-| State | Zustand | Selector subscriptions, no re-render cascade |
-| Web3 | wagmi v3, viem | Type-safe contract interactions |
-| Charts | Custom chart-lib (canvas) | 23 indicators, 23 drawing tools, streaming |
-| Contracts | Solidity 0.8.24, Foundry | GMX v1 AMM, 120 tests, fuzz testing |
-| Keepers | Node.js, viem | Liquidation bot, oracle simulator |
-| Backend | Hono, SQLite, WebSocket | Event indexer, REST API, price feed |
+Static SPA — any host works. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+for step-by-step:
+
+- Vercel (recommended), Netlify, Cloudflare Pages
+- SPA fallback configuration
+- Optional environment variables (waitlist endpoint, Hyperliquid network)
+- Security headers + CSP for the venue endpoints
+- Brand-asset workflow for `og.png`
+
+---
+
+## Roadmap
+
+- ✅ Phase 1 — multi-venue read-only terminal
+- ✅ Phase S1 — five signal sources + confluence
+- ✅ Phase S1.7 — browser + in-app alerts
+- ✅ Phase B1 — paper-trading bot framework
+- ⏳ Phase 2d — wallet-signed live trading via Hyperliquid (testnet validation pending)
+- 🔜 Phase B2 — server-backed bots ("set it and forget it" mode)
+- 🔜 Phase 2e — Binance authenticated trading via server-side key proxy
+
+---
+
+## Stack
+
+| Layer | Tool | Why |
+|---|---|---|
+| Build | Vite 8 | Fast HMR, small builds, native ESM |
+| UI | React 19 + Tailwind v4 | Modern, lean, expressive |
+| Charts | `@tradecanvas/chart` | Indicator + drawing-tool engine |
+| State | Zustand | Selector subscriptions, no re-render cascades |
+| Wallet | wagmi v3 + viem | Type-safe wallet integration (used for identity + future signing) |
+| Tests | Vitest + Playwright | Unit + E2E |
 
 ---
 
