@@ -31,6 +31,11 @@ import { ensureAudio, playSignalTone } from '../lib/signalSound'
 const dismissedIds = new Set<string>()
 const DISMISS_EVENT = 'tc-signal-dismissed'
 
+const SOLO_KEY = 'tc-signal-solo-source-v1'
+function loadSolo(): string {
+  try { return localStorage.getItem(SOLO_KEY) ?? '' } catch { return '' }
+}
+
 const SOUND_KEY = 'tc-signal-sound-v1'
 const SOUND_MIN_CONF = 0.7
 function loadSound(): boolean {
@@ -75,7 +80,16 @@ export function SignalsPanel() {
     setMinConf(v)
     try { localStorage.setItem(MIN_CONF_KEY, String(v)) } catch { /* full */ }
   }
-  const signals = allSignals.filter(s => !dismissedIds.has(s.id) && s.confidence >= minConf)
+  const [soloSource, setSoloSource] = useState(() => loadSolo())
+  const updateSolo = (next: string) => {
+    setSoloSource(next)
+    try { localStorage.setItem(SOLO_KEY, next) } catch { /* full */ }
+  }
+  const signals = allSignals.filter(s =>
+    !dismissedIds.has(s.id)
+    && s.confidence >= minConf
+    && (soloSource === '' || s.source === soloSource)
+  )
   const filteredOut = allSignals.length - signals.length
   const dismiss = (id: string) => {
     dismissedIds.add(id)
@@ -221,12 +235,17 @@ export function SignalsPanel() {
         </div>
       )}
 
-      <SourceStatsStrip />
+      <SourceStatsStrip soloSource={soloSource} onSolo={updateSolo} />
     </div>
   )
 }
 
-function SourceStatsStrip() {
+function SourceStatsStrip({
+  soloSource, onSolo,
+}: {
+  soloSource: string
+  onSolo: (next: string) => void
+}) {
   const resolved = useSignalPerformanceStore(s => s.resolved)
   const pendingCount = useSignalPerformanceStore(s => s.pending.length)
 
@@ -255,21 +274,37 @@ function SourceStatsStrip() {
     <div className="px-3 py-2 border-t border-border shrink-0 flex flex-wrap items-center gap-1.5">
       <span className="text-[9px] uppercase tracking-wider text-text-muted">Win rate</span>
       {entries.map(({ source, total, rate }) => {
+        const isSolo = soloSource === source
         const cls = rate >= 0.6
           ? 'bg-long/15 text-long'
           : rate >= 0.4
             ? 'bg-surface text-text-secondary'
             : 'bg-short/15 text-short'
         return (
-          <span
+          <button
             key={source}
-            title={`${source}: ${Math.round(rate * 100)}% over ${total} resolved`}
-            className={cn('px-1.5 py-0.5 rounded text-[9px] font-mono tabular-nums capitalize', cls)}
+            onClick={() => onSolo(isSolo ? '' : source)}
+            title={isSolo
+              ? `Showing only ${source} — click to clear`
+              : `${source}: ${Math.round(rate * 100)}% over ${total} resolved (click to solo)`}
+            className={cn(
+              'px-1.5 py-0.5 rounded text-[9px] font-mono tabular-nums capitalize transition-colors cursor-pointer',
+              cls,
+              isSolo ? 'ring-1 ring-accent' : 'hover:ring-1 hover:ring-border',
+            )}
           >
             {source} {Math.round(rate * 100)}%
-          </span>
+          </button>
         )
       })}
+      {soloSource && (
+        <button
+          onClick={() => onSolo('')}
+          className="ml-auto text-[9px] uppercase tracking-wider text-text-muted hover:text-text-primary cursor-pointer"
+        >
+          clear
+        </button>
+      )}
     </div>
   )
 }
