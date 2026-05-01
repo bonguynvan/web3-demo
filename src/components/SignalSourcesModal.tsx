@@ -10,6 +10,7 @@ import { X, RotateCcw } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSignalSettingsStore, ALL_SOURCES } from '../store/signalSettingsStore'
 import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
+import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import { cn } from '../lib/format'
 import type { SignalSource } from '../signals/types'
 
@@ -68,6 +69,14 @@ export function SignalSourcesModal({ open, onClose }: Props) {
   const thresholds = useSignalThresholdsStore(s => s.thresholds)
   const setThreshold = useSignalThresholdsStore(s => s.set)
   const resetThresholds = useSignalThresholdsStore(s => s.reset)
+  const resolved = useSignalPerformanceStore(s => s.resolved)
+  const statsBySource = new Map<SignalSource, { total: number; hits: number }>()
+  for (const r of resolved) {
+    const b = statsBySource.get(r.source) ?? { total: 0, hits: 0 }
+    b.total += 1
+    if (r.hit) b.hits += 1
+    statsBySource.set(r.source, b)
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="Signal sources">
@@ -109,7 +118,24 @@ export function SignalSourcesModal({ open, onClose }: Props) {
                 <div className="flex items-start gap-2 min-w-0">
                   <span className="text-base shrink-0 mt-0.5">{info.emoji}</span>
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-text-primary">{info.label}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="text-xs font-medium text-text-primary">{info.label}</div>
+                      {(() => {
+                        const s = statsBySource.get(src)
+                        if (!s || s.total === 0) return null
+                        const rate = s.hits / s.total
+                        const cls = rate >= 0.6
+                          ? 'bg-long/15 text-long'
+                          : rate >= 0.4
+                            ? 'bg-surface text-text-secondary'
+                            : 'bg-short/15 text-short'
+                        return (
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-mono tabular-nums', cls)}>
+                            {Math.round(rate * 100)}% · {s.total}
+                          </span>
+                        )
+                      })()}
+                    </div>
                     <div className="text-[10px] text-text-muted leading-snug">{info.description}</div>
                   </div>
                 </div>
