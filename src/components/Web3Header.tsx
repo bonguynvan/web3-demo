@@ -9,7 +9,7 @@
  * MobileMenuDrawer with mode/theme/preferences/24h stats.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -42,28 +42,14 @@ const CHAIN_NAMES: Record<number, string> = {
 export function Web3Header() {
   const { mode, setMode } = useModeStore()
   const { theme: appTheme, toggleTheme } = useThemeStore()
-  const { isConnected, connector } = useAccount()
-  const { connect, connectors } = useConnect()
-  const { disconnect } = useDisconnect()
   const stats = useMarketStats()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
 
-  // Mode↔wallet sync (unchanged from legacy header)
-  const isDemoAccount = connector?.type === 'demo'
-  useEffect(() => {
-    if (mode === 'demo') {
-      if (isConnected && connector && connector.type !== 'demo') {
-        disconnect()
-        return
-      }
-      if (!isConnected) {
-        const demoConnector = connectors.find(c => c.type === 'demo')
-        if (demoConnector) connect({ connector: demoConnector })
-      }
-    }
-  }, [mode, isConnected, isDemoAccount, connector, connectors, connect, disconnect])
+  // Mode toggle was removed in the trading-terminal pivot. Wallet
+  // connections are now whatever the user chose — no auto-disconnect
+  // on mode change, no auto-connect to a demo wallet.
 
   return (
     <div className="flex flex-col shrink-0">

@@ -1,10 +1,16 @@
 /**
- * Mode store — controls Demo vs Live mode for the entire app.
+ * Mode store — STUB.
  *
- * Demo mode: all data is simulated, no wallet or Anvil needed.
- * Live mode: real on-chain data, requires wallet + running chain.
+ * The Demo/Live toggle was removed in the trading-terminal pivot
+ * (Phase 1 cleanup). Every venue (Binance, Hyperliquid) is real;
+ * there is no synthetic path to switch to. Bots run paper-only
+ * regardless of mode until Phase 2d wallet trading lands.
  *
- * Every hook that reads data or executes transactions checks this mode.
+ * This file is kept as a no-op shim so the 20 existing callers
+ * compile without churn. useIsDemo() always returns true so all
+ * historical demo branches stay live; live branches become
+ * unreachable. Phase 2 of the cleanup deletes them outright
+ * alongside the on-chain code strip.
  */
 
 import { create } from 'zustand'
@@ -17,17 +23,16 @@ interface ModeState {
   toggleMode: () => void
 }
 
-export const useModeStore = create<ModeState>((set) => ({
+export const useModeStore = create<ModeState>(() => ({
   mode: 'demo',
-  setMode: (mode) => set({ mode }),
-  toggleMode: () => set(state => ({ mode: state.mode === 'demo' ? 'live' : 'demo' })),
+  setMode: () => { /* no-op — toggle removed */ },
+  toggleMode: () => { /* no-op — toggle removed */ },
 }))
 
-/** Shorthand to check current mode */
 export function useIsDemo(): boolean {
-  return useModeStore(s => s.mode) === 'demo'
+  return true
 }
 
 export function useIsLive(): boolean {
-  return useModeStore(s => s.mode) === 'live'
+  return false
 }

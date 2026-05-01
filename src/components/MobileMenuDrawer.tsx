@@ -38,30 +38,6 @@ export function MobileMenuDrawer({
       <Drawer open={open} onClose={onClose} title={t('menu')} widthClass="w-[300px]">
         <div className="p-4 space-y-5">
           <section>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('mode')}</div>
-            <div className="flex items-center bg-surface rounded-md p-1 gap-1">
-              <button
-                onClick={() => { setMode('demo'); onClose() }}
-                className={cn(
-                  'flex-1 py-2 text-xs font-medium rounded transition-colors cursor-pointer',
-                  mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary',
-                )}
-              >
-                {t('demo')}
-              </button>
-              <button
-                onClick={() => { setMode('live'); onClose() }}
-                className={cn(
-                  'flex-1 py-2 text-xs font-medium rounded transition-colors cursor-pointer',
-                  mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary',
-                )}
-              >
-                {t('live')}
-              </button>
-            </div>
-          </section>
-
-          <section>
             <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">{t('appearance')}</div>
             <button
               onClick={toggleTheme}

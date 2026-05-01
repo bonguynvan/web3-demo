@@ -30,7 +30,6 @@ import {
   ChevronsRight,
 } from 'lucide-react'
 import { useSettingsStore } from '../store/settingsStore'
-import { useModeStore, type AppMode } from '../store/modeStore'
 import { useThemeStore } from '../store/themeStore'
 import { SettingsModal } from './SettingsModal'
 import { AboutModal } from './AboutModal'
@@ -50,7 +49,6 @@ export function Sidebar() {
   const collapsed = useSettingsStore(s => s.sidebarCollapsed)
   const toggleSidebar = useSettingsStore(s => s.toggleSidebar)
 
-  const { mode, setMode } = useModeStore()
   const { theme, toggleTheme } = useThemeStore()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -124,44 +122,6 @@ export function Sidebar() {
 
         {/* Bottom controls */}
         <div className="border-t border-border py-2 px-2 flex flex-col gap-0.5">
-          {/* Mode toggle */}
-          {collapsed ? (
-            <Tooltip content={mode === 'demo' ? 'Switch to Live' : 'Switch to Demo'} side="right">
-              <button
-                onClick={() => setMode(mode === 'demo' ? 'live' : 'demo')}
-                className={cn(
-                  'flex items-center justify-center w-full py-2 rounded-md text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors',
-                  mode === 'demo'
-                    ? 'bg-accent/15 text-accent'
-                    : 'bg-long/15 text-long',
-                )}
-              >
-                {mode === 'demo' ? 'D' : 'L'}
-              </button>
-            </Tooltip>
-          ) : (
-            <div className="flex items-center bg-surface rounded-md p-0.5 gap-0.5">
-              <button
-                onClick={() => setMode('demo')}
-                className={cn(
-                  'flex-1 py-1.5 text-[10px] font-medium rounded transition-colors cursor-pointer',
-                  mode === 'demo' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary',
-                )}
-              >
-                Demo
-              </button>
-              <button
-                onClick={() => setMode('live')}
-                className={cn(
-                  'flex-1 py-1.5 text-[10px] font-medium rounded transition-colors cursor-pointer',
-                  mode === 'live' ? 'bg-long text-white' : 'text-text-muted hover:text-text-primary',
-                )}
-              >
-                Live
-              </button>
-            </div>
-          )}
-
           {/* Theme */}
           <SidebarButton
             icon={theme === 'dark' ? Sun : Moon}
