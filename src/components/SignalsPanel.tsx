@@ -30,6 +30,16 @@ import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, 
 const dismissedIds = new Set<string>()
 const DISMISS_EVENT = 'tc-signal-dismissed'
 
+const MIN_CONF_KEY = 'tc-signal-min-conf-v1'
+function loadMinConf(): number {
+  try {
+    const raw = localStorage.getItem(MIN_CONF_KEY)
+    if (raw == null) return 0
+    const n = Number(raw)
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0
+  } catch { return 0 }
+}
+
 export function SignalsPanel() {
   const allSignals = useSignals()
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
@@ -46,7 +56,13 @@ export function SignalsPanel() {
     window.addEventListener(DISMISS_EVENT, sync)
     return () => window.removeEventListener(DISMISS_EVENT, sync)
   }, [])
-  const signals = allSignals.filter(s => !dismissedIds.has(s.id))
+  const [minConf, setMinConf] = useState(() => loadMinConf())
+  const updateMinConf = (v: number) => {
+    setMinConf(v)
+    try { localStorage.setItem(MIN_CONF_KEY, String(v)) } catch { /* full */ }
+  }
+  const signals = allSignals.filter(s => !dismissedIds.has(s.id) && s.confidence >= minConf)
+  const filteredOut = allSignals.length - signals.length
   const dismiss = (id: string) => {
     dismissedIds.add(id)
     window.dispatchEvent(new Event(DISMISS_EVENT))
@@ -113,6 +129,25 @@ export function SignalsPanel() {
             <SlidersHorizontal className="w-3.5 h-3.5" />
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0">
+        <span className="text-[10px] uppercase tracking-wider text-text-muted shrink-0">Min conf</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={minConf}
+          onChange={(e) => updateMinConf(Number(e.target.value))}
+          className="flex-1 accent-accent"
+        />
+        <span className="text-[10px] font-mono tabular-nums text-text-secondary w-8 text-right">
+          {Math.round(minConf * 100)}%
+        </span>
+        {filteredOut > 0 && (
+          <span className="text-[10px] text-text-muted shrink-0">−{filteredOut}</span>
+        )}
       </div>
 
       <TelegramConfigModal open={telegramOpen} onClose={() => setTelegramOpen(false)} />
