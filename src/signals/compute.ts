@@ -128,49 +128,53 @@ const WHALE_MIN_SKEW = 0.6
 
 export function whaleFlowSignals(
   venue: VenueId,
-  marketId: string,
   trades: PublicTrade[],
   now: number = Date.now(),
 ): Signal[] {
   if (trades.length === 0) return []
 
-  let buyNotional = 0
-  let sellNotional = 0
-  let lastPrice = 0
+  // Group trades by marketId — the buffer now spans top-N markets.
+  interface Bucket { buy: number; sell: number; lastPrice: number }
+  const buckets = new Map<string, Bucket>()
   for (const t of trades) {
     if (now - t.timestamp > WHALE_WINDOW_MS) continue
     const n = t.price * t.size
-    if (t.side === 'buy') buyNotional += n
-    else sellNotional += n
-    lastPrice = t.price
+    let b = buckets.get(t.marketId)
+    if (!b) { b = { buy: 0, sell: 0, lastPrice: 0 }; buckets.set(t.marketId, b) }
+    if (t.side === 'buy') b.buy += n
+    else b.sell += n
+    b.lastPrice = t.price
   }
-  const total = buyNotional + sellNotional
-  if (total < WHALE_MIN_TOTAL_USD) return []
 
-  const skew = (buyNotional - sellNotional) / total
-  if (Math.abs(skew) < WHALE_MIN_SKEW) return []
+  const out: Signal[] = []
+  for (const [marketId, b] of buckets) {
+    const total = b.buy + b.sell
+    if (total < WHALE_MIN_TOTAL_USD) continue
+    const skew = (b.buy - b.sell) / total
+    if (Math.abs(skew) < WHALE_MIN_SKEW) continue
 
-  const direction = skew > 0 ? 'long' : 'short'
-  // 50% from total ($1M = full), 50% from skew above threshold
-  const sizeScore = Math.min(1, total / 1_000_000)
-  const skewScore = (Math.abs(skew) - WHALE_MIN_SKEW) / (1 - WHALE_MIN_SKEW)
-  const confidence = sizeScore * 0.5 + Math.min(1, skewScore) * 0.5
+    const direction = skew > 0 ? 'long' : 'short'
+    const sizeScore = Math.min(1, total / 1_000_000)
+    const skewScore = (Math.abs(skew) - WHALE_MIN_SKEW) / (1 - WHALE_MIN_SKEW)
+    const confidence = sizeScore * 0.5 + Math.min(1, skewScore) * 0.5
 
-  return [{
-    id: `whale:${marketId}:${Math.floor(now / 30_000)}`,  // dedup per 30s
-    source: 'whale',
-    venue,
-    marketId,
-    direction,
-    confidence,
-    triggeredAt: now,
-    expiresAt: now + 5 * 60_000,
-    title: `Whale ${direction === 'long' ? 'buy' : 'sell'} flow`,
-    detail: `$${(total / 1000).toFixed(0)}k notional in 60s, ${
-      Math.round(skew * 100)
-    }% ${direction} skew`,
-    suggestedPrice: lastPrice || undefined,
-  }]
+    out.push({
+      id: `whale:${marketId}:${Math.floor(now / 30_000)}`,  // dedup per 30s per market
+      source: 'whale',
+      venue,
+      marketId,
+      direction,
+      confidence,
+      triggeredAt: now,
+      expiresAt: now + 5 * 60_000,
+      title: `Whale ${direction === 'long' ? 'buy' : 'sell'} flow`,
+      detail: `${marketId}: $${(total / 1000).toFixed(0)}k notional in 60s, ${
+        Math.round(skew * 100)
+      }% ${direction} skew`,
+      suggestedPrice: b.lastPrice || undefined,
+    })
+  }
+  return out
 }
 
 // ─── Source 4: RSI overbought/oversold cross ────────────────────────
@@ -393,7 +397,7 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
   const out: Signal[] = []
 
   out.push(...fundingSignals(venue, markets, tickers, now))
-  out.push(...whaleFlowSignals(venue, selectedMarketId, largeTrades, now))
+  out.push(...whaleFlowSignals(venue, largeTrades, now))
 
   // Run TA across every market in the multi-market cache.
   for (const [marketId, c] of candlesByMarket) {
