@@ -146,6 +146,7 @@ dashboard.
 | `VITE_HYPERLIQUID_BUILDER_CODE` | Your wallet address; receives ~0.01% rebate per trade routed through your UI | `0x0000000000000000000000000000000000000000` |
 | `VITE_HYPERLIQUID_NETWORK` | `mainnet` or `testnet`; controls REST/WS host | `mainnet` |
 | `VITE_WAITLIST_ENDPOINT` | URL that accepts `POST { email }` for the landing-page email capture. Works with Formspree, Buttondown, Loops, or your own backend. If unset, emails fall back to localStorage. | `https://formspree.io/f/abcdwxyz` |
+| `VITE_CRYPTOPANIC_TOKEN` | Free CryptoPanic auth token for the news-signal source (sign up at `cryptopanic.com/developers/api/`). When set, sentiment-leaning headlines for tracked markets fire as news signals. Unset = news source stays dormant; the rest of the signal feed is unaffected. | `abcdef1234567890abcdef1234567890abcdef12` |
 
 `VITE_*` is the Vite convention — anything else is not exposed to the
 client. Never put secrets here; **everything prefixed with `VITE_` is

@@ -17,6 +17,7 @@ import { getActiveAdapter } from '../adapters/registry'
 import { useActiveVenue } from './useActiveVenue'
 import { useLargeTrades } from './useLargeTrades'
 import { useTopMarketsCandles } from './useTopMarketsCandles'
+import { useNewsSignals } from './useNewsSignals'
 import { useTradingStore } from '../store/tradingStore'
 import { computeSignals } from '../signals/compute'
 import { isLive, type Signal } from '../signals/types'
@@ -31,6 +32,7 @@ export function useSignals(): Signal[] {
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const largeTrades = useLargeTrades()
   const candlesByMarket = useTopMarketsCandles({ limit: 10, timeframe: '5m' })
+  const newsSignals = useNewsSignals()
   const [tick, setTick] = useState(0)
 
   // Heartbeat — pulls fresh tickers from the adapter cache without
@@ -57,7 +59,7 @@ export function useSignals(): Signal[] {
     }
 
     const now = Date.now()
-    return computeSignals({
+    const computed = computeSignals({
       venue: venueId,
       markets: adapterMarkets,
       tickers,
@@ -65,8 +67,15 @@ export function useSignals(): Signal[] {
       candles,
       candlesByMarket,
       largeTrades,
-    }, now).filter(s => isLive(s, now))
+    }, now)
+
+    // News signals come from a different code path (event-driven, not
+    // candle-derived). Merge them in and re-sort once by confidence so
+    // the final feed is consistent.
+    const merged = [...computed, ...newsSignals]
+    merged.sort((a, b) => b.confidence - a.confidence)
+    return merged.filter(s => isLive(s, now))
     // tick is intentionally a dep — drives re-eval on the heartbeat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, tick])
+  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, newsSignals, tick])
 }
