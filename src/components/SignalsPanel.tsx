@@ -9,7 +9,7 @@
  * come (liquidations, news, whales).
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignals } from '../hooks/useSignals'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
@@ -22,13 +22,20 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX } from 'lucide-react'
+import { ensureAudio, playSignalTone } from '../lib/signalSound'
 
 // Dismissals are session-scoped — refreshing the page clears them so
 // genuinely new fires of the same id can resurface. Stored in a Set
 // outside React state to avoid stale-closure churn.
 const dismissedIds = new Set<string>()
 const DISMISS_EVENT = 'tc-signal-dismissed'
+
+const SOUND_KEY = 'tc-signal-sound-v1'
+const SOUND_MIN_CONF = 0.7
+function loadSound(): boolean {
+  try { return localStorage.getItem(SOUND_KEY) === 'true' } catch { return false }
+}
 
 const MIN_CONF_KEY = 'tc-signal-min-conf-v1'
 function loadMinConf(): number {
@@ -56,6 +63,13 @@ export function SignalsPanel() {
     window.addEventListener(DISMISS_EVENT, sync)
     return () => window.removeEventListener(DISMISS_EVENT, sync)
   }, [])
+  const [soundOn, setSoundOn] = useState(() => loadSound())
+  const toggleSound = () => {
+    const next = !soundOn
+    setSoundOn(next)
+    try { localStorage.setItem(SOUND_KEY, String(next)) } catch { /* full */ }
+    if (next) { ensureAudio(); playSignalTone('long') }
+  }
   const [minConf, setMinConf] = useState(() => loadMinConf())
   const updateMinConf = (v: number) => {
     setMinConf(v)
@@ -78,6 +92,32 @@ export function SignalsPanel() {
     const id = setInterval(() => setNow(Date.now()), 15_000)
     return () => clearInterval(id)
   }, [])
+
+  // Beep on newly-arrived high-confidence signals. Seed seenIds with
+  // current ids on first sound-on transition so existing signals don't
+  // all fire at once.
+  const seenIdsRef = useRef<Set<string>>(new Set())
+  const prevSoundOnRef = useRef<boolean>(soundOn)
+  useEffect(() => {
+    if (!soundOn) {
+      prevSoundOnRef.current = false
+      return
+    }
+    if (!prevSoundOnRef.current) {
+      seenIdsRef.current = new Set(allSignals.map(s => s.id))
+      prevSoundOnRef.current = true
+      return
+    }
+    let played = false
+    for (const s of allSignals) {
+      if (seenIdsRef.current.has(s.id)) continue
+      seenIdsRef.current.add(s.id)
+      if (!played && s.confidence >= SOUND_MIN_CONF) {
+        playSignalTone(s.direction)
+        played = true
+      }
+    }
+  }, [allSignals, soundOn])
 
   const toggleAlerts = async () => {
     const next = !alertsEnabled
@@ -113,6 +153,18 @@ export function SignalsPanel() {
             )}
           >
             {alertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={toggleSound}
+            title={soundOn ? `Sound on (≥${Math.round(SOUND_MIN_CONF * 100)}% confidence)` : 'Sound off'}
+            className={cn(
+              'flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer',
+              soundOn
+                ? 'text-accent hover:bg-accent-dim/40'
+                : 'text-text-muted hover:text-text-primary hover:bg-panel-light',
+            )}
+          >
+            {soundOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={() => setTelegramOpen(true)}
