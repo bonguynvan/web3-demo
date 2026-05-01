@@ -32,11 +32,17 @@ export function SignalsPanel() {
   const [alertsEnabled, setAlertsEnabled] = useState(() => getSignalAlertsEnabled())
   const [telegramOpen, setTelegramOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   // Sync if another tab/component flips the toggle
   useEffect(() => {
     const sync = () => setAlertsEnabled(getSignalAlertsEnabled())
     window.addEventListener(ALERT_TOGGLE_EVENT, sync)
     return () => window.removeEventListener(ALERT_TOGGLE_EVENT, sync)
+  }, [])
+  // Heartbeat so relative timestamps stay fresh
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(id)
   }, [])
 
   const toggleAlerts = async () => {
@@ -99,7 +105,7 @@ export function SignalsPanel() {
       ) : (
         <div className="flex-1 overflow-y-auto">
           {signals.map(s => (
-            <SignalCard key={s.id} signal={s} onClick={() => handleClick(s)} />
+            <SignalCard key={s.id} signal={s} now={now} onClick={() => handleClick(s)} />
           ))}
         </div>
       )}
@@ -124,12 +130,22 @@ function EmptyState() {
   )
 }
 
-function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }) {
+function formatAge(ms: number): string {
+  if (ms < 60_000) return 'just now'
+  const m = Math.floor(ms / 60_000)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  return `${h}h ago`
+}
+
+function SignalCard({ signal, now, onClick }: { signal: Signal; now: number; onClick: () => void }) {
   const isLong = signal.direction === 'long'
   const Arrow = isLong ? TrendingUp : TrendingDown
   const dirColor = isLong ? 'text-long' : 'text-short'
   const dirBg = isLong ? 'bg-long/10' : 'bg-short/10'
   const isConfluence = signal.source === 'confluence'
+  const ageMs = Math.max(0, now - signal.triggeredAt)
+  const isNew = ageMs < 60_000
 
   return (
     <button
@@ -149,6 +165,11 @@ function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }
             <span className={cn('text-[10px] uppercase tracking-wider font-semibold', dirColor)}>
               {signal.direction}
             </span>
+            {isNew && (
+              <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-accent/20 text-accent animate-pulse">
+                new
+              </span>
+            )}
           </div>
           <div className="text-[11px] text-text-muted leading-snug">
             {signal.detail}
@@ -159,6 +180,8 @@ function SignalCard({ signal, onClick }: { signal: Signal; onClick: () => void }
             <span>conf {Math.round(signal.confidence * 100)}%</span>
             <span>·</span>
             <span className="capitalize">{signal.source}</span>
+            <span>·</span>
+            <span className="tabular-nums">{formatAge(ageMs)}</span>
           </div>
         </div>
       </div>
