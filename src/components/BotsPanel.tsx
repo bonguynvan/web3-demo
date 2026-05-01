@@ -7,12 +7,13 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play, BarChart3 } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { BotConfigForm } from './BotConfigForm'
 import { BacktestModal } from './BacktestModal'
+import { StrategyComparisonModal } from './StrategyComparisonModal'
 import type { BotConfig, BotStats, BotTrade } from '../bots/types'
 
 const STATS_TICK_MS = 5_000
@@ -25,6 +26,7 @@ export function BotsPanel() {
   const [, force] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
 
   // Heartbeat — drives unrealized PnL display from the adapter ticker
   // cache without forcing a sub for every market.
@@ -42,6 +44,13 @@ export function BotsPanel() {
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-text-muted">{bots.length} configured</span>
+          <button
+            onClick={() => setCompareOpen(true)}
+            title="Compare strategies side-by-side"
+            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+          </button>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
@@ -86,6 +95,7 @@ export function BotsPanel() {
           bot={backtestBot}
         />
       )}
+      <StrategyComparisonModal open={compareOpen} onClose={() => setCompareOpen(false)} />
     </div>
   )
 }
