@@ -21,7 +21,8 @@ import { useNewsSignals } from './useNewsSignals'
 import { useOnchainWhaleSignals } from './useOnchainWhaleSignals'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignalSettingsStore } from '../store/signalSettingsStore'
-import { computeSignals } from '../signals/compute'
+import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
+import { computeSignals, applyThresholds } from '../signals/compute'
 import { isLive, type Signal } from '../signals/types'
 import type { Market, Ticker } from '../adapters/types'
 
@@ -37,7 +38,13 @@ export function useSignals(): Signal[] {
   const newsSignals = useNewsSignals()
   const onchainWhaleSignals = useOnchainWhaleSignals()
   const enabledSources = useSignalSettingsStore(s => s.enabled)
+  const thresholds = useSignalThresholdsStore(s => s.thresholds)
   const [tick, setTick] = useState(0)
+
+  // Push user-tuned thresholds into the compute module on every change.
+  useEffect(() => {
+    applyThresholds(thresholds)
+  }, [thresholds])
 
   // Heartbeat — pulls fresh tickers from the adapter cache without
   // forcing every component subscribed to a single ticker to re-render.

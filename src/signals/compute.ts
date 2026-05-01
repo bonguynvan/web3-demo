@@ -13,6 +13,27 @@ import type { Signal } from './types'
 const HOUR = 60 * 60 * 1000
 const SIGNAL_TTL_DEFAULT = 30 * 60 * 1000  // 30 min
 
+/**
+ * applyThresholds — mutate the user-tunable knobs from the store.
+ *
+ * Compute functions read these as module-level lets at call time, so
+ * a setter call before the next useSignals re-eval is enough to take
+ * effect. useSignals subscribes to signalThresholdsStore and calls
+ * this on every change.
+ */
+export interface UserThresholds {
+  rsiOverbought?: number
+  rsiOversold?: number
+  volatilityMultiple?: number
+  whaleMinSkew?: number
+}
+export function applyThresholds(t: UserThresholds): void {
+  if (typeof t.rsiOverbought === 'number') RSI_OVERBOUGHT = t.rsiOverbought
+  if (typeof t.rsiOversold === 'number') RSI_OVERSOLD = t.rsiOversold
+  if (typeof t.volatilityMultiple === 'number') VOL_MULTIPLE = t.volatilityMultiple
+  if (typeof t.whaleMinSkew === 'number') WHALE_MIN_SKEW = t.whaleMinSkew
+}
+
 // ─── Source 1: Funding-rate extremes (perp markets only) ──────────────
 //
 // Hyperliquid funding is per-hour and quoted as a fraction (e.g.
@@ -124,7 +145,7 @@ export function crossoverSignals(
 
 const WHALE_WINDOW_MS = 60 * 1000
 const WHALE_MIN_TOTAL_USD = 100_000
-const WHALE_MIN_SKEW = 0.6
+let WHALE_MIN_SKEW = 0.6
 
 export function whaleFlowSignals(
   venue: VenueId,
@@ -185,8 +206,8 @@ export function whaleFlowSignals(
 // while the indicator stays in the zone.
 
 const RSI_PERIOD = 14
-const RSI_OVERBOUGHT = 70
-const RSI_OVERSOLD = 30
+let RSI_OVERBOUGHT = 70
+let RSI_OVERSOLD = 30
 const RSI_TTL = 30 * 60 * 1000
 
 function rsiFrom(avgGain: number, avgLoss: number): number {
@@ -272,7 +293,7 @@ export function rsiSignals(
 // (breakout up), bearish close = short (breakdown).
 
 const VOL_LOOKBACK = 20
-const VOL_MULTIPLE = 3
+let VOL_MULTIPLE = 3
 const VOL_TTL = 15 * 60 * 1000
 
 export function volatilitySignals(

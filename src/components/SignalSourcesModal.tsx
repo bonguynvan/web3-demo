@@ -6,9 +6,10 @@
  * we just hide disabled ones from the panel, alerts, and bots.
  */
 
-import { X } from 'lucide-react'
+import { X, RotateCcw } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSignalSettingsStore, ALL_SOURCES } from '../store/signalSettingsStore'
+import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
 import { cn } from '../lib/format'
 import type { SignalSource } from '../signals/types'
 
@@ -64,6 +65,9 @@ export function SignalSourcesModal({ open, onClose }: Props) {
   const enabled = useSignalSettingsStore(s => s.enabled)
   const toggle = useSignalSettingsStore(s => s.toggle)
   const setAll = useSignalSettingsStore(s => s.setAll)
+  const thresholds = useSignalThresholdsStore(s => s.thresholds)
+  const setThreshold = useSignalThresholdsStore(s => s.set)
+  const resetThresholds = useSignalThresholdsStore(s => s.reset)
 
   return (
     <Modal open={open} onClose={onClose} title="Signal sources">
@@ -89,7 +93,7 @@ export function SignalSourcesModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 mb-1">
           {ALL_SOURCES.map(src => {
             const info = SOURCE_INFO[src]
             const on = enabled[src] !== false
@@ -119,6 +123,51 @@ export function SignalSourcesModal({ open, onClose }: Props) {
             )
           })}
         </div>
+        <div className="border-t border-border pt-4 mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs font-medium text-text-primary">Tune thresholds</div>
+              <div className="text-[10px] text-text-muted">Adjust how aggressive each source is.</div>
+            </div>
+            <button
+              onClick={resetThresholds}
+              title="Reset to defaults"
+              className="flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider rounded bg-surface border border-border text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          </div>
+
+          <Slider
+            label="RSI overbought"
+            value={thresholds.rsiOverbought}
+            min={50} max={100} step={1}
+            valueLabel={String(thresholds.rsiOverbought)}
+            onChange={v => setThreshold('rsiOverbought', v)}
+          />
+          <Slider
+            label="RSI oversold"
+            value={thresholds.rsiOversold}
+            min={0} max={50} step={1}
+            valueLabel={String(thresholds.rsiOversold)}
+            onChange={v => setThreshold('rsiOversold', v)}
+          />
+          <Slider
+            label="Volatility multiple"
+            value={thresholds.volatilityMultiple}
+            min={1.5} max={6} step={0.5}
+            valueLabel={`${thresholds.volatilityMultiple}×`}
+            onChange={v => setThreshold('volatilityMultiple', v)}
+          />
+          <Slider
+            label="Whale flow min skew"
+            value={thresholds.whaleMinSkew}
+            min={0} max={1} step={0.05}
+            valueLabel={`${Math.round(thresholds.whaleMinSkew * 100)}%`}
+            onChange={v => setThreshold('whaleMinSkew', v)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end px-4 pb-4">
@@ -131,5 +180,35 @@ export function SignalSourcesModal({ open, onClose }: Props) {
         </button>
       </div>
     </Modal>
+  )
+}
+
+function Slider({
+  label, value, min, max, step, valueLabel, onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  valueLabel: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="block">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[11px] text-text-secondary">{label}</span>
+        <span className="text-[11px] font-mono text-text-primary tabular-nums">{valueLabel}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        className="w-full accent-accent"
+      />
+    </label>
   )
 }
