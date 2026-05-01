@@ -7,11 +7,12 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { BotConfigForm } from './BotConfigForm'
+import { BacktestModal } from './BacktestModal'
 import type { BotConfig, BotStats, BotTrade } from '../bots/types'
 
 const STATS_TICK_MS = 5_000
@@ -23,6 +24,7 @@ export function BotsPanel() {
   const removeBot = useBotStore(s => s.removeBot)
   const [, force] = useState(0)
   const [showForm, setShowForm] = useState(false)
+  const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
 
   // Heartbeat — drives unrealized PnL display from the adapter ticker
   // cache without forcing a sub for every market.
@@ -66,6 +68,7 @@ export function BotsPanel() {
                 trades={trades.filter(t => t.botId === bot.id)}
                 onToggle={() => toggleBot(bot.id)}
                 onRemove={() => removeBot(bot.id)}
+                onBacktest={() => setBacktestBot(bot)}
               />
             ))}
           </>
@@ -75,6 +78,14 @@ export function BotsPanel() {
       <div className="px-3 py-2 border-t border-border shrink-0 text-[10px] text-text-muted leading-relaxed">
         Paper mode — trades are virtual until Phase 2d wallet trading lands.
       </div>
+
+      {backtestBot && (
+        <BacktestModal
+          open={!!backtestBot}
+          onClose={() => setBacktestBot(null)}
+          bot={backtestBot}
+        />
+      )}
     </div>
   )
 }
@@ -99,12 +110,13 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 function BotCard({
-  bot, trades, onToggle, onRemove,
+  bot, trades, onToggle, onRemove, onBacktest,
 }: {
   bot: BotConfig
   trades: BotTrade[]
   onToggle: () => void
   onRemove: () => void
+  onBacktest: () => void
 }) {
   const adapter = getActiveAdapter()
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
@@ -141,6 +153,13 @@ function BotCard({
               {' · '}{bot.holdMinutes}m hold
             </div>
           </div>
+          <button
+            onClick={onBacktest}
+            title="Backtest this bot config against historical candles"
+            className="shrink-0 w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <Play className="w-3 h-3" />
+          </button>
           <button
             onClick={onRemove}
             title="Delete bot"
