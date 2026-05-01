@@ -323,6 +323,82 @@ export function volatilitySignals(
   }]
 }
 
+// ─── Source 6: Liquidation cascade — counter-trend ──────────────────
+//
+// Liquidations look like dense clusters of same-side aggressive trades
+// in a short window — many forced sells when longs cascade, many
+// forced buys when shorts cascade. We detect the cluster heuristically
+// from the largeTrades buffer (count + total notional + extreme skew
+// inside a 30s window) and emit a COUNTER-direction signal: a long
+// signal on a sell cascade (oversold), short on a buy cascade.
+
+const CASCADE_WINDOW_MS = 30 * 1000
+const CASCADE_MIN_COUNT = 5
+const CASCADE_MIN_NOTIONAL = 200_000
+const CASCADE_MIN_SKEW = 0.8
+
+export function liquidationCascadeSignals(
+  venue: VenueId,
+  trades: PublicTrade[],
+  now: number = Date.now(),
+): Signal[] {
+  if (trades.length === 0) return []
+
+  interface Bucket {
+    buyCount: number; sellCount: number
+    buyNotional: number; sellNotional: number
+    lastPrice: number
+  }
+  const buckets = new Map<string, Bucket>()
+  for (const t of trades) {
+    if (now - t.timestamp > CASCADE_WINDOW_MS) continue
+    let b = buckets.get(t.marketId)
+    if (!b) {
+      b = { buyCount: 0, sellCount: 0, buyNotional: 0, sellNotional: 0, lastPrice: 0 }
+      buckets.set(t.marketId, b)
+    }
+    const n = t.price * t.size
+    if (t.side === 'buy') { b.buyCount++; b.buyNotional += n }
+    else { b.sellCount++; b.sellNotional += n }
+    b.lastPrice = t.price
+  }
+
+  const out: Signal[] = []
+  for (const [marketId, b] of buckets) {
+    const totalCount = b.buyCount + b.sellCount
+    if (totalCount < CASCADE_MIN_COUNT) continue
+    const totalNotional = b.buyNotional + b.sellNotional
+    if (totalNotional < CASCADE_MIN_NOTIONAL) continue
+    const skew = (b.buyNotional - b.sellNotional) / totalNotional
+    if (Math.abs(skew) < CASCADE_MIN_SKEW) continue
+
+    const cascadeSide = skew > 0 ? 'buy' : 'sell'
+    // Counter-direction: cascade-buy (shorts liquidating into a squeeze)
+    // is overbought → short signal, and vice versa.
+    const direction = skew > 0 ? 'short' : 'long'
+
+    const sizeScore = Math.min(1, totalNotional / 1_000_000)
+    const countScore = Math.min(1, totalCount / 20)
+    const skewScore = (Math.abs(skew) - CASCADE_MIN_SKEW) / (1 - CASCADE_MIN_SKEW)
+    const confidence = sizeScore * 0.4 + countScore * 0.3 + Math.min(1, skewScore) * 0.3
+
+    out.push({
+      id: `liquidation:${marketId}:${Math.floor(now / 30_000)}`,
+      source: 'liquidation',
+      venue,
+      marketId,
+      direction,
+      confidence,
+      triggeredAt: now,
+      expiresAt: now + 10 * 60_000,
+      title: `${cascadeSide === 'buy' ? 'Long' : 'Short'} cascade — counter`,
+      detail: `${marketId}: ${totalCount} aggressive ${cascadeSide}s in 30s, $${(totalNotional / 1000).toFixed(0)}k notional`,
+      suggestedPrice: b.lastPrice || undefined,
+    })
+  }
+  return out
+}
+
 // ─── Synthesizer: confluence ─────────────────────────────────────────
 //
 // When ≥2 distinct sources fire on the same market in the same
@@ -398,6 +474,7 @@ export function computeSignals(inputs: ComputeInputs, now: number = Date.now()):
 
   out.push(...fundingSignals(venue, markets, tickers, now))
   out.push(...whaleFlowSignals(venue, largeTrades, now))
+  out.push(...liquidationCascadeSignals(venue, largeTrades, now))
 
   // Run TA across every market in the multi-market cache.
   for (const [marketId, c] of candlesByMarket) {
