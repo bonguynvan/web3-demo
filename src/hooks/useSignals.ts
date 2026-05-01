@@ -20,6 +20,7 @@ import { useTopMarketsCandles } from './useTopMarketsCandles'
 import { useNewsSignals } from './useNewsSignals'
 import { useOnchainWhaleSignals } from './useOnchainWhaleSignals'
 import { useTradingStore } from '../store/tradingStore'
+import { useSignalSettingsStore } from '../store/signalSettingsStore'
 import { computeSignals } from '../signals/compute'
 import { isLive, type Signal } from '../signals/types'
 import type { Market, Ticker } from '../adapters/types'
@@ -35,6 +36,7 @@ export function useSignals(): Signal[] {
   const candlesByMarket = useTopMarketsCandles({ limit: 10, timeframe: '5m' })
   const newsSignals = useNewsSignals()
   const onchainWhaleSignals = useOnchainWhaleSignals()
+  const enabledSources = useSignalSettingsStore(s => s.enabled)
   const [tick, setTick] = useState(0)
 
   // Heartbeat — pulls fresh tickers from the adapter cache without
@@ -76,8 +78,11 @@ export function useSignals(): Signal[] {
     // once by confidence so the final feed is consistent.
     const merged = [...computed, ...newsSignals, ...onchainWhaleSignals]
     merged.sort((a, b) => b.confidence - a.confidence)
-    return merged.filter(s => isLive(s, now))
+    // Filter by user-toggled source flags as the very last step so the
+    // underlying compute (including confluence) sees the full signal
+    // set internally. This is purely a presentation preference.
+    return merged.filter(s => enabledSources[s.source] !== false && isLive(s, now))
     // tick is intentionally a dep — drives re-eval on the heartbeat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, newsSignals, onchainWhaleSignals, tick])
+  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, newsSignals, onchainWhaleSignals, enabledSources, tick])
 }
