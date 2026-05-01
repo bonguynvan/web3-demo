@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignals } from '../hooks/useSignals'
+import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import {
   getSignalAlertsEnabled,
   setSignalAlertsEnabled,
@@ -110,9 +111,55 @@ export function SignalsPanel() {
         </div>
       )}
 
+      <SourceStatsStrip />
+    </div>
+  )
+}
+
+function SourceStatsStrip() {
+  const resolved = useSignalPerformanceStore(s => s.resolved)
+  const pendingCount = useSignalPerformanceStore(s => s.pending.length)
+
+  if (resolved.length === 0) {
+    return (
       <div className="px-3 py-2 border-t border-border shrink-0 text-[10px] text-text-muted leading-relaxed">
-        Funding extremes + EMA9/21 crosses. Click a signal to pre-fill the order form.
+        {pendingCount > 0
+          ? `${pendingCount} signal${pendingCount === 1 ? '' : 's'} pending — win rates appear after 30min resolution.`
+          : 'Click a signal to pre-fill the order form. Stats appear once signals resolve.'}
       </div>
+    )
+  }
+
+  const buckets = new Map<string, { total: number; hits: number }>()
+  for (const r of resolved) {
+    const b = buckets.get(r.source) ?? { total: 0, hits: 0 }
+    b.total += 1
+    if (r.hit) b.hits += 1
+    buckets.set(r.source, b)
+  }
+  const entries = Array.from(buckets.entries())
+    .map(([source, b]) => ({ source, total: b.total, rate: b.hits / b.total }))
+    .sort((a, b) => b.rate - a.rate)
+
+  return (
+    <div className="px-3 py-2 border-t border-border shrink-0 flex flex-wrap items-center gap-1.5">
+      <span className="text-[9px] uppercase tracking-wider text-text-muted">Win rate</span>
+      {entries.map(({ source, total, rate }) => {
+        const cls = rate >= 0.6
+          ? 'bg-long/15 text-long'
+          : rate >= 0.4
+            ? 'bg-surface text-text-secondary'
+            : 'bg-short/15 text-short'
+        return (
+          <span
+            key={source}
+            title={`${source}: ${Math.round(rate * 100)}% over ${total} resolved`}
+            className={cn('px-1.5 py-0.5 rounded text-[9px] font-mono tabular-nums capitalize', cls)}
+          >
+            {source} {Math.round(rate * 100)}%
+          </span>
+        )
+      })}
     </div>
   )
 }
