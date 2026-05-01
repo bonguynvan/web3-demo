@@ -22,10 +22,16 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X } from 'lucide-react'
+
+// Dismissals are session-scoped — refreshing the page clears them so
+// genuinely new fires of the same id can resurface. Stored in a Set
+// outside React state to avoid stale-closure churn.
+const dismissedIds = new Set<string>()
+const DISMISS_EVENT = 'tc-signal-dismissed'
 
 export function SignalsPanel() {
-  const signals = useSignals()
+  const allSignals = useSignals()
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
   const setOrderPrice = useTradingStore(s => s.setOrderPrice)
   const setOrderSide = useTradingStore(s => s.setOrderSide)
@@ -34,6 +40,17 @@ export function SignalsPanel() {
   const [telegramOpen, setTelegramOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const [, forceRender] = useState(0)
+  useEffect(() => {
+    const sync = () => forceRender(n => n + 1)
+    window.addEventListener(DISMISS_EVENT, sync)
+    return () => window.removeEventListener(DISMISS_EVENT, sync)
+  }, [])
+  const signals = allSignals.filter(s => !dismissedIds.has(s.id))
+  const dismiss = (id: string) => {
+    dismissedIds.add(id)
+    window.dispatchEvent(new Event(DISMISS_EVENT))
+  }
   // Sync if another tab/component flips the toggle
   useEffect(() => {
     const sync = () => setAlertsEnabled(getSignalAlertsEnabled())
@@ -106,7 +123,13 @@ export function SignalsPanel() {
       ) : (
         <div className="flex-1 overflow-y-auto">
           {signals.map(s => (
-            <SignalCard key={s.id} signal={s} now={now} onClick={() => handleClick(s)} />
+            <SignalCard
+              key={s.id}
+              signal={s}
+              now={now}
+              onClick={() => handleClick(s)}
+              onDismiss={() => dismiss(s.id)}
+            />
           ))}
         </div>
       )}
@@ -185,7 +208,14 @@ function formatAge(ms: number): string {
   return `${h}h ago`
 }
 
-function SignalCard({ signal, now, onClick }: { signal: Signal; now: number; onClick: () => void }) {
+function SignalCard({
+  signal, now, onClick, onDismiss,
+}: {
+  signal: Signal
+  now: number
+  onClick: () => void
+  onDismiss: () => void
+}) {
   const isLong = signal.direction === 'long'
   const Arrow = isLong ? TrendingUp : TrendingDown
   const dirColor = isLong ? 'text-long' : 'text-short'
@@ -195,13 +225,24 @@ function SignalCard({ signal, now, onClick }: { signal: Signal; now: number; onC
   const isNew = ageMs < 60_000
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className={cn(
-        'w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer',
+        'group relative w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer',
         isConfluence && 'border-l-2 border-l-accent bg-accent-dim/10',
       )}
     >
+      <button
+        onClick={(e) => { e.stopPropagation(); onDismiss() }}
+        title="Dismiss"
+        aria-label="Dismiss signal"
+        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-text-primary hover:bg-surface transition-opacity cursor-pointer"
+      >
+        <X className="w-3 h-3" />
+      </button>
       <div className="flex items-start gap-2">
         <div className={cn('shrink-0 w-7 h-7 rounded-md flex items-center justify-center', dirBg)}>
           <Arrow className={cn('w-3.5 h-3.5', dirColor)} />
@@ -232,6 +273,6 @@ function SignalCard({ signal, now, onClick }: { signal: Signal; now: number; onC
           </div>
         </div>
       </div>
-    </button>
+    </div>
   )
 }
