@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
+import { BOT_TEMPLATES, type BotTemplate } from '../bots/templates'
 import { cn } from '../lib/format'
 import type { SignalSource } from '../signals/types'
 
@@ -41,6 +42,20 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
   const addBot = useBotStore(s => s.addBot)
   const markets = useTradingStore(s => s.markets)
   const [form, setForm] = useState<FormState>(DEFAULT_FORM)
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null)
+
+  const applyTemplate = (tpl: BotTemplate) => {
+    setActiveTemplate(tpl.id)
+    setForm(f => ({
+      ...f,
+      name: tpl.name,
+      allowedSources: tpl.config.allowedSources,
+      minConfidence: Math.round(tpl.config.minConfidence * 100),
+      positionSizeUsd: tpl.config.positionSizeUsd,
+      holdMinutes: tpl.config.holdMinutes,
+      maxTradesPerDay: tpl.config.maxTradesPerDay,
+    }))
+  }
 
   const toggleSource = (source: SignalSource) => {
     setForm(f => ({
@@ -92,6 +107,30 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="px-3 py-2 space-y-3">
+        <Field label="Start from a template">
+          <div className="flex flex-wrap gap-1.5">
+            {BOT_TEMPLATES.map(tpl => {
+              const on = activeTemplate === tpl.id
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => applyTemplate(tpl)}
+                  title={tpl.description}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 text-[10px] rounded border transition-colors cursor-pointer',
+                    on
+                      ? 'bg-accent-dim/50 text-accent border-accent/40'
+                      : 'bg-panel text-text-muted border-border hover:text-text-primary',
+                  )}
+                >
+                  <span>{tpl.emoji}</span>
+                  <span className="font-medium">{tpl.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+
         <Field label="Name">
           <input
             type="text"
