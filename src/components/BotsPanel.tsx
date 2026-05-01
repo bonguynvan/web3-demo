@@ -7,13 +7,15 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play, BarChart3 } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { BotConfigForm } from './BotConfigForm'
 import { BacktestModal } from './BacktestModal'
 import { StrategyComparisonModal } from './StrategyComparisonModal'
+import { BotImportModal } from './BotImportModal'
+import { exportBot, copyToClipboard } from '../bots/portable'
 import type { BotConfig, BotStats, BotTrade } from '../bots/types'
 
 const STATS_TICK_MS = 5_000
@@ -27,6 +29,16 @@ export function BotsPanel() {
   const [showForm, setShowForm] = useState(false)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [sharedBotId, setSharedBotId] = useState<string | null>(null)
+
+  const handleShare = async (b: BotConfig) => {
+    const ok = await copyToClipboard(exportBot(b))
+    if (ok) {
+      setSharedBotId(b.id)
+      setTimeout(() => setSharedBotId(prev => prev === b.id ? null : prev), 1800)
+    }
+  }
 
   // Heartbeat — drives unrealized PnL display from the adapter ticker
   // cache without forcing a sub for every market.
@@ -50,6 +62,13 @@ export function BotsPanel() {
             className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
           >
             <BarChart3 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setImportOpen(true)}
+            title="Import bot from JSON"
+            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
           </button>
           {!showForm && (
             <button
@@ -78,6 +97,8 @@ export function BotsPanel() {
                 onToggle={() => toggleBot(bot.id)}
                 onRemove={() => removeBot(bot.id)}
                 onBacktest={() => setBacktestBot(bot)}
+                onShare={() => handleShare(bot)}
+                shared={sharedBotId === bot.id}
               />
             ))}
           </>
@@ -96,6 +117,7 @@ export function BotsPanel() {
         />
       )}
       <StrategyComparisonModal open={compareOpen} onClose={() => setCompareOpen(false)} />
+      <BotImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
 }
@@ -120,13 +142,15 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 function BotCard({
-  bot, trades, onToggle, onRemove, onBacktest,
+  bot, trades, onToggle, onRemove, onBacktest, onShare, shared,
 }: {
   bot: BotConfig
   trades: BotTrade[]
   onToggle: () => void
   onRemove: () => void
   onBacktest: () => void
+  onShare: () => void
+  shared: boolean
 }) {
   const adapter = getActiveAdapter()
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
@@ -169,6 +193,18 @@ function BotCard({
             className="shrink-0 w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 flex items-center justify-center transition-colors cursor-pointer"
           >
             <Play className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onShare}
+            title={shared ? 'Copied to clipboard' : 'Copy portable JSON to clipboard'}
+            className={cn(
+              'shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors cursor-pointer',
+              shared
+                ? 'text-long bg-long/10'
+                : 'text-text-muted hover:text-accent hover:bg-accent-dim/30',
+            )}
+          >
+            {shared ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
           </button>
           <button
             onClick={onRemove}
