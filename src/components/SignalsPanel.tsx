@@ -17,9 +17,10 @@ import {
   setSignalAlertsEnabled,
   ALERT_TOGGLE_EVENT,
 } from '../hooks/useSignalAlerts'
+import { TelegramConfigModal } from './TelegramConfigModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send } from 'lucide-react'
 
 export function SignalsPanel() {
   const signals = useSignals()
@@ -28,6 +29,7 @@ export function SignalsPanel() {
   const setOrderSide = useTradingStore(s => s.setOrderSide)
 
   const [alertsEnabled, setAlertsEnabled] = useState(() => getSignalAlertsEnabled())
+  const [telegramOpen, setTelegramOpen] = useState(false)
   // Sync if another tab/component flips the toggle
   useEffect(() => {
     const sync = () => setAlertsEnabled(getSignalAlertsEnabled())
@@ -70,8 +72,17 @@ export function SignalsPanel() {
           >
             {alertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
           </button>
+          <button
+            onClick={() => setTelegramOpen(true)}
+            title="Configure Telegram alerts"
+            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
+
+      <TelegramConfigModal open={telegramOpen} onClose={() => setTelegramOpen(false)} />
 
       {signals.length === 0 ? (
         <EmptyState />
