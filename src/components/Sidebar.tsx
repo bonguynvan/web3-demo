@@ -64,12 +64,12 @@ export function Sidebar() {
           collapsed ? 'w-[60px]' : 'w-[200px]',
         )}
       >
-        {/* Logo — clicking returns to the marketing landing */}
+        {/* Logo — h-12 matches the TopBar height so the horizontal seam aligns. */}
         <button
           onClick={() => navigate('/')}
           title="Back to TradingDek home"
           className={cn(
-            'flex items-center gap-2.5 px-4 h-14 border-b border-border cursor-pointer shrink-0 hover:bg-panel-light transition-colors',
+            'flex items-center gap-2.5 px-4 h-12 border-b border-border cursor-pointer shrink-0 hover:bg-panel-light transition-colors',
             collapsed && 'justify-center px-0',
           )}
         >
@@ -94,13 +94,17 @@ export function Sidebar() {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={cn(
-                  'flex items-center gap-2.5 w-full rounded-md transition-colors cursor-pointer',
+                  'flex items-center gap-2.5 w-full rounded-md transition-colors cursor-pointer relative',
                   collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2',
                   isActive
                     ? 'bg-accent/10 text-accent'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface',
                 )}
               >
+                {/* Active left-edge stripe — visual anchor when stacked */}
+                {isActive && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r" />
+                )}
                 <Icon className="w-4 h-4 shrink-0" />
                 {!collapsed && (
                   <span className="text-xs font-medium">{item.label}</span>

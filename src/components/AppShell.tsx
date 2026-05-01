@@ -11,6 +11,7 @@ import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { Sidebar } from './Sidebar'
+import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
@@ -52,6 +53,9 @@ export function AppShell() {
         <div className="flex-1 min-h-0">
           <Outlet />
         </div>
+
+        {/* Mobile-only bottom-tab nav (Sidebar handles md+) */}
+        <MobileBottomNav />
 
         <ToastContainer />
       </div>

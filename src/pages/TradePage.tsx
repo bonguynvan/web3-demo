@@ -46,14 +46,14 @@ export function TradePage() {
 
   return (
     <div className="flex-1 flex flex-col xl:flex-row gap-1 p-1 h-full min-h-0">
-      {/* Left: Chart + Positions */}
+      {/* Left: Chart + Positions — chart gets the most pixels by design */}
       <div className="flex-1 flex flex-col gap-1 min-w-0 min-h-0">
-        <div className="flex-[3] min-h-[300px] xl:min-h-0">
+        <div className="flex-[4] min-h-[320px] xl:min-h-0">
           <ErrorBoundary name="Chart">
             <TradingChart loading={chartLoading} />
           </ErrorBoundary>
         </div>
-        <div className="flex-[1.2] min-h-[200px] xl:min-h-0">
+        <div className="flex-1 min-h-[160px] xl:min-h-0">
           <ErrorBoundary name="Positions">
             {tradeTab === 'futures' ? (
               <Suspense fallback={<LazyFallback />}>
@@ -66,8 +66,8 @@ export function TradePage() {
         </div>
       </div>
 
-      {/* Right: DepthBook + Trades + OrderForm */}
-      <div className="xl:w-[600px] flex flex-col xl:flex-row gap-1 shrink-0">
+      {/* Right: DepthBook + Trades + OrderForm — slightly tighter rail */}
+      <div className="xl:w-[560px] flex flex-col xl:flex-row gap-1 shrink-0">
         <div className="flex-1 flex flex-col gap-1 min-h-0">
           <div className="flex-[2] min-h-[200px] xl:min-h-0">
             <ErrorBoundary name="DepthBook">
@@ -80,7 +80,7 @@ export function TradePage() {
             </ErrorBoundary>
           </div>
         </div>
-        <div className="xl:w-[280px] shrink-0 min-h-[400px] xl:min-h-0 flex flex-col">
+        <div className="xl:w-[260px] shrink-0 min-h-[400px] xl:min-h-0 flex flex-col">
           {/* Trade / Futures / Signals / Bots toggle */}
           <div className="flex gap-1 mb-1 shrink-0">
             {(['perp', 'futures', 'signals', 'bots'] as const).map(tab => (
