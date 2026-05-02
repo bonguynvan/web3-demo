@@ -79,6 +79,12 @@ export function LandingPage() {
             Waitlist
           </a>
           <button
+            onClick={() => navigate('/library')}
+            className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+          >
+            Library
+          </button>
+          <button
             onClick={() => navigate('/trade')}
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-md hover:bg-accent/90 transition-colors cursor-pointer"
           >

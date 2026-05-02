@@ -9,12 +9,13 @@
  */
 
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LineChart, PieChart } from 'lucide-react'
+import { LineChart, PieChart, BookOpen } from 'lucide-react'
 import { cn } from '../lib/format'
 
 const TABS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
+  { path: '/library', label: 'Library', icon: BookOpen },
 ] as const
 
 export function MobileBottomNav() {
