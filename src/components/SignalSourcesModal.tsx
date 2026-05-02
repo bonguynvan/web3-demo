@@ -6,7 +6,7 @@
  * we just hide disabled ones from the panel, alerts, and bots.
  */
 
-import { X, RotateCcw, Download } from 'lucide-react'
+import { X, RotateCcw, Download, Trash2 } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSignalSettingsStore, ALL_SOURCES } from '../store/signalSettingsStore'
 import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
@@ -397,6 +397,7 @@ function exportResolvedCsv(resolved: ReturnType<typeof useSignalPerformanceStore
 
 function MarketsLeaderboard() {
   const resolved = useSignalPerformanceStore(s => s.resolved)
+  const clearPerf = useSignalPerformanceStore(s => s.clear)
   if (resolved.length < 3) return null
 
   const buckets = new Map<string, { total: number; hits: number }>()
@@ -425,14 +426,27 @@ function MarketsLeaderboard() {
             Where signals have actually been right (≥2 resolutions per market).
           </div>
         </div>
-        <button
-          onClick={() => exportResolvedCsv(resolved)}
-          title="Download all resolved signals as CSV"
-          className="shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider rounded bg-surface border border-border text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        >
-          <Download className="w-3 h-3" />
-          CSV
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => exportResolvedCsv(resolved)}
+            title="Download all resolved signals as CSV"
+            className="flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider rounded bg-surface border border-border text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+          >
+            <Download className="w-3 h-3" />
+            CSV
+          </button>
+          <button
+            onClick={() => {
+              if (confirm(`Clear all performance data? (${resolved.length} resolved signals will be lost.)`)) {
+                clearPerf()
+              }
+            }}
+            title="Clear all performance data"
+            className="flex items-center justify-center w-7 h-7 rounded bg-surface border border-border text-text-muted hover:text-short hover:border-short/40 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <LeaderboardColumn title="Best" entries={best} tone="long" />
