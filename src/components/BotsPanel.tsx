@@ -95,8 +95,13 @@ export function BotsPanel() {
       const sb = statFor(b)
       if (sortBy === 'pnl') return sb.totalPnlUsd - sa.totalPnlUsd
       if (sortBy === 'trades') return sb.total - sa.total
-      // winrate
-      return sb.winRate - sa.winRate
+      // winrate — bots below 3 closed trades sink to the bottom so a
+      // single-trade 100% bot does not outrank a 50-trade 80% bot.
+      const aQual = sa.closed >= 3
+      const bQual = sb.closed >= 3
+      if (aQual !== bQual) return aQual ? -1 : 1
+      if (sb.winRate !== sa.winRate) return sb.winRate - sa.winRate
+      return sb.closed - sa.closed
     })
   })()
   const [, force] = useState(0)
@@ -134,7 +139,7 @@ export function BotsPanel() {
             <select
               value={sortBy}
               onChange={(e) => updateSort(e.target.value as BotSort)}
-              title="Sort bots"
+              title="Sort bots (win rate requires ≥3 closed trades)"
               className="text-[10px] bg-surface border border-border rounded px-1.5 py-0.5 text-text-secondary cursor-pointer focus:outline-none focus:border-accent"
             >
               {SORT_OPTIONS.map(o => (
