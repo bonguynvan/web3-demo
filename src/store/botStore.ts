@@ -65,6 +65,7 @@ interface BotStore {
 
   toggleBot: (id: string) => void
   setAllEnabled: (enabled: boolean) => void
+  renameBot: (id: string, name: string) => void
   removeBot: (id: string) => void
   addBot: (cfg: Omit<BotConfig, 'id' | 'createdAt'>) => void
   recordTrade: (trade: BotTrade) => void
@@ -85,6 +86,14 @@ export const useBotStore = create<BotStore>((set) => {
 
     setAllEnabled: (enabled) => set(state => {
       const bots = state.bots.map(b => b.enabled === enabled ? b : { ...b, enabled })
+      persist({ bots, trades: state.trades })
+      return { bots }
+    }),
+
+    renameBot: (id, name) => set(state => {
+      const trimmed = name.trim()
+      if (trimmed.length === 0) return state
+      const bots = state.bots.map(b => b.id === id ? { ...b, name: trimmed.slice(0, 60) } : b)
       persist({ bots, trades: state.trades })
       return { bots }
     }),

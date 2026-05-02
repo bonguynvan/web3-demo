@@ -26,6 +26,7 @@ export function BotsPanel() {
   const trades = useBotStore(s => s.trades)
   const toggleBot = useBotStore(s => s.toggleBot)
   const setAllEnabled = useBotStore(s => s.setAllEnabled)
+  const renameBot = useBotStore(s => s.renameBot)
   const removeBot = useBotStore(s => s.removeBot)
   const anyEnabled = bots.some(b => b.enabled)
   const [, force] = useState(0)
@@ -112,6 +113,7 @@ export function BotsPanel() {
                 bot={bot}
                 trades={trades.filter(t => t.botId === bot.id)}
                 onToggle={() => toggleBot(bot.id)}
+                onRename={(name) => renameBot(bot.id, name)}
                 onRemove={() => removeBot(bot.id)}
                 onBacktest={() => setBacktestBot(bot)}
                 onShare={() => handleShare(bot)}
@@ -159,11 +161,12 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 function BotCard({
-  bot, trades, onToggle, onRemove, onBacktest, onShare, shared,
+  bot, trades, onToggle, onRename, onRemove, onBacktest, onShare, shared,
 }: {
   bot: BotConfig
   trades: BotTrade[]
   onToggle: () => void
+  onRename: (name: string) => void
   onRemove: () => void
   onBacktest: () => void
   onShare: () => void
@@ -197,7 +200,7 @@ function BotCard({
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-primary truncate">{bot.name}</span>
+              <BotNameEditor name={bot.name} onRename={onRename} />
               <span className="text-[9px] uppercase tracking-wider px-1.5 py-px rounded bg-surface text-text-muted">
                 {bot.mode}
               </span>
@@ -289,6 +292,44 @@ function BotCard({
         </>
       )}
     </div>
+  )
+}
+
+function BotNameEditor({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+
+  if (!editing) {
+    return (
+      <button
+        onDoubleClick={() => { setDraft(name); setEditing(true) }}
+        title="Double-click to rename"
+        className="text-xs font-medium text-text-primary truncate text-left hover:text-accent transition-colors cursor-text"
+      >
+        {name}
+      </button>
+    )
+  }
+
+  const commit = () => {
+    onRename(draft)
+    setEditing(false)
+  }
+
+  return (
+    <input
+      autoFocus
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') commit()
+        if (e.key === 'Escape') { setDraft(name); setEditing(false) }
+      }}
+      onClick={e => e.stopPropagation()}
+      maxLength={60}
+      className="text-xs font-medium text-text-primary bg-surface border border-border rounded px-1.5 py-0.5 outline-none focus:border-accent min-w-0 flex-1"
+    />
   )
 }
 
