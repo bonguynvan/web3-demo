@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -177,6 +177,7 @@ function BotCard({
     .filter((t): t is BotTrade & { closedAt: number; pnlUsd: number } =>
       t.closedAt !== undefined && t.pnlUsd !== undefined)
     .sort((a, b) => a.closedAt - b.closedAt)
+  const [tradesOpen, setTradesOpen] = useState(true)
 
   return (
     <div className="border-b border-border">
@@ -270,11 +271,22 @@ function BotCard({
       </div>
 
       {recent.length > 0 && (
-        <div className="border-t border-border bg-surface/30">
-          {recent.map(t => (
-            <TradeRow key={t.id} trade={t} markPrice={adapter.getTicker(t.marketId)?.price} />
-          ))}
-        </div>
+        <>
+          <button
+            onClick={() => setTradesOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-1 text-[10px] text-text-muted hover:text-text-primary border-t border-border bg-surface/20 hover:bg-panel-light transition-colors cursor-pointer"
+          >
+            <span>{tradesOpen ? 'Hide' : 'Show'} recent ({recent.length})</span>
+            {tradesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {tradesOpen && (
+            <div className="border-t border-border bg-surface/30">
+              {recent.map(t => (
+                <TradeRow key={t.id} trade={t} markPrice={adapter.getTicker(t.marketId)?.price} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
