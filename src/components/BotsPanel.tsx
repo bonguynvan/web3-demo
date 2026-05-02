@@ -612,6 +612,56 @@ function PortfolioSummary({ bots, trades }: { bots: BotConfig[]; trades: BotTrad
         <SmallStat label="Closed" value={`${stats.closed}`} />
       </div>
 
+      {closedSorted.length >= 3 && (() => {
+        let cum = 0
+        let peak = 0
+        let maxDrawdown = 0
+        let grossProfit = 0
+        let grossLoss = 0
+        let curStreak = 0
+        let worstStreak = 0
+        for (const t of closedSorted) {
+          cum += t.pnlUsd
+          if (cum > peak) peak = cum
+          const dd = peak - cum
+          if (dd > maxDrawdown) maxDrawdown = dd
+          if (t.pnlUsd >= 0) {
+            grossProfit += t.pnlUsd
+            curStreak = 0
+          } else {
+            grossLoss += -t.pnlUsd
+            curStreak += 1
+            if (curStreak > worstStreak) worstStreak = curStreak
+          }
+        }
+        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0
+        return (
+          <div className="grid grid-cols-3 gap-1.5 mb-3">
+            <SmallStat
+              label="Max DD"
+              value={maxDrawdown > 0 ? `−$${formatUsd(maxDrawdown)}` : '—'}
+              valueClass={maxDrawdown > 0 ? 'text-short' : undefined}
+            />
+            <SmallStat
+              label="Profit factor"
+              value={
+                profitFactor === Infinity
+                  ? '∞'
+                  : profitFactor > 0
+                    ? profitFactor.toFixed(2)
+                    : '—'
+              }
+              valueClass={profitFactor >= 1.5 ? 'text-long' : profitFactor < 1 && profitFactor > 0 ? 'text-short' : undefined}
+            />
+            <SmallStat
+              label="Worst losing streak"
+              value={worstStreak > 0 ? `${worstStreak}` : '—'}
+              valueClass={worstStreak >= 5 ? 'text-short' : undefined}
+            />
+          </div>
+        )
+      })()}
+
       {(best || worst) && best?.name !== worst?.name && (
         <div className="flex items-center gap-2 text-[10px]">
           {best && (
