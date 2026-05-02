@@ -13,6 +13,7 @@ import { ConnectionBanner } from './ConnectionBanner'
 import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
+import { OnboardingCard } from './OnboardingCard'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
@@ -64,6 +65,7 @@ export function AppShell() {
         <MobileBottomNav />
 
         <ToastContainer />
+        <OnboardingCard />
       </div>
     </div>
   )
