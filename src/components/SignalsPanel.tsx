@@ -353,7 +353,7 @@ function SignalCard({
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className={cn(
-        'group relative w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer',
+        'signal-enter group relative w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer',
         isConfluence && 'border-l-2 border-l-accent bg-accent-dim/10',
       )}
     >
