@@ -22,6 +22,7 @@ import {
   BarChart3,
   LineChart,
   PieChart,
+  BookOpen,
   Sun,
   Moon,
   Settings,
@@ -39,6 +40,7 @@ import { cn } from '../lib/format'
 const NAV_ITEMS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
+  { path: '/library', label: 'Library', icon: BookOpen },
 ] as const
 
 export function Sidebar() {

@@ -12,12 +12,14 @@ import { AppShell } from './components/AppShell'
 import { LandingPage } from './pages/LandingPage'
 import { TradePage } from './pages/TradePage'
 import { PortfolioPage } from './pages/PortfolioPage'
+import { StrategyLibraryPage } from './pages/StrategyLibraryPage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/library" element={<StrategyLibraryPage />} />
         <Route element={<AppShell />}>
           <Route path="/trade" element={<TradePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
