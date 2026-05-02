@@ -19,7 +19,7 @@ import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
 import { useTelegramAlerts } from '../hooks/useTelegramAlerts'
-import { useSignals } from '../hooks/useSignals'
+import { useSignals, useSignalsRoot } from '../hooks/useSignals'
 import { useSignalPerformanceTracker } from '../hooks/useSignalPerformanceTracker'
 import { useBotEngine } from '../hooks/useBotEngine'
 import { useTradeFeed } from '../hooks/useTradeFeed'
@@ -34,6 +34,9 @@ export function AppShell() {
 
   // Global hooks — run regardless of which page is active
   useSyncMarkets()
+  // Single source of signal computation — every other consumer reads
+  // from the shared store via `useSignals()` instead of recomputing.
+  useSignalsRoot()
   const signals = useSignals()
   useSignalPerformanceTracker(signals)
   useSignalAlerts()

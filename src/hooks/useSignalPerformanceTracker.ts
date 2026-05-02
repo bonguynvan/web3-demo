@@ -12,7 +12,7 @@ const RESOLVE_INTERVAL_MS = 30_000
 
 function getPrice(marketId: string): number | undefined {
   const t = getActiveAdapter().getTicker(marketId)
-  return t?.last
+  return t?.price
 }
 
 export function useSignalPerformanceTracker(signals: Signal[]): void {

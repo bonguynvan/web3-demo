@@ -28,6 +28,7 @@ export function StrategyLibraryPage() {
   const install = (s: PublishedStrategy) => {
     addBot({
       name: s.bot.name,
+      enabled: true,
       mode: s.bot.mode,
       allowedSources: s.bot.allowedSources,
       allowedMarkets: s.bot.allowedMarkets,

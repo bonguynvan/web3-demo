@@ -1,18 +1,19 @@
 /**
  * useSignals — live signal feed derived from venue state.
  *
- * Composes the pure compute layer with the existing React state:
- *   - venue from useActiveVenue
- *   - markets from tradingStore
- *   - candles for the selected market from tradingStore
- *   - tickers (with funding rates) from the active adapter
+ * Architecture:
+ *   - `useSignalsRoot()` does the actual compute. Mount ONCE at the
+ *     app root (AppShell). Runs every 5s, writes to `signalsStore`.
+ *   - `useSignals()` is a selector — every consumer just reads the
+ *     latest snapshot. Cheap, no recomputation.
  *
- * Re-evaluates every 5s so funding-rate updates pushed via the venue
- * WS — which don't necessarily trigger React renders — still show up
- * as fresh signals.
+ * Before this split, the 5s compute ran 4× per tick because four
+ * different hooks each called the original `useSignals()` and each
+ * had its own internal heartbeat. Lifting to a shared store removes
+ * the redundancy without changing any caller's API.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getActiveAdapter } from '../adapters/registry'
 import { useActiveVenue } from './useActiveVenue'
 import { useLargeTrades } from './useLargeTrades'
@@ -22,13 +23,15 @@ import { useOnchainWhaleSignals } from './useOnchainWhaleSignals'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignalSettingsStore } from '../store/signalSettingsStore'
 import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
+import { useSignalsStore } from '../store/signalsStore'
 import { computeSignals, applyThresholds } from '../signals/compute'
 import { isLive, type Signal } from '../signals/types'
 import type { Market, Ticker } from '../adapters/types'
 
 const RECOMPUTE_MS = 5_000
 
-export function useSignals(): Signal[] {
+/** Mount once at the app root — pushes signals into the shared store. */
+export function useSignalsRoot(): void {
   const venueId = useActiveVenue()
   const markets = useTradingStore(s => s.markets)
   const candles = useTradingStore(s => s.candles)
@@ -39,29 +42,21 @@ export function useSignals(): Signal[] {
   const onchainWhaleSignals = useOnchainWhaleSignals()
   const enabledSources = useSignalSettingsStore(s => s.enabled)
   const thresholds = useSignalThresholdsStore(s => s.thresholds)
+  const setSignals = useSignalsStore(s => s.setSignals)
   const [tick, setTick] = useState(0)
 
-  // Push user-tuned thresholds into the compute module on every change.
-  useEffect(() => {
-    applyThresholds(thresholds)
-  }, [thresholds])
+  useEffect(() => { applyThresholds(thresholds) }, [thresholds])
 
-  // Heartbeat — pulls fresh tickers from the adapter cache without
-  // forcing every component subscribed to a single ticker to re-render.
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), RECOMPUTE_MS)
     return () => clearInterval(id)
   }, [])
 
-  return useMemo(() => {
+  useEffect(() => {
     const adapter = getActiveAdapter()
-    // Build a Map<marketId, Ticker> from the adapter cache. Markets
-    // without a cached ticker (e.g. just-switched venue, no tick yet)
-    // simply don't contribute funding signals this cycle.
-    const storeMarkets = markets
     const tickers = new Map<string, Ticker>()
     const adapterMarkets: Market[] = []
-    for (const m of storeMarkets) {
+    for (const m of markets) {
       const venueMarket = adapter.getMarket(m.symbol)
       if (!venueMarket) continue
       adapterMarkets.push(venueMarket)
@@ -80,16 +75,16 @@ export function useSignals(): Signal[] {
       largeTrades,
     }, now)
 
-    // News + on-chain whale signals come from different code paths
-    // (event-driven, not candle-derived). Merge them in and re-sort
-    // once by confidence so the final feed is consistent.
     const merged = [...computed, ...newsSignals, ...onchainWhaleSignals]
     merged.sort((a, b) => b.confidence - a.confidence)
-    // Filter by user-toggled source flags as the very last step so the
-    // underlying compute (including confluence) sees the full signal
-    // set internally. This is purely a presentation preference.
-    return merged.filter(s => enabledSources[s.source] !== false && isLive(s, now))
-    // tick is intentionally a dep — drives re-eval on the heartbeat.
+    const filtered = merged.filter(s => enabledSources[s.source] !== false && isLive(s, now))
+    setSignals(filtered)
+    // tick drives heartbeat re-eval
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, newsSignals, onchainWhaleSignals, enabledSources, tick])
+  }, [venueId, markets, candles, candlesByMarket, selectedMarket.symbol, largeTrades, newsSignals, onchainWhaleSignals, enabledSources, tick, setSignals])
+}
+
+/** Read the latest signals snapshot. Cheap; just a store selector. */
+export function useSignals(): Signal[] {
+  return useSignalsStore(s => s.signals)
 }
