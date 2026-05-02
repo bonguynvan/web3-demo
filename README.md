@@ -99,10 +99,29 @@ docs/
 | **Crossover** | EMA9 crosses EMA21 on a closed bar | Top 10 markets by 24h volume |
 | **RSI** | Wilder(14) crosses 30 / 70 | Top 10 markets |
 | **Volatility** | Bar range ≥ 3× rolling 20-bar avg | Top 10 markets |
-| **Whale flow** | 60s notional ≥ $100k with ≥60% directional skew | Active market live |
-| **Confluence** | ≥2 distinct sources align on direction | Synthesizer over above |
+| **Whale flow** | 60s notional ≥ $100k with ≥60% directional skew | Top 10 markets |
+| **Liquidation** | 5+ aggressive same-side fills + $200k notional in 30s | Top 10 markets |
+| **News** | CryptoPanic important headline | When `VITE_CRYPTOPANIC_TOKEN` set |
+| **Whale wallet** | Hyperliquid `userFills` open ≥ $50k | When `VITE_HL_WHALE_WALLETS` set |
+| **Confluence** | ≥2 distinct sources align on direction | Synthesizer over the above |
 
-All thresholds are tunable in one file — `src/signals/compute.ts`.
+Thresholds are user-tunable in the SignalSourcesModal (sliders for RSI bands,
+volatility multiple, whale skew). Per-source on/off toggles, min-confidence
+filter, sound alert, source solo, signal dismiss, and signal pinning all
+persist in `localStorage`.
+
+### Hit-rate tracking
+
+Every fired signal is recorded at trigger price and resolved 30 minutes later
+against actual price movement. The modal exposes:
+
+- Per-source win rate + sample count
+- Direction skew (longs vs shorts in the current regime)
+- Best/worst markets leaderboard
+- Recent outcomes (last 5 hit/miss with price move %)
+- "Last fired Xm ago" indicator per source
+- CSV export of the resolved buffer
+- Clear-with-confirm to reset stats after a strategy change
 
 ---
 
@@ -128,11 +147,40 @@ The engine watches the live signal feed, opens virtual positions on matches,
 holds for `holdMinutes` (or exits early on opposing confluence with ≥0.7
 confidence), and books realized P&L at the current mark.
 
-The Bots tab shows a live portfolio summary — total P&L, win rate, top/worst
-bot, equity-curve sparkline, plus per-bot cards with the last 5 fills.
+The Bots tab shows a sticky portfolio summary (total P&L, realized vs
+unrealized, equity-curve sparkline, top/worst bot) and risk metrics
+(max drawdown, profit factor, worst losing streak).
+
+Per-bot cards include:
+- Inline rename (double-click name) and persisted sort selector
+- Pause-all / resume-all kill switch
+- 4-stat grid (total · win rate · total P&L · open unrealized)
+- Per-bot equity sparkline + directional left-edge stripe (long/short bias)
+- Today's trade count vs daily cap (warns when capped via toast)
+- Collapsible recent fills with click-to-expand details (source, hold,
+  size, mark, % move, opened time)
+- Click trade row to focus that market on the chart
+- Background tint by PnL magnitude
+- Per-bot share (export portable JSON), backtest, and delete actions
+- CSV export of the full trade ledger
 
 State persists in `localStorage` key `tc-bots-v1`. Server-backed bots come
 in Phase B2.
+
+### Strategy library
+
+`/library` hosts curated bot configs with author, summary, tags, and
+optional tracked-since performance numbers. One-click "Add to my bots"
+calls the same `addBot()` action the import flow uses. Foundation for
+the upcoming social marketplace surface.
+
+### Power-user shortcuts
+
+- **Cmd/Ctrl+K** — venue-agnostic market quick-jump palette with fuzzy
+  search and arrow-key navigation
+- **Settings → Backup** — export/import all user state (bots, signal
+  settings, thresholds, performance history) as a single JSON for
+  cross-browser migration
 
 ---
 
@@ -152,12 +200,18 @@ for step-by-step:
 ## Roadmap
 
 - ✅ Phase 1 — multi-venue read-only terminal
-- ✅ Phase S1 — five signal sources + confluence
-- ✅ Phase S1.7 — browser + in-app alerts
-- ✅ Phase B1 — paper-trading bot framework
+- ✅ Phase S1 — eight signal sources + confluence
+- ✅ Phase S1.7 — browser + in-app alerts + Telegram + sound
+- ✅ Phase S2 — hit-rate tracking, market leaderboard, CSV export
+- ✅ Phase B1 — paper-trading bot framework with risk metrics
+- ✅ Phase M1 — strategy library (curated marketplace MVP)
 - ⏳ Phase 2d — wallet-signed live trading via Hyperliquid (testnet validation pending)
 - 🔜 Phase B2 — server-backed bots ("set it and forget it" mode)
-- 🔜 Phase 2e — Binance authenticated trading via server-side key proxy
+- 🔜 Phase 2e — CEX authenticated trading via server-side key proxy
+- 🔜 Phase M2 — strategy marketplace backend (publish, follow, comment,
+  performance tracking)
+- 🔜 Phase V1 — additional venue adapters (system designed for both CEX
+  and DEX — new venues plug in via the `VenueAdapter` interface)
 
 ---
 
