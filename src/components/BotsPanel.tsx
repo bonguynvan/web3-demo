@@ -271,8 +271,23 @@ function BotCard({
     .sort((a, b) => a.closedAt - b.closedAt)
   const [tradesOpen, setTradesOpen] = useState(true)
 
+  // Directional bias from realized PnL
+  let longRealized = 0
+  let shortRealized = 0
+  for (const t of closedSorted) {
+    if (t.direction === 'long') longRealized += t.pnlUsd
+    else shortRealized += t.pnlUsd
+  }
+  const stripeClass = closedSorted.length < 3
+    ? 'border-l-2 border-l-transparent'
+    : Math.abs(longRealized - shortRealized) < 5
+      ? 'border-l-2 border-l-border-light'
+      : longRealized > shortRealized
+        ? 'border-l-2 border-l-long'
+        : 'border-l-2 border-l-short'
+
   return (
-    <div className="border-b border-border">
+    <div className={cn('border-b border-border', stripeClass)}>
       <div className="px-3 py-2.5">
         <div className="flex items-start gap-2">
           <button
