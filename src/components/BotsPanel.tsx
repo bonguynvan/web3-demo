@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -35,6 +35,36 @@ function loadSort(): BotSort {
     if (raw === 'pnl' || raw === 'winrate' || raw === 'trades' || raw === 'created') return raw
     return 'created'
   } catch { return 'created' }
+}
+
+function exportTradesCsv(trades: BotTrade[], bots: BotConfig[]): void {
+  if (trades.length === 0) return
+  const nameById = new Map(bots.map(b => [b.id, b.name]))
+  const header = 'openedAt,closedAt,bot,marketId,direction,entryPrice,closePrice,size,positionUsd,pnlUsd,status'
+  const rows = trades.map(t => [
+    new Date(t.openedAt).toISOString(),
+    t.closedAt ? new Date(t.closedAt).toISOString() : '',
+    JSON.stringify(nameById.get(t.botId) ?? t.botId),
+    t.marketId,
+    t.direction,
+    t.entryPrice.toFixed(8),
+    t.closePrice?.toFixed(8) ?? '',
+    t.size.toFixed(8),
+    t.positionUsd.toFixed(2),
+    t.pnlUsd?.toFixed(4) ?? '',
+    t.closedAt ? 'closed' : 'open',
+  ].join(','))
+  const csv = [header, ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  a.href = url
+  a.download = `bot-trades-${stamp}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function BotsPanel() {
@@ -131,6 +161,15 @@ export function BotsPanel() {
           >
             <BarChart3 className="w-3.5 h-3.5" />
           </button>
+          {trades.length > 0 && (
+            <button
+              onClick={() => exportTradesCsv(trades, bots)}
+              title="Export bot trades as CSV"
+              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => setImportOpen(true)}
             title="Import bot from JSON"
