@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check } from 'lucide-react'
+import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -25,7 +25,9 @@ export function BotsPanel() {
   const bots = useBotStore(s => s.bots)
   const trades = useBotStore(s => s.trades)
   const toggleBot = useBotStore(s => s.toggleBot)
+  const setAllEnabled = useBotStore(s => s.setAllEnabled)
   const removeBot = useBotStore(s => s.removeBot)
+  const anyEnabled = bots.some(b => b.enabled)
   const [, force] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
@@ -57,6 +59,20 @@ export function BotsPanel() {
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-text-muted">{bots.length} configured</span>
+          {bots.length > 0 && (
+            <button
+              onClick={() => setAllEnabled(!anyEnabled)}
+              title={anyEnabled ? 'Pause all bots' : 'Resume all bots'}
+              className={cn(
+                'flex items-center justify-center w-6 h-6 rounded transition-colors cursor-pointer',
+                anyEnabled
+                  ? 'text-text-muted hover:text-short hover:bg-short/10'
+                  : 'text-long hover:bg-long/10',
+              )}
+            >
+              {anyEnabled ? <PauseCircle className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
+            </button>
+          )}
           <button
             onClick={() => setCompareOpen(true)}
             title="Compare strategies side-by-side"
