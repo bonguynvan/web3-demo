@@ -74,6 +74,8 @@ export function BotsPanel() {
   const setAllEnabled = useBotStore(s => s.setAllEnabled)
   const renameBot = useBotStore(s => s.renameBot)
   const removeBot = useBotStore(s => s.removeBot)
+  const clearClosedTrades = useBotStore(s => s.clearClosedTrades)
+  const closedCount = trades.filter(t => t.closedAt !== undefined).length
   const anyEnabled = bots.some(b => b.enabled)
 
   const [sortBy, setSortBy] = useState<BotSort>(() => loadSort())
@@ -168,6 +170,19 @@ export function BotsPanel() {
               className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {closedCount > 0 && (
+            <button
+              onClick={() => {
+                if (confirm(`Clear ${closedCount} closed trade${closedCount === 1 ? '' : 's'}? Open positions are kept.`)) {
+                  clearClosedTrades()
+                }
+              }}
+              title="Clear closed trades from ledger"
+              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
           <button

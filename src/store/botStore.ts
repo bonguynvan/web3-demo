@@ -70,6 +70,7 @@ interface BotStore {
   addBot: (cfg: Omit<BotConfig, 'id' | 'createdAt'>) => void
   recordTrade: (trade: BotTrade) => void
   closeTrade: (tradeId: string, closePrice: number, closedAt: number) => void
+  clearClosedTrades: () => void
 }
 
 export const useBotStore = create<BotStore>((set) => {
@@ -128,6 +129,12 @@ export const useBotStore = create<BotStore>((set) => {
         const pnlUsd = sign * (closePrice - t.entryPrice) * t.size
         return { ...t, closedAt, closePrice, pnlUsd }
       })
+      persist({ bots: state.bots, trades })
+      return { trades }
+    }),
+
+    clearClosedTrades: () => set(state => {
+      const trades = state.trades.filter(t => t.closedAt === undefined)
       persist({ bots: state.bots, trades })
       return { trades }
     }),
