@@ -6,7 +6,7 @@
  * we just hide disabled ones from the panel, alerts, and bots.
  */
 
-import { X, RotateCcw } from 'lucide-react'
+import { X, RotateCcw, Download } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSignalSettingsStore, ALL_SOURCES } from '../store/signalSettingsStore'
 import { useSignalThresholdsStore } from '../store/signalThresholdsStore'
@@ -298,6 +298,36 @@ function DirectionStats() {
   )
 }
 
+function exportResolvedCsv(resolved: ReturnType<typeof useSignalPerformanceStore.getState>['resolved']): void {
+  if (resolved.length === 0) return
+  const header = 'triggeredAt,closedAt,source,marketId,direction,entryPrice,closePrice,pctMove,hit'
+  const rows = resolved.map(r => {
+    const move = ((r.closePrice - r.entryPrice) / r.entryPrice) * 100
+    return [
+      new Date(r.triggeredAt).toISOString(),
+      new Date(r.closedAt).toISOString(),
+      r.source,
+      r.marketId,
+      r.direction,
+      r.entryPrice.toFixed(8),
+      r.closePrice.toFixed(8),
+      move.toFixed(4),
+      r.hit ? '1' : '0',
+    ].join(',')
+  })
+  const csv = [header, ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  a.href = url
+  a.download = `signal-performance-${stamp}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 function MarketsLeaderboard() {
   const resolved = useSignalPerformanceStore(s => s.resolved)
   if (resolved.length < 3) return null
@@ -321,9 +351,21 @@ function MarketsLeaderboard() {
 
   return (
     <div className="border-t border-border pt-4 mt-4">
-      <div className="text-xs font-medium text-text-primary mb-1">Markets leaderboard</div>
-      <div className="text-[10px] text-text-muted mb-2">
-        Where signals have actually been right (≥2 resolutions per market).
+      <div className="flex items-start justify-between mb-1 gap-2">
+        <div>
+          <div className="text-xs font-medium text-text-primary">Markets leaderboard</div>
+          <div className="text-[10px] text-text-muted mb-2">
+            Where signals have actually been right (≥2 resolutions per market).
+          </div>
+        </div>
+        <button
+          onClick={() => exportResolvedCsv(resolved)}
+          title="Download all resolved signals as CSV"
+          className="shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider rounded bg-surface border border-border text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        >
+          <Download className="w-3 h-3" />
+          CSV
+        </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <LeaderboardColumn title="Best" entries={best} tone="long" />
