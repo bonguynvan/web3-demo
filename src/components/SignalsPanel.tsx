@@ -22,7 +22,7 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff } from 'lucide-react'
 import { ensureAudio, playSignalTone } from '../lib/signalSound'
 
 // Dismissals are session-scoped — refreshing the page clears them so
@@ -30,6 +30,20 @@ import { ensureAudio, playSignalTone } from '../lib/signalSound'
 // outside React state to avoid stale-closure churn.
 const dismissedIds = new Set<string>()
 const DISMISS_EVENT = 'tc-signal-dismissed'
+
+const PINNED_KEY = 'tc-signal-pinned-v1'
+function loadPinned(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PINNED_KEY)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr.filter((x): x is string => typeof x === 'string'))
+  } catch { return new Set() }
+}
+function savePinned(s: Set<string>): void {
+  try { localStorage.setItem(PINNED_KEY, JSON.stringify([...s])) } catch { /* full */ }
+}
 
 const SOLO_KEY = 'tc-signal-solo-source-v1'
 function loadSolo(): string {
@@ -80,17 +94,33 @@ export function SignalsPanel() {
     setMinConf(v)
     try { localStorage.setItem(MIN_CONF_KEY, String(v)) } catch { /* full */ }
   }
+  const [pinned, setPinned] = useState<Set<string>>(() => loadPinned())
+  const togglePin = (id: string) => {
+    setPinned(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      savePinned(next)
+      return next
+    })
+  }
+
   const [soloSource, setSoloSource] = useState(() => loadSolo())
   const updateSolo = (next: string) => {
     setSoloSource(next)
     try { localStorage.setItem(SOLO_KEY, next) } catch { /* full */ }
   }
-  const signals = allSignals.filter(s =>
+  const signalsRaw = allSignals.filter(s =>
     !dismissedIds.has(s.id)
     && s.confidence >= minConf
     && (soloSource === '' || s.source === soloSource)
   )
-  const filteredOut = allSignals.length - signals.length
+  // Pinned signals float to top regardless of sort
+  const signals = [
+    ...signalsRaw.filter(s => pinned.has(s.id)),
+    ...signalsRaw.filter(s => !pinned.has(s.id)),
+  ]
+  const filteredOut = allSignals.length - signalsRaw.length
   const dismiss = (id: string) => {
     dismissedIds.add(id)
     window.dispatchEvent(new Event(DISMISS_EVENT))
@@ -228,8 +258,10 @@ export function SignalsPanel() {
               key={s.id}
               signal={s}
               now={now}
+              isPinned={pinned.has(s.id)}
               onClick={() => handleClick(s)}
               onDismiss={() => dismiss(s.id)}
+              onTogglePin={() => togglePin(s.id)}
             />
           ))}
         </div>
@@ -331,12 +363,14 @@ function formatAge(ms: number): string {
 }
 
 function SignalCard({
-  signal, now, onClick, onDismiss,
+  signal, now, isPinned, onClick, onDismiss, onTogglePin,
 }: {
   signal: Signal
   now: number
+  isPinned: boolean
   onClick: () => void
   onDismiss: () => void
+  onTogglePin: () => void
 }) {
   const isLong = signal.direction === 'long'
   const Arrow = isLong ? TrendingUp : TrendingDown
@@ -357,14 +391,29 @@ function SignalCard({
         isConfluence && 'border-l-2 border-l-accent bg-accent-dim/10',
       )}
     >
-      <button
-        onClick={(e) => { e.stopPropagation(); onDismiss() }}
-        title="Dismiss"
-        aria-label="Dismiss signal"
-        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-text-primary hover:bg-surface transition-opacity cursor-pointer"
-      >
-        <X className="w-3 h-3" />
-      </button>
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onTogglePin() }}
+          title={isPinned ? 'Unpin' : 'Pin to top'}
+          aria-label={isPinned ? 'Unpin signal' : 'Pin signal'}
+          className={cn(
+            'flex items-center justify-center w-5 h-5 rounded transition-opacity cursor-pointer',
+            isPinned
+              ? 'text-accent opacity-100'
+              : 'text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-text-primary hover:bg-surface',
+          )}
+        >
+          {isPinned ? <Pin className="w-3 h-3" /> : <PinOff className="w-3 h-3" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDismiss() }}
+          title="Dismiss"
+          aria-label="Dismiss signal"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-text-primary hover:bg-surface transition-opacity cursor-pointer"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
       <div className="flex items-start gap-2">
         <div className={cn('shrink-0 w-7 h-7 rounded-md flex items-center justify-center', dirBg)}>
           <Arrow className={cn('w-3.5 h-3.5', dirColor)} />
