@@ -21,6 +21,7 @@ import { BotCard } from './BotCard'
 import { exportBot, copyToClipboard } from '../bots/portable'
 import type { BotConfig, BotTrade } from '../bots/types'
 import { computeStats } from '../bots/computeStats'
+import { exportTradesCsv } from '../bots/exportCsv'
 
 const STATS_TICK_MS = 5_000
 
@@ -38,36 +39,6 @@ function loadSort(): BotSort {
     if (raw === 'pnl' || raw === 'winrate' || raw === 'trades' || raw === 'created') return raw
     return 'created'
   } catch { return 'created' }
-}
-
-function exportTradesCsv(trades: BotTrade[], bots: BotConfig[]): void {
-  if (trades.length === 0) return
-  const nameById = new Map(bots.map(b => [b.id, b.name]))
-  const header = 'openedAt,closedAt,bot,marketId,direction,entryPrice,closePrice,size,positionUsd,pnlUsd,status'
-  const rows = trades.map(t => [
-    new Date(t.openedAt).toISOString(),
-    t.closedAt ? new Date(t.closedAt).toISOString() : '',
-    JSON.stringify(nameById.get(t.botId) ?? t.botId),
-    t.marketId,
-    t.direction,
-    t.entryPrice.toFixed(8),
-    t.closePrice?.toFixed(8) ?? '',
-    t.size.toFixed(8),
-    t.positionUsd.toFixed(2),
-    t.pnlUsd?.toFixed(4) ?? '',
-    t.closedAt ? 'closed' : 'open',
-  ].join(','))
-  const csv = [header, ...rows].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  a.href = url
-  a.download = `bot-trades-${stamp}.csv`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function BotsPanel() {
