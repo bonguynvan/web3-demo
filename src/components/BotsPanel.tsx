@@ -156,6 +156,10 @@ function BotCard({
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
   const recent = trades.slice(0, 5)
   const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const closedSorted = trades
+    .filter((t): t is BotTrade & { closedAt: number; pnlUsd: number } =>
+      t.closedAt !== undefined && t.pnlUsd !== undefined)
+    .sort((a, b) => a.closedAt - b.closedAt)
 
   return (
     <div className="border-b border-border">
@@ -226,6 +230,12 @@ function BotCard({
             valueClass={pnlColor}
           />
         </div>
+
+        {closedSorted.length >= 2 && (
+          <div className="mt-2">
+            <EquityCurve trades={closedSorted} height={28} />
+          </div>
+        )}
       </div>
 
       {recent.length > 0 && (
