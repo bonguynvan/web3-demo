@@ -18,7 +18,8 @@ import { StrategyComparisonModal } from './StrategyComparisonModal'
 import { BotImportModal } from './BotImportModal'
 import { EquityCurve } from './EquityCurve'
 import { exportBot, copyToClipboard } from '../bots/portable'
-import type { BotConfig, BotStats, BotTrade } from '../bots/types'
+import type { BotConfig, BotTrade } from '../bots/types'
+import { computeStats } from '../bots/computeStats'
 
 const STATS_TICK_MS = 5_000
 
@@ -741,37 +742,3 @@ function SmallStat({ label, value, valueClass }: { label: string; value: string;
   )
 }
 
-function computeStats(trades: BotTrade[], getMark: (id: string) => number | undefined): BotStats {
-  let realizedPnl = 0
-  let unrealizedPnl = 0
-  let wins = 0
-  let losses = 0
-  let open = 0
-  let closed = 0
-
-  for (const t of trades) {
-    if (t.closedAt && t.pnlUsd !== undefined) {
-      closed++
-      realizedPnl += t.pnlUsd
-      if (t.pnlUsd >= 0) wins++
-      else losses++
-    } else {
-      open++
-      const mark = getMark(t.marketId) ?? t.entryPrice
-      const sign = t.direction === 'long' ? 1 : -1
-      unrealizedPnl += sign * (mark - t.entryPrice) * t.size
-    }
-  }
-
-  return {
-    total: trades.length,
-    open,
-    closed,
-    wins,
-    losses,
-    winRate: closed > 0 ? wins / closed : 0,
-    totalPnlUsd: realizedPnl + unrealizedPnl,
-    realizedPnlUsd: realizedPnl,
-    unrealizedPnlUsd: unrealizedPnl,
-  }
-}
