@@ -163,6 +163,22 @@ function StrategyCard({
         ))}
       </div>
 
+      <div className="flex items-center gap-1.5 mb-3 text-[10px]">
+        <span className="text-text-muted uppercase tracking-wider">Watches</span>
+        <div className="flex flex-wrap gap-1">
+          {bot.allowedSources.length === 0 ? (
+            <span className="px-1.5 py-0.5 rounded bg-surface border border-border text-text-secondary">any source</span>
+          ) : bot.allowedSources.map(src => (
+            <span
+              key={src}
+              className="px-1.5 py-0.5 rounded bg-accent-dim text-accent capitalize"
+            >
+              {src}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-1.5 mb-3 text-[10px]">
         <Stat label="Hold" value={`${bot.holdMinutes}m`} />
         <Stat label="Size" value={`$${bot.positionSizeUsd}`} />
