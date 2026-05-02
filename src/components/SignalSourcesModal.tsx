@@ -70,12 +70,32 @@ export function SignalSourcesModal({ open, onClose }: Props) {
   const setThreshold = useSignalThresholdsStore(s => s.set)
   const resetThresholds = useSignalThresholdsStore(s => s.reset)
   const resolved = useSignalPerformanceStore(s => s.resolved)
+  const pending = useSignalPerformanceStore(s => s.pending)
   const statsBySource = new Map<SignalSource, { total: number; hits: number }>()
   for (const r of resolved) {
     const b = statsBySource.get(r.source) ?? { total: 0, hits: 0 }
     b.total += 1
     if (r.hit) b.hits += 1
     statsBySource.set(r.source, b)
+  }
+  const lastFiredBySource = new Map<SignalSource, number>()
+  for (const r of resolved) {
+    const prev = lastFiredBySource.get(r.source) ?? 0
+    if (r.triggeredAt > prev) lastFiredBySource.set(r.source, r.triggeredAt)
+  }
+  for (const p of pending) {
+    const prev = lastFiredBySource.get(p.source) ?? 0
+    if (p.triggeredAt > prev) lastFiredBySource.set(p.source, p.triggeredAt)
+  }
+  const formatLastFired = (ts: number | undefined): string => {
+    if (!ts) return 'never'
+    const ms = Date.now() - ts
+    if (ms < 60_000) return 'just now'
+    const m = Math.floor(ms / 60_000)
+    if (m < 60) return `${m}m ago`
+    const h = Math.floor(m / 60)
+    if (h < 24) return `${h}h ago`
+    return `${Math.floor(h / 24)}d ago`
   }
 
   return (
@@ -136,7 +156,12 @@ export function SignalSourcesModal({ open, onClose }: Props) {
                         )
                       })()}
                     </div>
-                    <div className="text-[10px] text-text-muted leading-snug">{info.description}</div>
+                    <div className="text-[10px] text-text-muted leading-snug">
+                      {info.description}
+                    </div>
+                    <div className="text-[9px] text-text-muted/80 mt-0.5">
+                      Last fired {formatLastFired(lastFiredBySource.get(src))}
+                    </div>
                   </div>
                 </div>
                 <input
