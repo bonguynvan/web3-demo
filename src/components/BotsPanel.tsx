@@ -21,6 +21,22 @@ import type { BotConfig, BotStats, BotTrade } from '../bots/types'
 
 const STATS_TICK_MS = 5_000
 
+type BotSort = 'created' | 'pnl' | 'winrate' | 'trades'
+const SORT_KEY = 'tc-bots-sort-v1'
+const SORT_OPTIONS: { value: BotSort; label: string }[] = [
+  { value: 'created', label: 'Newest' },
+  { value: 'pnl', label: 'P&L' },
+  { value: 'winrate', label: 'Win rate' },
+  { value: 'trades', label: 'Trades' },
+]
+function loadSort(): BotSort {
+  try {
+    const raw = localStorage.getItem(SORT_KEY)
+    if (raw === 'pnl' || raw === 'winrate' || raw === 'trades' || raw === 'created') return raw
+    return 'created'
+  } catch { return 'created' }
+}
+
 export function BotsPanel() {
   const bots = useBotStore(s => s.bots)
   const trades = useBotStore(s => s.trades)
@@ -29,6 +45,28 @@ export function BotsPanel() {
   const renameBot = useBotStore(s => s.renameBot)
   const removeBot = useBotStore(s => s.removeBot)
   const anyEnabled = bots.some(b => b.enabled)
+
+  const [sortBy, setSortBy] = useState<BotSort>(() => loadSort())
+  const updateSort = (next: BotSort) => {
+    setSortBy(next)
+    try { localStorage.setItem(SORT_KEY, next) } catch { /* full */ }
+  }
+  const sortedBots = (() => {
+    if (sortBy === 'created') return [...bots].sort((a, b) => b.createdAt - a.createdAt)
+    const adapter = getActiveAdapter()
+    const statFor = (b: BotConfig) => computeStats(
+      trades.filter(t => t.botId === b.id),
+      marketId => adapter.getTicker(marketId)?.price,
+    )
+    return [...bots].sort((a, b) => {
+      const sa = statFor(a)
+      const sb = statFor(b)
+      if (sortBy === 'pnl') return sb.totalPnlUsd - sa.totalPnlUsd
+      if (sortBy === 'trades') return sb.total - sa.total
+      // winrate
+      return sb.winRate - sa.winRate
+    })
+  })()
   const [, force] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
@@ -60,6 +98,18 @@ export function BotsPanel() {
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-text-muted">{bots.length} configured</span>
+          {bots.length > 1 && (
+            <select
+              value={sortBy}
+              onChange={(e) => updateSort(e.target.value as BotSort)}
+              title="Sort bots"
+              className="text-[10px] bg-surface border border-border rounded px-1.5 py-0.5 text-text-secondary cursor-pointer focus:outline-none focus:border-accent"
+            >
+              {SORT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          )}
           {bots.length > 0 && (
             <button
               onClick={() => setAllEnabled(!anyEnabled)}
@@ -107,7 +157,7 @@ export function BotsPanel() {
         ) : (
           <>
             <PortfolioSummary bots={bots} trades={trades} />
-            {bots.map(bot => (
+            {sortedBots.map(bot => (
               <BotCard
                 key={bot.id}
                 bot={bot}
