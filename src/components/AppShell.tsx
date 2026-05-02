@@ -14,6 +14,7 @@ import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
+import { MarketPalette } from './MarketPalette'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
@@ -66,6 +67,7 @@ export function AppShell() {
 
         <ToastContainer />
         <OnboardingCard />
+        <MarketPalette />
       </div>
     </div>
   )
