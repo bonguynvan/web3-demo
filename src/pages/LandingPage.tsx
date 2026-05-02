@@ -127,7 +127,7 @@ export function LandingPage() {
           </div>
           <h2 className="text-2xl md:text-3xl font-bold">A trader's full workstation.</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <FeatureCard
             Icon={Activity}
             title="Multi-venue terminal"
@@ -135,18 +135,23 @@ export function LandingPage() {
           />
           <FeatureCard
             Icon={Zap}
-            title="Five signal sources + confluence"
-            body="Funding extremes, EMA crossovers, RSI, volatility spikes, whale flow. When two or more sources align on the same market, a confluence card surfaces the highest-confidence trade."
+            title="Eight signal sources + confluence"
+            body="Funding extremes, EMA crossovers, RSI, volatility spikes, whale flow, liquidation cascades, news, and on-chain whale wallets. When two or more sources align on the same market, a confluence card surfaces the highest-confidence trade."
+          />
+          <FeatureCard
+            Icon={BarChart3}
+            title="Hit-rate tracking"
+            body="Every signal is recorded at trigger and resolved 30 minutes later against actual price. See per-source win rate, direction skew (longs vs shorts), best/worst markets, and recent outcomes — so you know which sources to actually trust."
           />
           <FeatureCard
             Icon={Bot}
             title="Paper-trading bots"
-            body="Configure bots that auto-execute on matching signals. Portfolio dashboard with live unrealized PnL, win rate, top/worst bot, and equity-curve sparkline. Validate strategy before risking real capital."
+            body="Configure bots that auto-execute on matching signals. Portfolio dashboard with live unrealized PnL, equity sparkline, daily-cap badges, pause-all kill switch, and CSV export of the full trade ledger."
           />
           <FeatureCard
             Icon={Bell}
-            title="Browser + in-app alerts"
-            body="High-confidence signals ping you whether you're on the page or not. In-app notification bell keeps the full history. Toggle on or off per session."
+            title="Multi-channel alerts"
+            body="Browser notifications, in-app bell, optional sound ping for high-confidence fires, and Telegram bot integration for off-screen alerts. Per-source toggles and threshold sliders so you tune the noise."
           />
         </div>
       </section>
