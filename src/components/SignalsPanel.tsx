@@ -379,6 +379,17 @@ function SignalCard({
   const isConfluence = signal.source === 'confluence'
   const ageMs = Math.max(0, now - signal.triggeredAt)
   const isNew = ageMs < 60_000
+  const sourceDotClass: Record<string, string> = {
+    funding: 'bg-amber-400',
+    crossover: 'bg-sky-400',
+    rsi: 'bg-fuchsia-400',
+    volatility: 'bg-orange-400',
+    whale: 'bg-cyan-400',
+    liquidation: 'bg-rose-500',
+    news: 'bg-emerald-400',
+    confluence: 'bg-accent',
+  }
+  const dot = sourceDotClass[signal.source] ?? 'bg-text-muted'
 
   return (
     <div
@@ -438,7 +449,10 @@ function SignalCard({
             <span>·</span>
             <span>conf {Math.round(signal.confidence * 100)}%</span>
             <span>·</span>
-            <span className="capitalize">{signal.source}</span>
+            <span className="flex items-center gap-1">
+              <span className={cn('w-1.5 h-1.5 rounded-full', dot)} />
+              <span className="capitalize">{signal.source}</span>
+            </span>
             <span>·</span>
             <span className="tabular-nums">{formatAge(ageMs)}</span>
           </div>
