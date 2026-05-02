@@ -194,6 +194,8 @@ export function SignalSourcesModal({ open, onClose }: Props) {
             onChange={v => setThreshold('whaleMinSkew', v)}
           />
         </div>
+
+        <MarketsLeaderboard />
       </div>
 
       <div className="flex justify-end px-4 pb-4">
@@ -236,5 +238,65 @@ function Slider({
         className="w-full accent-accent"
       />
     </label>
+  )
+}
+
+function MarketsLeaderboard() {
+  const resolved = useSignalPerformanceStore(s => s.resolved)
+  if (resolved.length < 3) return null
+
+  const buckets = new Map<string, { total: number; hits: number }>()
+  for (const r of resolved) {
+    const b = buckets.get(r.marketId) ?? { total: 0, hits: 0 }
+    b.total += 1
+    if (r.hit) b.hits += 1
+    buckets.set(r.marketId, b)
+  }
+  const ranked = Array.from(buckets.entries())
+    .filter(([, b]) => b.total >= 2)
+    .map(([marketId, b]) => ({ marketId, total: b.total, rate: b.hits / b.total }))
+    .sort((a, b) => b.rate - a.rate)
+
+  if (ranked.length === 0) return null
+
+  const best = ranked.slice(0, 3)
+  const worst = ranked.slice(-3).reverse().filter(w => !best.some(b => b.marketId === w.marketId))
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <div className="text-xs font-medium text-text-primary mb-1">Markets leaderboard</div>
+      <div className="text-[10px] text-text-muted mb-2">
+        Where signals have actually been right (≥2 resolutions per market).
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <LeaderboardColumn title="Best" entries={best} tone="long" />
+        {worst.length > 0 && <LeaderboardColumn title="Worst" entries={worst} tone="short" />}
+      </div>
+    </div>
+  )
+}
+
+function LeaderboardColumn({
+  title, entries, tone,
+}: {
+  title: string
+  entries: { marketId: string; total: number; rate: number }[]
+  tone: 'long' | 'short'
+}) {
+  const accent = tone === 'long' ? 'text-long' : 'text-short'
+  return (
+    <div>
+      <div className={cn('text-[10px] uppercase tracking-wider mb-1', accent)}>{title}</div>
+      <div className="space-y-1">
+        {entries.map(e => (
+          <div key={e.marketId} className="flex items-center justify-between gap-2 text-[11px] bg-surface/60 rounded px-2 py-1">
+            <span className="font-mono text-text-primary truncate">{e.marketId}</span>
+            <span className={cn('font-mono tabular-nums shrink-0', accent)}>
+              {Math.round(e.rate * 100)}% · {e.total}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
