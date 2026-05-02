@@ -593,7 +593,7 @@ function PortfolioSummary({ bots, trades }: { bots: BotConfig[]; trades: BotTrad
   const enabledCount = bots.filter(b => b.enabled).length
 
   return (
-    <div className="border-b border-border bg-surface/30 px-3 py-3">
+    <div className="sticky top-0 z-10 border-b border-border bg-surface/95 backdrop-blur px-3 py-3">
       <div className="flex items-end justify-between mb-2">
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wider">Portfolio P&L</div>
