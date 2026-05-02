@@ -484,28 +484,65 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
   const livePnl = trade.pnlUsd ?? sign * (liveMark - trade.entryPrice) * trade.size
   const pnlColor = livePnl >= 0 ? 'text-long' : 'text-short'
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
-  const focusMarket = () => setSelectedMarket(trade.marketId)
+  const [expanded, setExpanded] = useState(false)
+
+  const movePct = ((liveMark - trade.entryPrice) / trade.entryPrice) * 100
+  const holdMs = (trade.closedAt ?? Date.now()) - trade.openedAt
+  const holdMin = Math.max(1, Math.round(holdMs / 60_000))
+  const sourceFromSignal = trade.signalId.split(':')[0] || 'unknown'
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={focusMarket}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusMarket() } }}
-      title={`Focus ${trade.marketId} on the chart`}
-      className="flex items-center gap-2 px-3 py-1.5 text-[10px] border-b border-border/40 last:border-b-0 hover:bg-panel-light transition-colors cursor-pointer">
-      <span className={cn(
-        'font-semibold uppercase tracking-wider',
-        trade.direction === 'long' ? 'text-long' : 'text-short',
-      )}>
-        {trade.direction[0]}
-      </span>
-      <span className="font-mono text-text-secondary truncate flex-1">{trade.marketId}</span>
-      <span className="font-mono text-text-muted">${formatUsd(trade.entryPrice)}</span>
-      <span className={cn('font-mono w-16 text-right', pnlColor)}>
-        {livePnl >= 0 ? '+' : ''}${formatUsd(livePnl)}
-      </span>
-      <span className="text-text-muted w-8 text-right">{isOpen ? 'open' : 'closed'}</span>
+    <div className="border-b border-border/40 last:border-b-0">
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] hover:bg-panel-light transition-colors">
+        <button
+          onClick={() => setExpanded(e => !e)}
+          title={expanded ? 'Hide details' : 'Show details'}
+          className="shrink-0 w-4 h-4 flex items-center justify-center text-text-muted hover:text-text-primary cursor-pointer"
+        >
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+        <button
+          onClick={() => setSelectedMarket(trade.marketId)}
+          title={`Focus ${trade.marketId} on the chart`}
+          className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer text-left"
+        >
+          <span className={cn(
+            'font-semibold uppercase tracking-wider',
+            trade.direction === 'long' ? 'text-long' : 'text-short',
+          )}>
+            {trade.direction[0]}
+          </span>
+          <span className="font-mono text-text-secondary truncate flex-1">{trade.marketId}</span>
+          <span className="font-mono text-text-muted">${formatUsd(trade.entryPrice)}</span>
+          <span className={cn('font-mono w-16 text-right', pnlColor)}>
+            {livePnl >= 0 ? '+' : ''}${formatUsd(livePnl)}
+          </span>
+          <span className="text-text-muted w-8 text-right">{isOpen ? 'open' : 'closed'}</span>
+        </button>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-2 pt-1 bg-surface/40 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">
+          <DetailLine label="Source" value={sourceFromSignal} />
+          <DetailLine label="Hold" value={`${holdMin}m`} />
+          <DetailLine label="Size" value={`${trade.size.toFixed(6)} (${formatUsd(trade.positionUsd)} USD)`} />
+          <DetailLine label="Mark" value={`$${formatUsd(liveMark)}`} />
+          <DetailLine
+            label="Move"
+            value={`${movePct >= 0 ? '+' : ''}${movePct.toFixed(2)}%`}
+            valueClass={movePct >= 0 ? 'text-long' : 'text-short'}
+          />
+          <DetailLine label="Opened" value={new Date(trade.openedAt).toLocaleTimeString()} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailLine({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 truncate">
+      <span className="text-text-muted">{label}</span>
+      <span className={cn('font-mono tabular-nums truncate', valueClass ?? 'text-text-secondary')}>{value}</span>
     </div>
   )
 }
