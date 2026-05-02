@@ -9,8 +9,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
-import { Search } from 'lucide-react'
+import { Search, Clock } from 'lucide-react'
 import { cn } from '../lib/format'
+
+const RECENT_KEY = 'tc-recent-markets-v1'
+const RECENT_MAX = 5
+
+function loadRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x): x is string => typeof x === 'string').slice(0, RECENT_MAX)
+  } catch { return [] }
+}
+
+function pushRecent(symbol: string): string[] {
+  const cur = loadRecent().filter(s => s !== symbol)
+  const next = [symbol, ...cur].slice(0, RECENT_MAX)
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* full */ }
+  return next
+}
 
 export function MarketPalette() {
   const markets = useTradingStore(s => s.markets)
@@ -20,6 +40,7 @@ export function MarketPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
+  const [recent, setRecent] = useState<string[]>(() => loadRecent())
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -55,6 +76,7 @@ export function MarketPalette() {
 
   const select = (symbol: string) => {
     setSelectedMarket(symbol)
+    setRecent(pushRecent(symbol))
     setOpen(false)
   }
 
@@ -96,6 +118,30 @@ export function MarketPalette() {
           </span>
         </div>
         <div className="max-h-80 overflow-y-auto">
+          {query.trim() === '' && recent.length > 0 && (
+            <>
+              <div className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Recent
+              </div>
+              {recent
+                .map(sym => markets.find(m => m.symbol === sym))
+                .filter((m): m is typeof markets[number] => Boolean(m))
+                .map(m => (
+                  <button
+                    key={`recent-${m.symbol}`}
+                    onClick={() => select(m.symbol)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left text-xs cursor-pointer text-text-secondary hover:bg-panel-light transition-colors"
+                  >
+                    <span className="font-mono">{m.symbol}</span>
+                    <span className="text-text-muted">{m.baseAsset}</span>
+                  </button>
+                ))}
+              <div className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted border-t border-border">
+                All markets
+              </div>
+            </>
+          )}
           {filtered.length === 0 ? (
             <div className="px-3 py-4 text-xs text-text-muted text-center">No markets match</div>
           ) : filtered.map((m, i) => (
