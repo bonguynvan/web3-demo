@@ -206,6 +206,20 @@ function BotCard({
               {' · '}min conf {Math.round(bot.minConfidence * 100)}%
               {' · '}${bot.positionSizeUsd}/trade
               {' · '}{bot.holdMinutes}m hold
+              {(() => {
+                const startOfToday = new Date()
+                startOfToday.setHours(0, 0, 0, 0)
+                const todayCount = trades.filter(t => t.openedAt >= startOfToday.getTime()).length
+                const atCap = todayCount >= bot.maxTradesPerDay
+                return (
+                  <>
+                    {' · '}
+                    <span className={cn(atCap && 'text-short font-medium')}>
+                      today {todayCount}/{bot.maxTradesPerDay}
+                    </span>
+                  </>
+                )
+              })()}
             </div>
           </div>
           <button
