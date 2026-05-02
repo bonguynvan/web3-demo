@@ -12,12 +12,13 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Trash2, RotateCcw, Sun, Moon, AlertTriangle, Globe } from 'lucide-react'
+import { Trash2, RotateCcw, Sun, Moon, AlertTriangle, Globe, Download, Upload } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useSettingsStore } from '../store/settingsStore'
 import { useThemeStore } from '../store/themeStore'
 import { resetDemoAccount, clearClientStateStorage } from '../lib/demoData'
 import { clearStoredLayout } from '../lib/chartLayout'
+import { downloadBackup, importBackup } from '../lib/userBackup'
 import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
 
@@ -121,6 +122,46 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               </span>
             </div>
           )}
+        </Section>
+
+        {/* Backup */}
+        <Section
+          title="Backup"
+          subtitle="Migrate bots, signal settings, thresholds, and performance history across browsers."
+        >
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                downloadBackup()
+                toast.success('Backup downloaded', 'Save the file somewhere safe')
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export backup
+            </button>
+            <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer">
+              <Upload className="w-3.5 h-3.5" />
+              Import backup
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const text = await file.text()
+                  const result = importBackup(text)
+                  if (result.ok) {
+                    toast.success('Backup imported', `${result.imported ?? 0} keys restored — reload to apply`)
+                  } else {
+                    toast.error('Import failed', result.error ?? 'Unknown error')
+                  }
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
         </Section>
 
         {/* Reset */}
