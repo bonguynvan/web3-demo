@@ -13,6 +13,9 @@ import type { Signal, SignalDirection, SignalSource } from '../signals/types'
 const STORAGE_KEY = 'tc-signal-performance-v1'
 export const RESOLVE_AFTER_MS = 30 * 60_000
 const MAX_RESOLVED = 200
+// Defensive cap. Normal flow keeps pending well under 100; this guards
+// against a bug or stalled resolver where entries accumulate forever.
+const MAX_PENDING = 500
 
 export interface PendingEntry {
   id: string
@@ -82,7 +85,11 @@ export const useSignalPerformanceStore = create<PerformanceStore>((set, get) => 
       triggeredAt: s.triggeredAt,
       resolveAt: s.triggeredAt + RESOLVE_AFTER_MS,
     }
-    const next = { ...state, pending: [...state.pending, entry] }
+    const merged = [...state.pending, entry]
+    const trimmed = merged.length > MAX_PENDING
+      ? merged.slice(merged.length - MAX_PENDING)
+      : merged
+    const next = { ...state, pending: trimmed }
     persist(next)
     return next
   }),
