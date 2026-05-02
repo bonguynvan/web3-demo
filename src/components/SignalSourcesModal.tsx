@@ -197,6 +197,7 @@ export function SignalSourcesModal({ open, onClose }: Props) {
 
         <DirectionStats />
         <MarketsLeaderboard />
+        <RecentOutcomes />
       </div>
 
       <div className="flex justify-end px-4 pb-4">
@@ -293,6 +294,54 @@ function DirectionStats() {
             {Math.round(shortRate * 100)}% <span className="text-text-muted">· {shortTotal}</span>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function RecentOutcomes() {
+  const resolved = useSignalPerformanceStore(s => s.resolved)
+  if (resolved.length === 0) return null
+
+  const recent = [...resolved].sort((a, b) => b.closedAt - a.closedAt).slice(0, 5)
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <div className="text-xs font-medium text-text-primary mb-2">Recent outcomes</div>
+      <div className="space-y-1">
+        {recent.map(r => {
+          const movePct = ((r.closePrice - r.entryPrice) / r.entryPrice) * 100
+          const dirArrow = r.direction === 'long' ? '↑' : '↓'
+          return (
+            <div
+              key={r.id}
+              className="flex items-center gap-2 text-[11px] bg-surface/60 rounded px-2 py-1.5"
+            >
+              <span className={cn(
+                'shrink-0 w-5 text-center font-bold',
+                r.hit ? 'text-long' : 'text-short',
+              )}>
+                {r.hit ? '✓' : '✗'}
+              </span>
+              <span className="font-mono text-text-primary truncate flex-1">{r.marketId}</span>
+              <span className={cn(
+                'font-mono shrink-0',
+                r.direction === 'long' ? 'text-long' : 'text-short',
+              )}>
+                {dirArrow}
+              </span>
+              <span className="text-[10px] text-text-muted capitalize shrink-0 w-16 truncate text-right">
+                {r.source}
+              </span>
+              <span className={cn(
+                'font-mono tabular-nums shrink-0 w-14 text-right',
+                movePct >= 0 ? 'text-long' : 'text-short',
+              )}>
+                {movePct >= 0 ? '+' : ''}{movePct.toFixed(2)}%
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
