@@ -373,7 +373,7 @@ function BotCard({
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="grid grid-cols-4 gap-2 mt-2">
           <Stat label="Total" value={`${stats.total}`} />
           <Stat label="Win rate" value={
             stats.closed > 0 ? `${Math.round(stats.winRate * 100)}%` : '—'
@@ -382,6 +382,15 @@ function BotCard({
             label="P&L"
             value={`${stats.totalPnlUsd >= 0 ? '+' : ''}$${formatUsd(stats.totalPnlUsd)}`}
             valueClass={pnlColor}
+          />
+          <Stat
+            label="Open"
+            value={stats.open > 0
+              ? `${stats.unrealizedPnlUsd >= 0 ? '+' : ''}$${formatUsd(stats.unrealizedPnlUsd)}`
+              : '—'}
+            valueClass={stats.open > 0
+              ? (stats.unrealizedPnlUsd >= 0 ? 'text-long' : 'text-short')
+              : undefined}
           />
         </div>
 
