@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
+import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { BotConfigForm } from './BotConfigForm'
@@ -266,9 +267,17 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
   const sign = trade.direction === 'long' ? 1 : -1
   const livePnl = trade.pnlUsd ?? sign * (liveMark - trade.entryPrice) * trade.size
   const pnlColor = livePnl >= 0 ? 'text-long' : 'text-short'
+  const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
+  const focusMarket = () => setSelectedMarket(trade.marketId)
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] border-b border-border/40 last:border-b-0">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={focusMarket}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusMarket() } }}
+      title={`Focus ${trade.marketId} on the chart`}
+      className="flex items-center gap-2 px-3 py-1.5 text-[10px] border-b border-border/40 last:border-b-0 hover:bg-panel-light transition-colors cursor-pointer">
       <span className={cn(
         'font-semibold uppercase tracking-wider',
         trade.direction === 'long' ? 'text-long' : 'text-short',
