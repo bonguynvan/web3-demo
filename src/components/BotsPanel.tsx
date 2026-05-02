@@ -507,9 +507,26 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
   const holdMin = Math.max(1, Math.round(holdMs / 60_000))
   const sourceFromSignal = trade.signalId.split(':')[0] || 'unknown'
 
+  // Tint row background by PnL magnitude. Position size ~$50–$200, so a
+  // $1 move on a 10x position is small. Saturate at ±10% of position USD.
+  const ratio = Math.max(-1, Math.min(1, livePnl / Math.max(1, trade.positionUsd * 0.1)))
+  const tint = ratio === 0
+    ? ''
+    : ratio > 0
+      ? `bg-long/[${(0.04 + Math.abs(ratio) * 0.10).toFixed(3)}]`
+      : `bg-short/[${(0.04 + Math.abs(ratio) * 0.10).toFixed(3)}]`
+  // Tailwind JIT cannot detect dynamic arbitrary opacity; fall back to
+  // discrete buckets so the class actually exists at build time.
+  const tintBucket = ratio === 0
+    ? ''
+    : ratio > 0
+      ? Math.abs(ratio) > 0.5 ? 'bg-long/15' : 'bg-long/5'
+      : Math.abs(ratio) > 0.5 ? 'bg-short/15' : 'bg-short/5'
+  void tint
+
   return (
     <div className="border-b border-border/40 last:border-b-0">
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] hover:bg-panel-light transition-colors">
+      <div className={cn('flex items-center gap-2 px-3 py-1.5 text-[10px] hover:bg-panel-light transition-colors', tintBucket)}>
         <button
           onClick={() => setExpanded(e => !e)}
           title={expanded ? 'Hide details' : 'Show details'}
