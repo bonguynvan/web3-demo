@@ -195,6 +195,7 @@ export function SignalSourcesModal({ open, onClose }: Props) {
           />
         </div>
 
+        <DirectionStats />
         <MarketsLeaderboard />
       </div>
 
@@ -238,6 +239,62 @@ function Slider({
         className="w-full accent-accent"
       />
     </label>
+  )
+}
+
+function DirectionStats() {
+  const resolved = useSignalPerformanceStore(s => s.resolved)
+  if (resolved.length < 4) return null
+
+  let longTotal = 0, longHits = 0, shortTotal = 0, shortHits = 0
+  for (const r of resolved) {
+    if (r.direction === 'long') {
+      longTotal += 1
+      if (r.hit) longHits += 1
+    } else {
+      shortTotal += 1
+      if (r.hit) shortHits += 1
+    }
+  }
+  if (longTotal < 2 || shortTotal < 2) return null
+
+  const longRate = longHits / longTotal
+  const shortRate = shortHits / shortTotal
+  const skew = longRate - shortRate
+  const regime = Math.abs(skew) < 0.1
+    ? 'balanced'
+    : skew > 0
+      ? 'longs winning'
+      : 'shorts winning'
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-medium text-text-primary">Direction skew</div>
+        <span className={cn(
+          'text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded',
+          Math.abs(skew) < 0.1 ? 'bg-surface text-text-muted'
+            : skew > 0 ? 'bg-long/15 text-long'
+              : 'bg-short/15 text-short',
+        )}>
+          {regime}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-[11px]">
+        <div className="bg-surface/60 rounded px-2 py-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-long mb-0.5">Long</div>
+          <div className="font-mono tabular-nums text-text-primary">
+            {Math.round(longRate * 100)}% <span className="text-text-muted">· {longTotal}</span>
+          </div>
+        </div>
+        <div className="bg-surface/60 rounded px-2 py-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-short mb-0.5">Short</div>
+          <div className="font-mono tabular-nums text-text-primary">
+            {Math.round(shortRate * 100)}% <span className="text-text-muted">· {shortTotal}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
