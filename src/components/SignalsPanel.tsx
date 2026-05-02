@@ -9,7 +9,7 @@
  * come (liquidations, news, whales).
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTradingStore } from '../store/tradingStore'
 import { useSignals } from '../hooks/useSignals'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
@@ -110,17 +110,19 @@ export function SignalsPanel() {
     setSoloSource(next)
     try { localStorage.setItem(SOLO_KEY, next) } catch { /* full */ }
   }
-  const signalsRaw = allSignals.filter(s =>
-    !dismissedIds.has(s.id)
-    && s.confidence >= minConf
-    && (soloSource === '' || s.source === soloSource)
-  )
-  // Pinned signals float to top regardless of sort
-  const signals = [
-    ...signalsRaw.filter(s => pinned.has(s.id)),
-    ...signalsRaw.filter(s => !pinned.has(s.id)),
-  ]
-  const filteredOut = allSignals.length - signalsRaw.length
+  const { signals, filteredOut } = useMemo(() => {
+    const raw = allSignals.filter(s =>
+      !dismissedIds.has(s.id)
+      && s.confidence >= minConf
+      && (soloSource === '' || s.source === soloSource)
+    )
+    // Pinned signals float to top regardless of sort
+    const sorted = [
+      ...raw.filter(s => pinned.has(s.id)),
+      ...raw.filter(s => !pinned.has(s.id)),
+    ]
+    return { signals: sorted, filteredOut: allSignals.length - raw.length }
+  }, [allSignals, minConf, soloSource, pinned])
   const dismiss = (id: string) => {
     dismissedIds.add(id)
     window.dispatchEvent(new Event(DISMISS_EVENT))
