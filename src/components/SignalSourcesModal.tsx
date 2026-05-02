@@ -195,6 +195,7 @@ export function SignalSourcesModal({ open, onClose }: Props) {
           />
         </div>
 
+        <PerformanceEmptyState />
         <DirectionStats />
         <MarketsLeaderboard />
         <RecentOutcomes />
@@ -294,6 +295,23 @@ function DirectionStats() {
             {Math.round(shortRate * 100)}% <span className="text-text-muted">· {shortTotal}</span>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function PerformanceEmptyState() {
+  const pending = useSignalPerformanceStore(s => s.pending.length)
+  const resolved = useSignalPerformanceStore(s => s.resolved.length)
+  if (resolved > 0) return null
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <div className="text-xs font-medium text-text-primary mb-1">Performance stats</div>
+      <div className="text-[11px] text-text-muted leading-relaxed">
+        {pending === 0
+          ? 'Once signals start firing, hit-rate stats and a market leaderboard appear here. Each fired signal resolves 30 minutes later against actual price movement.'
+          : `${pending} signal${pending === 1 ? '' : 's'} pending — first stats appear in ~30 minutes once they resolve against current price.`}
       </div>
     </div>
   )
