@@ -13,6 +13,7 @@ import { useEffect, useRef } from 'react'
 import { useSignals } from './useSignals'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
+import { useToast } from '../store/toastStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import type { Signal } from '../signals/types'
 
@@ -27,9 +28,13 @@ export function useBotEngine(): void {
   const recordTrade = useBotStore(s => s.recordTrade)
   const closeTrade = useBotStore(s => s.closeTrade)
 
+  const toast = useToast()
   // Track signals already acted on per bot to avoid duplicates if the
   // signal feed re-emits the same id across recompute cycles.
   const actedRef = useRef<Set<string>>(new Set())
+  // Bots that have already had a daily-cap toast fired today (resets on
+  // each fresh midnight tick because last24h naturally drops).
+  const cappedNotifiedRef = useRef<Set<string>>(new Set())
 
   // ─── Open trades on matching signals ───────────────────────────────
   useEffect(() => {
@@ -39,7 +44,15 @@ export function useBotEngine(): void {
 
       const dayAgo = Date.now() - 24 * 60 * 60 * 1000
       const last24h = trades.filter(t => t.botId === bot.id && t.openedAt >= dayAgo).length
-      if (last24h >= bot.maxTradesPerDay) continue
+      if (last24h >= bot.maxTradesPerDay) {
+        if (!cappedNotifiedRef.current.has(bot.id)) {
+          cappedNotifiedRef.current.add(bot.id)
+          toast.warning(`${bot.name} hit daily cap`, `${last24h}/${bot.maxTradesPerDay} trades — paused until trades age out`)
+        }
+        continue
+      } else {
+        cappedNotifiedRef.current.delete(bot.id)
+      }
 
       for (const s of signals) {
         if (!matches(bot, s)) continue
