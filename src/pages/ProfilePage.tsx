@@ -28,6 +28,7 @@ import { vaultExists, clear as clearVault } from '../lib/credentialsVault'
 import { useToast } from '../store/toastStore'
 import { useBotStore } from '../store/botStore'
 import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
+import { useHyperliquidConnect } from '../hooks/useHyperliquidConnect'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { getAdapter } from '../adapters/registry'
 import { cn } from '../lib/format'
@@ -40,6 +41,7 @@ export function ProfilePage() {
   const adapters = listAdapters()
   const toast = useToast()
   const setAllEnabled = useBotStore(s => s.setAllEnabled)
+  const hyperliquid = useHyperliquidConnect()
   const { states: venueOpenOrders, refresh: refreshOpenOrders } = useVenueOpenOrders()
   const liveOpenOrdersAll = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
@@ -153,6 +155,7 @@ export function ProfilePage() {
                 venueId={adapter.id}
                 isActive={adapter.id === activeVenue}
                 onConnect={() => setConnectVenue(adapter.id)}
+                onWalletConnect={adapter.id === 'hyperliquid' ? () => { void hyperliquid.connect() } : undefined}
                 onTest={async () => {
                   const a = getAdapter(adapter.id)
                   if (!a || !('getAccountSnapshot' in a)) {
@@ -335,12 +338,13 @@ const VENUE_DOCS: Record<string, { keyUrl?: string; docsUrl?: string }> = {
 }
 
 function VenueCard({
-  venueId, isActive, onConnect, onTest,
+  venueId, isActive, onConnect, onTest, onWalletConnect,
 }: {
   venueId: string
   isActive: boolean
   onConnect: () => void
   onTest: () => void | Promise<void>
+  onWalletConnect?: () => void
 }) {
   const isPerp = venueId === 'hyperliquid'
   const auth = isPerp ? 'Wallet (EIP-712 signing)' : 'API key + secret (HMAC)'
@@ -412,19 +416,32 @@ function VenueCard({
 
       <div className="flex gap-2">
         <button
-          onClick={onConnect}
-          disabled={isPerp}
+          onClick={() => {
+            if (isPerp) {
+              onWalletConnect?.()
+            } else {
+              onConnect()
+            }
+          }}
+          disabled={isPerp && !onWalletConnect}
           className={cn(
             'flex-1 py-2 text-xs font-semibold rounded-md transition-colors',
-            isPerp
+            isPerp && !onWalletConnect
               ? 'bg-surface border border-border text-text-muted cursor-not-allowed'
               : isConnected
                 ? 'bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer'
                 : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
           )}
-          title={isPerp ? 'Wallet connect coming soon (uses wagmi)' : isConnected ? 'Replace credentials' : 'Open connection form'}
+          title={
+            isPerp && !onWalletConnect ? 'Wallet connect coming soon'
+              : isPerp ? 'Connect wallet via wagmi for EIP-712 signing'
+              : isConnected ? 'Replace credentials'
+              : 'Open connection form'
+          }
         >
-          {isPerp ? 'Wallet connect (soon)' : isConnected ? 'Replace key' : 'Connect API key'}
+          {isPerp
+            ? (onWalletConnect ? 'Connect wallet' : 'Wallet connect (soon)')
+            : (isConnected ? 'Replace key' : 'Connect API key')}
         </button>
         {isConnected && (
           <button
