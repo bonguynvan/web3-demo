@@ -10,9 +10,10 @@
  * Empty markets → no fetches.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { listAdapters } from '../adapters/registry'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { useToast } from '../store/toastStore'
 import type { Fill, VenueId } from '../adapters/types'
 
 export interface FillEntry {
@@ -36,12 +37,17 @@ interface AdapterWithFills {
 
 export function useVenueFills(marketIds: string[], limit = 10): VenueFillsResult {
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
+  const toast = useToast()
   const key = marketIds.slice().sort().join(',')
   const [state, setState] = useState<VenueFillsResult>({ entries: [], loading: false, fetchedAt: null })
+  // Track fill ids we've already seen so we only toast on genuinely new
+  // ones. Reset when sessionUnlocked flips so a re-unlock doesn't re-toast.
+  const seenRef = useRef<Set<string> | null>(null)
 
   useEffect(() => {
     if (!sessionUnlocked || marketIds.length === 0) {
       setState({ entries: [], loading: false, fetchedAt: null })
+      seenRef.current = null
       return
     }
     let cancelled = false
@@ -66,7 +72,26 @@ export function useVenueFills(marketIds: string[], limit = 10): VenueFillsResult
       }
       if (cancelled) return
       collected.sort((a, b) => b.fill.timestamp - a.fill.timestamp)
-      setState({ entries: collected.slice(0, 50), loading: false, fetchedAt: Date.now() })
+      const final = collected.slice(0, 50)
+
+      // Toast only on genuinely new fills. The first cycle just seeds the
+      // seen set so we don't spam users with their entire history.
+      if (seenRef.current === null) {
+        seenRef.current = new Set(final.map(e => `${e.venueId}:${e.fill.id}`))
+      } else {
+        for (const e of final) {
+          const key = `${e.venueId}:${e.fill.id}`
+          if (!seenRef.current.has(key)) {
+            seenRef.current.add(key)
+            toast.success(
+              `${e.venueId} fill: ${e.fill.marketId} ${e.fill.side}`,
+              `${e.fill.size} @ $${e.fill.price.toFixed(2)}`,
+            )
+          }
+        }
+      }
+
+      setState({ entries: final, loading: false, fetchedAt: Date.now() })
     }
 
     fetchAll()
