@@ -86,16 +86,28 @@ export function StrategyLibraryPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {visible.map(s => (
-            <StrategyCard
-              key={s.id}
-              strategy={s}
-              installed={installed.has(s.id)}
-              onInstall={() => install(s)}
-            />
-          ))}
-        </div>
+        {visible.length === 0 ? (
+          <div className="bg-panel/40 border border-border rounded-lg p-8 text-center">
+            <div className="text-sm text-text-secondary mb-1">No strategies match "{filterTag}"</div>
+            <button
+              onClick={() => setFilterTag('')}
+              className="text-xs text-accent hover:underline cursor-pointer"
+            >
+              Clear filter
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visible.map(s => (
+              <StrategyCard
+                key={s.id}
+                strategy={s}
+                installed={installed.has(s.id)}
+                onInstall={() => install(s)}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="mt-10 p-4 bg-panel/60 border border-border rounded-lg text-[11px] text-text-muted leading-relaxed">
           Want to publish your own strategy? Export your bot from the Bots panel — the same
