@@ -178,9 +178,38 @@ the upcoming social marketplace surface.
 
 - **Cmd/Ctrl+K** — venue-agnostic market quick-jump palette with fuzzy
   search and arrow-key navigation
+- **Cmd/Ctrl+L** — open the live-order modal pre-filled with the active
+  market (vault must be unlocked)
+- **?** — keyboard shortcut reference
 - **Settings → Backup** — export/import all user state (bots, signal
   settings, thresholds, performance history) as a single JSON for
   cross-browser migration
+
+## Live trading
+
+Authenticated venue trading is wired end-to-end for Binance:
+
+- **Encrypted credentials vault** — API keys are stored client-side only,
+  encrypted with a user passphrase via AES-GCM + PBKDF2-SHA256 (600k iterations).
+  No server custody. Vault auto-pushes creds into adapters on unlock.
+- **Live balances + equity** — `Portfolio` shows real balances, USD-priced
+  crypto holdings, "live equity" hero, and per-venue trading-scope badges.
+- **Live open orders + cancel** — view open orders signed-fetched via
+  `/api/v3/openOrders`; cancel any with one click.
+- **Live fills history + toasts** — `/api/v3/myTrades` per active market;
+  new fills toast in real time so you know when a bot order filled.
+- **Place limit order** — `PlaceOrderModal` with market dropdown, price
+  pre-fill from ticker, % of cash quick-size buttons, notional warning
+  if > 50% of free USDT, confirm step. Limit-only by design.
+- **Bot live mode** — flip a paper bot to `live` from its mode badge.
+  Confirm dialog shows max daily exposure ($pos × cap). Engine routes
+  trades through `adapter.placeOrder` with hard guardrails (vault
+  unlocked, key authed, trading scope). Cancel-live-trade button on
+  each open trade. Engine cancels unfilled orders at hold expiry.
+- **Activity feed** — chronological view of paper trades + venue fills +
+  resolved signals on Portfolio.
+- **Status banners** — amber "Vault locked" CTA and green "Live trading
+  active" indicator across the app.
 
 ---
 
@@ -205,6 +234,8 @@ for step-by-step:
 - ✅ Phase S2 — hit-rate tracking, market leaderboard, CSV export
 - ✅ Phase B1 — paper-trading bot framework with risk metrics
 - ✅ Phase M1 — strategy library (curated marketplace MVP)
+- ✅ Phase 2e — Binance authenticated trading (place / cancel / view via signed REST)
+- ✅ Phase B3 — bot live mode with hard guardrails
 - ⏳ Phase 2d — wallet-signed live trading via Hyperliquid (testnet validation pending)
 - 🔜 Phase B2 — server-backed bots ("set it and forget it" mode)
 - 🔜 Phase 2e — CEX authenticated trading via server-side key proxy
