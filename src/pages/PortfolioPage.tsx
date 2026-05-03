@@ -20,6 +20,10 @@ import { useActiveVenue } from '../hooks/useActiveVenue'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { useVenueBalances, type VenueBalanceState } from '../hooks/useVenueBalances'
 import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
+import { getAdapter } from '../adapters/registry'
+import { useToast } from '../store/toastStore'
+import { X } from 'lucide-react'
+import type { VenueId } from '../adapters/types'
 import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
 import type { BotTrade } from '../bots/types'
@@ -33,7 +37,25 @@ export function PortfolioPage() {
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const adapters = listAdapters()
   const { states: venueBalances, refresh: refreshBalances } = useVenueBalances()
-  const { states: venueOpenOrders } = useVenueOpenOrders()
+  const { states: venueOpenOrders, refresh: refreshOpenOrders } = useVenueOpenOrders()
+  const toast = useToast()
+  const cancelOrder = async (venueId: string, marketId: string, orderId: string) => {
+    if (!confirm(`Cancel ${marketId} order ${orderId} on ${venueId}? This is a real venue action.`)) return
+    const a = getAdapter(venueId as VenueId)
+    if (!a) {
+      toast.error('Cancel failed', `Adapter ${venueId} not found`)
+      return
+    }
+    try {
+      await a.cancelOrder({ marketId, orderId })
+      toast.success('Order canceled', `${marketId} ${orderId}`)
+      refreshOpenOrders()
+      refreshBalances()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast.error('Cancel failed', msg)
+    }
+  }
   const liveOpenOrders = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
 
@@ -270,8 +292,15 @@ export function PortfolioPage() {
                     ? `${((order.filledSize / order.size) * 100).toFixed(0)}%`
                     : '—',
                   new Date(order.createdAt).toLocaleString(),
+                  <button
+                    onClick={() => cancelOrder(venueId, order.marketId, order.id)}
+                    title="Cancel this order"
+                    className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>,
                 ])}
-                columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Created']}
+                columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Created', '']}
               />
             </div>
           </div>

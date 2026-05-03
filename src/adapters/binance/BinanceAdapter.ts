@@ -424,8 +424,23 @@ export class BinanceAdapter implements VenueAdapter {
   subscribeOrders(_cb: (o: Order) => void): Unsubscribe { return () => {} }
   subscribeFills(_cb: (f: Fill) => void): Unsubscribe { return () => {} }
   async placeOrder(_intent: PlaceOrderIntent): Promise<Order> { throw notImplemented('placeOrder') }
-  async cancelOrder(_args: { marketId: string; orderId: string }): Promise<void> {
-    throw notImplemented('cancelOrder')
+  async cancelOrder(args: { marketId: string; orderId: string }): Promise<void> {
+    if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
+    if (this.creds.readOnly) throw new Error('Cannot cancel: API key is read-only')
+    const m = this.markets.find(mk => mk.id === args.marketId)
+    if (!m?.venueSymbol) throw new Error(`Unknown market: ${args.marketId}`)
+    const query = await buildSignedQuery(this.creds.apiSecret, {
+      symbol: m.venueSymbol,
+      orderId: args.orderId,
+    })
+    const res = await fetch(`${REST_BASE}/api/v3/order?${query}`, {
+      method: 'DELETE',
+      headers: { 'X-MBX-APIKEY': this.creds.apiKey },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Binance cancelOrder failed: ${res.status} ${body}`)
+    }
   }
   async cancelAllOrders(_marketId?: string): Promise<void> { throw notImplemented('cancelAllOrders') }
   async setLeverage(_args: { marketId: string; leverage: number }): Promise<void> {
