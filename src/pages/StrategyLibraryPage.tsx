@@ -11,6 +11,7 @@ import { BookOpen, Plus, Check, Search } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
+import { setActiveVenue } from '../adapters/registry'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
 import { cn } from '../lib/format'
 import { Modal } from '../components/ui/Modal'
@@ -377,12 +378,16 @@ function StrategyCard({
               </span>
             )}
             {incompatible && (
-              <span
-                title={`This strategy needs perp markets. Active venue (${activeVenueId}) has no perp data — switch venue to use it.`}
-                className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-short/15 text-short"
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActiveVenue('hyperliquid')
+                }}
+                title={`This strategy needs perp markets. Active venue (${activeVenueId}) has no perp data. Click to switch to Hyperliquid.`}
+                className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-short/15 text-short hover:bg-short/25 cursor-pointer transition-colors"
               >
-                Incompatible
-              </span>
+                Switch venue
+              </button>
             )}
           </div>
           <div className="text-[11px] text-text-muted">
