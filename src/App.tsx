@@ -19,10 +19,10 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/library" element={<StrategyLibraryPage />} />
         <Route element={<AppShell />}>
           <Route path="/trade" element={<TradePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/library" element={<StrategyLibraryPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

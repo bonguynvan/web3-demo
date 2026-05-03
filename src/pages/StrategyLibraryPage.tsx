@@ -7,8 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, Plus, Check } from 'lucide-react'
+import { BookOpen, Plus, Check } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
@@ -42,22 +41,12 @@ export function StrategyLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-text-primary">
-      <header className="flex items-center justify-between px-6 md:px-10 py-5 border-b border-border">
-        <div className="flex items-center gap-2">
+    <div className="h-full overflow-y-auto bg-surface text-text-primary">
+      <section className="max-w-5xl mx-auto px-6 md:px-10 py-8">
+        <div className="flex items-center gap-2 mb-6">
           <BookOpen className="w-5 h-5 text-accent" />
           <span className="text-base font-semibold">Strategy library</span>
         </div>
-        <Link
-          to="/trade"
-          className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
-        >
-          Open the Deck
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </header>
-
-      <section className="max-w-5xl mx-auto px-6 md:px-10 py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2">
             Curated strategies, one-click install

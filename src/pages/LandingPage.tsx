@@ -61,7 +61,7 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-text-primary flex flex-col">
+    <div className="h-screen overflow-y-auto bg-surface text-text-primary flex flex-col">
       {/* Top nav */}
       <header className="flex items-center justify-between px-6 md:px-10 py-5 border-b border-border">
         <Wordmark />
