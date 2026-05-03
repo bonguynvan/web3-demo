@@ -24,6 +24,7 @@ import { useMarketStats } from '../hooks/useMarketStats'
 import { useModeStore } from '../store/modeStore'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { vaultExists } from '../lib/credentialsVault'
+import { useActiveVenue } from '../hooks/useActiveVenue'
 import { PlaceOrderModal } from './PlaceOrderModal'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
@@ -243,7 +244,12 @@ function MarketBar() {
   const currentPrice = getPrice(selectedMarket.symbol)
   const priceLabel = mode === 'demo' ? t('perp:binance') : t('perp:oracle')
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
+  const activeVenue = useActiveVenue()
   const [placeOrderOpen, setPlaceOrderOpen] = useState(false)
+  // Hyperliquid order placement requires the EIP-712 + msgpack signing path,
+  // which is intentionally stubbed pending testnet validation. Trade button
+  // stays for Binance only.
+  const tradeDisabled = activeVenue === 'hyperliquid'
 
   return (
     <div className="flex items-center h-12 bg-panel/60 border-b border-border px-3 md:px-4 gap-3 md:gap-5 shrink-0 overflow-x-auto">
@@ -383,8 +389,18 @@ function MarketBar() {
       {vaultUnlocked ? (
         <button
           onClick={() => setPlaceOrderOpen(true)}
-          title={`Place a limit order on ${selectedMarket.symbol}`}
-          className="ml-auto shrink-0 px-3 py-1.5 text-xs font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
+          disabled={tradeDisabled}
+          title={
+            tradeDisabled
+              ? 'Hyperliquid order placement is pending testnet validation — switch to Binance to place orders.'
+              : `Place a limit order on ${selectedMarket.symbol}`
+          }
+          className={cn(
+            'ml-auto shrink-0 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors',
+            tradeDisabled
+              ? 'bg-surface border border-border text-text-muted cursor-not-allowed'
+              : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
+          )}
         >
           Trade
         </button>
