@@ -17,6 +17,7 @@ import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
 import { MarketPalette } from './MarketPalette'
+import { HotkeysModal } from './HotkeysModal'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
@@ -75,6 +76,7 @@ export function AppShell() {
         <ToastContainer />
         <OnboardingCard />
         <MarketPalette />
+        <HotkeysModal />
       </div>
     </div>
   )
