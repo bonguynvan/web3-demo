@@ -371,7 +371,7 @@ function StrategyCard({
           </div>
         </div>
         {performance && (
-          <div className="shrink-0 text-right">
+          <div className="shrink-0 text-right min-w-[64px]">
             <div className={cn(
               'text-sm font-mono tabular-nums font-semibold',
               performance.winRate >= 0.55 ? 'text-long' : 'text-text-secondary',
@@ -384,6 +384,20 @@ function StrategyCard({
           </div>
         )}
       </header>
+
+      {performance && (
+        <div className="mb-3" aria-hidden>
+          <div className="h-1 w-full bg-surface rounded overflow-hidden">
+            <div
+              className={cn(
+                'h-full transition-all',
+                performance.winRate >= 0.55 ? 'bg-long' : performance.winRate >= 0.45 ? 'bg-text-muted' : 'bg-short',
+              )}
+              style={{ width: `${Math.round(performance.winRate * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-text-secondary leading-relaxed mb-3 flex-1">{strategy.summary}</p>
 
