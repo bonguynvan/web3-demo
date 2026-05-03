@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { Modal } from './ui/Modal'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { getAdapter, getActiveAdapter } from '../adapters/registry'
+import { useTradingStore } from '../store/tradingStore'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
 import { cn, formatUsd } from '../lib/format'
@@ -25,6 +26,7 @@ interface Props {
 
 export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Props) {
   const toast = useToast()
+  const markets = useTradingStore(s => s.markets)
   const [venueId, setVenueId] = useState<VenueId>('binance')
   const [marketId, setMarketId] = useState(defaultMarketId ?? '')
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
@@ -125,13 +127,22 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
           </select>
         </Field>
 
-        <Field label="Market (e.g. BTC/USDT)">
-          <input
+        <Field label="Market">
+          <select
             value={marketId}
-            onChange={(e) => setMarketId(e.target.value.toUpperCase())}
-            spellCheck={false}
+            onChange={(e) => {
+              const next = e.target.value
+              setMarketId(next)
+              const t = getActiveAdapter().getTicker(next)
+              if (t?.price && t.price > 0) setPrice(t.price.toString())
+            }}
             className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent font-mono"
-          />
+          >
+            <option value="" disabled>Pick a market…</option>
+            {markets.map(m => (
+              <option key={m.symbol} value={m.symbol}>{m.symbol}</option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Side">
