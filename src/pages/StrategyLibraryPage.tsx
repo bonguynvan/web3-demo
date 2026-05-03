@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { BookOpen, Plus, Check } from 'lucide-react'
+import { BookOpen, Plus, Check, Search } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
@@ -18,11 +18,18 @@ export function StrategyLibraryPage() {
   const existingBotNames = useBotStore(s => new Set(s.bots.map(b => b.name)))
   const toast = useToast()
   const [filterTag, setFilterTag] = useState<string>('')
+  const [query, setQuery] = useState<string>('')
 
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
-  const visible = filterTag
-    ? STRATEGY_LIBRARY.filter(s => s.tags.includes(filterTag))
-    : STRATEGY_LIBRARY
+  const q = query.trim().toLowerCase()
+  const visible = STRATEGY_LIBRARY.filter(s => {
+    if (filterTag && !s.tags.includes(filterTag)) return false
+    if (q) {
+      const hay = `${s.name} ${s.summary} ${s.author.name} ${s.tags.join(' ')}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
 
   const install = (s: PublishedStrategy) => {
     if (existingBotNames.has(s.bot.name)) {
@@ -61,6 +68,25 @@ export function StrategyLibraryPage() {
           </p>
         </div>
 
+        <div className="flex items-center gap-2 mb-4 bg-panel border border-border rounded-md px-3 py-2 max-w-md">
+          <Search className="w-4 h-4 text-text-muted shrink-0" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search strategies…"
+            className="flex-1 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-muted"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="text-[10px] text-text-muted hover:text-text-primary cursor-pointer"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-1.5 mb-6">
           <button
             onClick={() => setFilterTag('')}
@@ -91,12 +117,16 @@ export function StrategyLibraryPage() {
 
         {visible.length === 0 ? (
           <div className="bg-panel/40 border border-border rounded-lg p-8 text-center">
-            <div className="text-sm text-text-secondary mb-1">No strategies match "{filterTag}"</div>
+            <div className="text-sm text-text-secondary mb-1">
+              No strategies match{query && <> "<span className="font-mono">{query}</span>"</>}
+              {query && filterTag && ' in '}
+              {filterTag && <> tag "<span className="font-mono">{filterTag}</span>"</>}
+            </div>
             <button
-              onClick={() => setFilterTag('')}
+              onClick={() => { setFilterTag(''); setQuery('') }}
               className="text-xs text-accent hover:underline cursor-pointer"
             >
-              Clear filter
+              Clear filters
             </button>
           </div>
         ) : (
