@@ -153,6 +153,19 @@ export function PortfolioPage() {
   const realizedColor = stats.realizedPnlUsd >= 0 ? 'text-long' : 'text-short'
   const unrealizedColor = stats.unrealizedPnlUsd >= 0 ? 'text-long' : 'text-short'
 
+  // Today's activity (local timezone). Quick daily glance metric.
+  const startOfTodayMs = (() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  })()
+  const tradesToday = trades.filter(t => t.openedAt >= startOfTodayMs).length
+  const fillsToday = recentFills.entries.filter(e => e.fill.timestamp >= startOfTodayMs).length
+  const realizedToday = trades
+    .filter(t => t.closedAt && t.closedAt >= startOfTodayMs && t.pnlUsd !== undefined)
+    .reduce((sum, t) => sum + (t.pnlUsd ?? 0), 0)
+  const realizedTodayColor = realizedToday >= 0 ? 'text-long' : 'text-short'
+
   return (
     <div className="h-full overflow-y-auto bg-surface text-text-primary">
       <section className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-6">
@@ -200,6 +213,22 @@ export function PortfolioPage() {
               <div className="text-[10px] uppercase tracking-wider text-text-muted">Open</div>
               <div className="text-base font-mono mt-1">{stats.open}</div>
             </div>
+            {(tradesToday > 0 || fillsToday > 0 || realizedToday !== 0) && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">Today</div>
+                <div className={cn('text-base font-mono mt-1', realizedToday !== 0 ? realizedTodayColor : 'text-text-primary')}>
+                  {realizedToday !== 0
+                    ? `${realizedToday >= 0 ? '+' : ''}$${formatUsd(realizedToday)}`
+                    : '—'}
+                </div>
+                <div className="text-[10px] text-text-muted mt-0.5">
+                  {tradesToday > 0 && `${tradesToday} bot trade${tradesToday === 1 ? '' : 's'}`}
+                  {tradesToday > 0 && fillsToday > 0 && ' · '}
+                  {fillsToday > 0 && `${fillsToday} fill${fillsToday === 1 ? '' : 's'}`}
+                </div>
+              </div>
+            )}
+
             {hasLiveBalances && (
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted">Live equity</div>
