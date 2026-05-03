@@ -15,11 +15,12 @@
  */
 
 import { Link } from 'react-router-dom'
-import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight } from 'lucide-react'
+import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { listAdapters } from '../adapters/registry'
+import { vaultExists } from '../lib/credentialsVault'
 import { cn } from '../lib/format'
 
 export function ProfilePage() {
@@ -28,6 +29,7 @@ export function ProfilePage() {
   const resolved = useSignalPerformanceStore(s => s.resolved)
   const activeVenue = useActiveVenue()
   const adapters = listAdapters()
+  const hasVault = vaultExists()
 
   return (
     <div className="h-full overflow-y-auto bg-surface text-text-primary">
@@ -69,6 +71,17 @@ export function ProfilePage() {
               When implemented, API secrets will be encrypted with a passphrase before any storage
               and never sent to a TradingDek server in self-host mode.
             </div>
+          </div>
+
+          <div className="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-md bg-panel/60 border border-border text-[11px]">
+            <div className="flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-text-muted" />
+              <span className="text-text-secondary">Credentials vault:</span>
+              <span className={cn('font-medium', hasVault ? 'text-accent' : 'text-text-muted')}>
+                {hasVault ? 'Locked (passphrase required)' : 'Empty'}
+              </span>
+            </div>
+            <span className="text-text-muted">AES-GCM · PBKDF2 600k iters</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
