@@ -306,7 +306,16 @@ export function PortfolioPage() {
               <Table
                 rows={liveOpenOrders.map(({ venueId, order }) => [
                   <span className="capitalize text-text-muted">{venueId}</span>,
-                  order.marketId,
+                  <button
+                    onClick={() => {
+                      setSelectedMarket(order.marketId)
+                      navigate('/trade')
+                    }}
+                    title={`Open ${order.marketId} on the chart`}
+                    className="font-mono text-text-primary hover:text-accent cursor-pointer text-left"
+                  >
+                    {order.marketId}
+                  </button>,
                   <span className={cn(
                     'text-[10px] uppercase tracking-wider font-semibold',
                     order.side === 'buy' ? 'text-long' : 'text-short',
@@ -349,7 +358,16 @@ export function PortfolioPage() {
               <Table
                 rows={recentFills.entries.slice(0, 20).map(({ venueId, fill }) => [
                   <span className="capitalize text-text-muted">{venueId}</span>,
-                  fill.marketId,
+                  <button
+                    onClick={() => {
+                      setSelectedMarket(fill.marketId)
+                      navigate('/trade')
+                    }}
+                    title={`Open ${fill.marketId} on the chart`}
+                    className="font-mono text-text-primary hover:text-accent cursor-pointer text-left"
+                  >
+                    {fill.marketId}
+                  </button>,
                   <span className={cn(
                     'text-[10px] uppercase tracking-wider font-semibold',
                     fill.side === 'buy' ? 'text-long' : 'text-short',
