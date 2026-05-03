@@ -11,8 +11,10 @@ import { useState } from 'react'
 import { Modal } from './ui/Modal'
 import { Lock, Unlock, Trash2, AlertTriangle } from 'lucide-react'
 import { unseal, seal, WrongPassphraseError, type VaultPayload } from '../lib/credentialsVault'
+import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
+import type { VenueId } from '../adapters/types'
 
 interface Props {
   open: boolean
@@ -42,6 +44,26 @@ export function VaultViewModal({ open, onClose }: Props) {
     try {
       const payload = await unseal(passphrase)
       setUnlocked(payload)
+
+      // Push creds into matching adapters so authenticated calls work
+      // for the rest of this session. Failures are logged via toast but
+      // don't block the unlock flow.
+      let activated = 0
+      for (const [venueId, cred] of Object.entries(payload.venues)) {
+        if (!cred) continue
+        const adapter = getAdapter(venueId as VenueId)
+        if (!adapter) continue
+        try {
+          await adapter.authenticate(cred)
+          activated += 1
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Unknown error'
+          toast.warning(`${venueId} session auth failed`, msg)
+        }
+      }
+      if (activated > 0) {
+        toast.success(`Vault unlocked`, `${activated} venue${activated === 1 ? '' : 's'} active this session`)
+      }
     } catch (e) {
       if (e instanceof WrongPassphraseError) {
         toast.error('Wrong passphrase', 'Try again')
