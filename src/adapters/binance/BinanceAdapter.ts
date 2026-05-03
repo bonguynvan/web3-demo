@@ -134,6 +134,11 @@ export class BinanceAdapter implements VenueAdapter {
     this.capabilities.trading = !this.creds.readOnly
   }
 
+  /** True once authenticate() has been called with valid creds. */
+  isAuthenticated(): boolean {
+    return this.creds !== null
+  }
+
   /**
    * Signed REST call to /api/v3/account. Returns the raw Binance shape;
    * higher layers can map balances into venue-agnostic types.

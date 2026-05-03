@@ -26,6 +26,8 @@ import { useActiveVenue } from '../hooks/useActiveVenue'
 import { listAdapters } from '../adapters/registry'
 import { vaultExists, clear as clearVault } from '../lib/credentialsVault'
 import { useToast } from '../store/toastStore'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { getAdapter } from '../adapters/registry'
 import { cn } from '../lib/format'
 
 export function ProfilePage() {
@@ -127,6 +129,23 @@ export function ProfilePage() {
                 venueId={adapter.id}
                 isActive={adapter.id === activeVenue}
                 onConnect={() => setConnectVenue(adapter.id)}
+                onTest={async () => {
+                  const a = getAdapter(adapter.id)
+                  if (!a || !('getAccountSnapshot' in a)) {
+                    toast.warning('Test not available', `${adapter.id} adapter has no test endpoint yet`)
+                    return
+                  }
+                  try {
+                    const snap = await (a as { getAccountSnapshot: () => Promise<unknown> }).getAccountSnapshot()
+                    const summary = typeof snap === 'object' && snap !== null && 'balances' in snap
+                      ? `${(snap as { balances: unknown[] }).balances.length} balances returned`
+                      : 'Account fetch ok'
+                    toast.success(`${adapter.id} reachable`, summary)
+                  } catch (e) {
+                    const msg = e instanceof Error ? e.message : 'Unknown error'
+                    toast.error('Test failed', msg)
+                  }
+                }}
               />
             ))}
           </div>
@@ -235,15 +254,21 @@ const VENUE_DOCS: Record<string, { keyUrl?: string; docsUrl?: string }> = {
 }
 
 function VenueCard({
-  venueId, isActive, onConnect,
+  venueId, isActive, onConnect, onTest,
 }: {
   venueId: string
   isActive: boolean
   onConnect: () => void
+  onTest: () => void | Promise<void>
 }) {
   const isPerp = venueId === 'hyperliquid'
   const auth = isPerp ? 'Wallet (EIP-712 signing)' : 'API key + secret (HMAC)'
   const links = VENUE_DOCS[venueId] ?? {}
+  const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
+  const adapter = getAdapter(venueId as never)
+  const isConnected = !isPerp && sessionUnlocked
+    && typeof (adapter as { isAuthenticated?: () => boolean })?.isAuthenticated === 'function'
+    && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
@@ -261,8 +286,13 @@ function VenueCard({
             {isPerp ? 'Perp DEX' : 'CEX (spot)'} · auth via {auth}
           </div>
         </div>
-        <span className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
-          Disconnected
+        <span className={cn(
+          'shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded',
+          isConnected
+            ? 'bg-long/15 text-long'
+            : 'bg-surface border border-border text-text-muted',
+        )}>
+          {isConnected ? 'Connected' : 'Disconnected'}
         </span>
       </div>
 
@@ -299,19 +329,32 @@ function VenueCard({
         </div>
       )}
 
-      <button
-        onClick={onConnect}
-        disabled={isPerp}
-        className={cn(
-          'w-full py-2 text-xs font-semibold rounded-md transition-colors',
-          isPerp
-            ? 'bg-surface border border-border text-text-muted cursor-not-allowed'
-            : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
+      <div className="flex gap-2">
+        <button
+          onClick={onConnect}
+          disabled={isPerp}
+          className={cn(
+            'flex-1 py-2 text-xs font-semibold rounded-md transition-colors',
+            isPerp
+              ? 'bg-surface border border-border text-text-muted cursor-not-allowed'
+              : isConnected
+                ? 'bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer'
+                : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
+          )}
+          title={isPerp ? 'Wallet connect coming soon (uses wagmi)' : isConnected ? 'Replace credentials' : 'Open connection form'}
+        >
+          {isPerp ? 'Wallet connect (soon)' : isConnected ? 'Replace key' : 'Connect API key'}
+        </button>
+        {isConnected && (
+          <button
+            onClick={onTest}
+            className="px-3 py-2 text-xs font-semibold rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer"
+            title="Make a signed read-only call to verify the key works"
+          >
+            Test
+          </button>
         )}
-        title={isPerp ? 'Wallet connect coming soon (uses wagmi)' : 'Open connection form'}
-      >
-        {isPerp ? 'Wallet connect (coming soon)' : 'Connect API key'}
-      </button>
+      </div>
     </div>
   )
 }
