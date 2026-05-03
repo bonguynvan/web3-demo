@@ -19,6 +19,7 @@ import { getActiveAdapter, listAdapters } from '../adapters/registry'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { useVenueBalances, type VenueBalanceState } from '../hooks/useVenueBalances'
+import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
 import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
 import type { BotTrade } from '../bots/types'
@@ -32,6 +33,9 @@ export function PortfolioPage() {
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const adapters = listAdapters()
   const { states: venueBalances, refresh: refreshBalances } = useVenueBalances()
+  const { states: venueOpenOrders } = useVenueOpenOrders()
+  const liveOpenOrders = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
+    (st?.orders ?? []).map(o => ({ venueId, order: o })))
 
   // Live equity across authed venues. Stablecoins count at $1.
   // Non-stables priced via the active adapter's ticker cache (best-effort
@@ -242,11 +246,42 @@ export function PortfolioPage() {
           })}
         </div>
 
+        {/* Live open orders on connected venues */}
+        {liveOpenOrders.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold mb-2">
+              Live open orders ({liveOpenOrders.length})
+            </h2>
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <Table
+                rows={liveOpenOrders.map(({ venueId, order }) => [
+                  <span className="capitalize text-text-muted">{venueId}</span>,
+                  order.marketId,
+                  <span className={cn(
+                    'text-[10px] uppercase tracking-wider font-semibold',
+                    order.side === 'buy' ? 'text-long' : 'text-short',
+                  )}>
+                    {order.side}
+                  </span>,
+                  order.type,
+                  order.price !== undefined ? `$${formatUsd(order.price)}` : '—',
+                  order.size.toLocaleString(undefined, { maximumFractionDigits: 6 }),
+                  order.filledSize > 0
+                    ? `${((order.filledSize / order.size) * 100).toFixed(0)}%`
+                    : '—',
+                  new Date(order.createdAt).toLocaleString(),
+                ])}
+                columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Created']}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Open positions */}
         <div>
           <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
             <Bot className="w-4 h-4 text-accent" />
-            Open positions ({openTrades.length})
+            Paper open positions ({openTrades.length})
           </h2>
           {openTrades.length === 0 ? (
             <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted">

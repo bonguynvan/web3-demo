@@ -82,6 +82,38 @@ function notImplemented(method: string): VenueError {
   return e
 }
 
+function mapBinanceOrderType(t: string): Order['type'] {
+  switch (t) {
+    case 'LIMIT': case 'LIMIT_MAKER': return 'limit'
+    case 'MARKET': return 'market'
+    case 'STOP_LOSS': return 'stop'
+    case 'STOP_LOSS_LIMIT': return 'stop_limit'
+    case 'TAKE_PROFIT': case 'TAKE_PROFIT_LIMIT': return 'take_profit'
+    default: return 'limit'
+  }
+}
+
+function mapBinanceTif(t: string | undefined): Order['tif'] {
+  switch (t) {
+    case 'IOC': return 'ioc'
+    case 'FOK': return 'fok'
+    case 'GTX': return 'post_only'
+    default: return 'gtc'
+  }
+}
+
+function mapBinanceOrderStatus(s: string): Order['status'] {
+  switch (s) {
+    case 'NEW': return 'open'
+    case 'PARTIALLY_FILLED': return 'partially_filled'
+    case 'FILLED': return 'filled'
+    case 'CANCELED': case 'PENDING_CANCEL': return 'canceled'
+    case 'REJECTED': return 'rejected'
+    case 'EXPIRED': case 'EXPIRED_IN_MATCH': return 'expired'
+    default: return 'open'
+  }
+}
+
 export class BinanceAdapter implements VenueAdapter {
   readonly id: VenueId = 'binance'
   readonly displayName = 'Binance'
@@ -351,7 +383,44 @@ export class BinanceAdapter implements VenueAdapter {
   subscribeBalances(_cb: (b: Balance[]) => void): Unsubscribe { return () => {} }
   async getPositions(): Promise<Position[]> { throw notImplemented('getPositions') }
   subscribePositions(_cb: (p: Position[]) => void): Unsubscribe { return () => {} }
-  async getOpenOrders(_marketId?: string): Promise<Order[]> { throw notImplemented('getOpenOrders') }
+  async getOpenOrders(marketId?: string): Promise<Order[]> {
+    if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
+    const extra: Record<string, string> = {}
+    if (marketId) {
+      const m = this.markets.find(mk => mk.id === marketId)
+      if (m?.venueSymbol) extra.symbol = m.venueSymbol
+    }
+    const query = await buildSignedQuery(this.creds.apiSecret, extra)
+    const res = await fetch(`${REST_BASE}/api/v3/openOrders?${query}`, {
+      headers: { 'X-MBX-APIKEY': this.creds.apiKey },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Binance openOrders failed: ${res.status} ${body}`)
+    }
+    const raw = await res.json() as Array<{
+      orderId: number; clientOrderId?: string; symbol: string
+      price: string; origQty: string; executedQty: string
+      side: 'BUY' | 'SELL'; type: string; timeInForce?: string
+      status: string; time: number; updateTime: number
+    }>
+    const symbolToId = new Map(this.markets.map(m => [m.venueSymbol, m.id]))
+    return raw.map<Order>(o => ({
+      id: String(o.orderId),
+      clientId: o.clientOrderId,
+      marketId: symbolToId.get(o.symbol) ?? o.symbol,
+      side: o.side === 'BUY' ? 'buy' : 'sell',
+      type: mapBinanceOrderType(o.type),
+      tif: mapBinanceTif(o.timeInForce),
+      price: parseFloat(o.price) || undefined,
+      size: parseFloat(o.origQty),
+      filledSize: parseFloat(o.executedQty),
+      avgFillPrice: undefined,
+      status: mapBinanceOrderStatus(o.status),
+      createdAt: o.time,
+      updatedAt: o.updateTime,
+    }))
+  }
   subscribeOrders(_cb: (o: Order) => void): Unsubscribe { return () => {} }
   subscribeFills(_cb: (f: Fill) => void): Unsubscribe { return () => {} }
   async placeOrder(_intent: PlaceOrderIntent): Promise<Order> { throw notImplemented('placeOrder') }
