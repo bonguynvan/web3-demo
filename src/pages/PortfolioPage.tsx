@@ -1,149 +1,311 @@
 /**
- * PortfolioPage — full-page portfolio dashboard.
+ * PortfolioPage — what the user actually owns + paper-traded.
  *
- * Shows equity summary, allocation chart, and all positions
- * across perp/futures/margin in one unified view.
+ * Today's truth: paper bot ledger + open positions. The legacy on-chain
+ * perp/futures hookups have been removed — they belonged to the previous
+ * iteration of this app as a custom DEX.
+ *
+ * Future: when a venue API key is unlocked (vault), pull real spot
+ * balances and live positions through the authenticated adapter.
+ * Section is in place; loading is gated on auth state.
  */
 
-import { useAccount } from 'wagmi'
-import { Wallet } from 'lucide-react'
-import { usePortfolioData } from '../hooks/usePortfolioData'
-import { AllocationChart } from '../components/portfolio/AllocationChart'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Wallet, Bot, TrendingUp, TrendingDown, KeyRound, ArrowRight } from 'lucide-react'
+import { useBotStore } from '../store/botStore'
+import { computeStats } from '../bots/computeStats'
+import { getActiveAdapter, listAdapters } from '../adapters/registry'
+import { useActiveVenue } from '../hooks/useActiveVenue'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
-import type { PortfolioPosition } from '../hooks/usePortfolioData'
+import type { BotTrade } from '../bots/types'
 
-const PRODUCT_COLORS: Record<string, string> = {
-  perp: 'bg-long-dim text-long',
-  futures: 'bg-amber-400/10 text-amber-400',
-  margin: 'bg-purple-500/10 text-purple-400',
-}
+const TICK_MS = 5_000
 
 export function PortfolioPage() {
-  const { isConnected } = useAccount()
-  const {
-    totalEquity,
-    availableBalance,
-    totalCollateral,
-    totalUnrealizedPnl,
-    positionCount,
-    allPositions,
-    allocation,
-  } = usePortfolioData()
+  const bots = useBotStore(s => s.bots)
+  const trades = useBotStore(s => s.trades)
+  const activeVenueId = useActiveVenue()
+  const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
+  const adapters = listAdapters()
+  const [, force] = useState(0)
 
-  if (!isConnected) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-text-muted">
-          <Wallet className="w-8 h-8" />
-          <span className="text-sm">Connect wallet to view portfolio</span>
-        </div>
-      </div>
-    )
+  // Heartbeat for live unrealized PnL.
+  useEffect(() => {
+    const id = setInterval(() => force(t => t + 1), TICK_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  const adapter = getActiveAdapter()
+  const stats = computeStats(trades, m => adapter.getTicker(m)?.price)
+
+  const closedSorted = trades
+    .filter((t): t is BotTrade & { closedAt: number; pnlUsd: number } =>
+      t.closedAt !== undefined && t.pnlUsd !== undefined)
+    .sort((a, b) => a.closedAt - b.closedAt)
+
+  const openTrades = trades.filter(t => !t.closedAt)
+  const recentClosed = [...closedSorted].reverse().slice(0, 10)
+
+  // Per-market aggregate (paper bots only today)
+  const byMarket = new Map<string, { trades: number; pnl: number; openCount: number }>()
+  for (const t of trades) {
+    const b = byMarket.get(t.marketId) ?? { trades: 0, pnl: 0, openCount: 0 }
+    b.trades += 1
+    if (t.closedAt && t.pnlUsd !== undefined) b.pnl += t.pnlUsd
+    if (!t.closedAt) b.openCount += 1
+    byMarket.set(t.marketId, b)
   }
+  const marketRows = Array.from(byMarket.entries())
+    .sort((a, b) => Math.abs(b[1].pnl) - Math.abs(a[1].pnl))
+
+  const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const realizedColor = stats.realizedPnlUsd >= 0 ? 'text-long' : 'text-short'
+  const unrealizedColor = stats.unrealizedPnlUsd >= 0 ? 'text-long' : 'text-short'
 
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Total Equity" value={`$${formatUsd(totalEquity)}`} large />
-          <StatCard label="Available" value={`$${formatUsd(availableBalance)}`} />
-          <StatCard
-            label="Unrealized PnL"
-            value={`${totalUnrealizedPnl >= 0 ? '+' : ''}$${formatUsd(Math.abs(totalUnrealizedPnl))}`}
-            valueClass={totalUnrealizedPnl >= 0 ? 'text-long' : 'text-short'}
-          />
-          <StatCard label="Total Collateral" value={`$${formatUsd(totalCollateral)}`} />
-        </div>
+    <div className="h-full overflow-y-auto bg-surface text-text-primary">
+      <section className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-6">
+        <header className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-xl font-semibold">Portfolio</h1>
+            <p className="text-xs text-text-muted mt-0.5">
+              Paper-traded P&L from all bots, plus venue balances once an API key is connected.
+            </p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded bg-amber-400/10 text-amber-400 border border-amber-400/30">
+            Paper mode
+          </span>
+        </header>
 
-        {/* Allocation */}
-        <div className="bg-panel rounded-xl border border-border p-5">
-          <h3 className="text-xs text-text-muted uppercase tracking-wider font-medium mb-4">Asset Allocation</h3>
-          <AllocationChart segments={allocation} total={totalEquity} />
-        </div>
-
-        {/* All positions */}
-        <div className="bg-panel rounded-xl border border-border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <h3 className="text-xs text-text-muted uppercase tracking-wider font-medium">
-              All Positions ({positionCount})
-            </h3>
+        {/* Hero P&L */}
+        <div className="bg-panel border border-border rounded-lg p-6">
+          <div className="flex flex-wrap items-end gap-6 mb-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Total P&L</div>
+              <div className={cn('text-3xl font-mono font-bold tabular-nums mt-1', pnlColor)}>
+                {stats.totalPnlUsd >= 0 ? '+' : ''}${formatUsd(stats.totalPnlUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Realized</div>
+              <div className={cn('text-base font-mono mt-1', realizedColor)}>
+                {stats.realizedPnlUsd >= 0 ? '+' : ''}${formatUsd(stats.realizedPnlUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Unrealized</div>
+              <div className={cn('text-base font-mono mt-1', unrealizedColor)}>
+                {stats.unrealizedPnlUsd >= 0 ? '+' : ''}${formatUsd(stats.unrealizedPnlUsd)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Win rate</div>
+              <div className="text-base font-mono mt-1">
+                {stats.closed > 0 ? `${Math.round(stats.winRate * 100)}%` : '—'}
+                <span className="text-text-muted text-xs ml-2">{stats.closed} closed</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Open</div>
+              <div className="text-base font-mono mt-1">{stats.open}</div>
+            </div>
           </div>
 
-          {allPositions.length === 0 ? (
-            <div className="flex flex-col items-center py-10 gap-2 text-text-muted">
-              <span className="text-xs">No active positions across any product</span>
-            </div>
+          {closedSorted.length >= 2 ? (
+            <EquityCurve trades={closedSorted} height={64} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-[10px] text-text-muted uppercase tracking-wider border-b border-border">
-                    <th className="text-left px-4 py-2.5 font-medium">Product</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Market</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Side</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Size</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Entry</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Mark</th>
-                    <th className="text-right px-4 py-2.5 font-medium">PnL</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Collateral</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allPositions.map((pos, i) => (
-                    <tr key={`${pos.product}-${i}`} className="border-b border-border/50 hover:bg-panel-light transition-colors">
-                      <td className="px-4 py-2.5">
-                        <span className={cn(
-                          'px-2 py-0.5 rounded text-[9px] font-medium uppercase',
-                          PRODUCT_COLORS[pos.product] ?? 'bg-surface text-text-muted',
-                        )}>
-                          {pos.product}{pos.extra ? ` ${pos.extra}` : ''}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-text-primary">{pos.market}</td>
-                      <td className="px-4 py-2.5 text-text-secondary">{pos.side}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-text-secondary">${formatUsd(pos.size)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-text-secondary">
-                        {pos.entryPrice > 0 ? `$${formatUsd(pos.entryPrice)}` : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-text-secondary">
-                        {pos.markPrice > 0 ? `$${formatUsd(pos.markPrice)}` : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {pos.pnl !== 0 ? (
-                          <span className={cn('font-mono font-medium', pos.pnl >= 0 ? 'text-long' : 'text-short')}>
-                            {pos.pnl >= 0 ? '+' : ''}${formatUsd(Math.abs(pos.pnl))}
-                          </span>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-text-secondary">${formatUsd(pos.collateral)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="h-16 flex items-center justify-center text-xs text-text-muted">
+              Equity curve appears once 2+ trades have closed.
             </div>
           )}
         </div>
-      </div>
+
+        {/* Venue connection callout (real balances) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {adapters.map(a => {
+            const isActive = a.id === activeVenueId
+            const isAuthed = sessionUnlocked
+              && typeof (a as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
+              && (a as { isAuthenticated: () => boolean }).isAuthenticated()
+            return (
+              <div key={a.id} className="bg-panel/60 border border-border rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-text-muted" />
+                      <span className="text-sm font-semibold capitalize">{a.id}</span>
+                      {isActive && (
+                        <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-dim text-accent">
+                          Active
+                        </span>
+                      )}
+                      {isAuthed && (
+                        <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-long/15 text-long">
+                          Connected
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                      {isAuthed
+                        ? 'Live balances will appear here once the venue snapshot endpoint is wired.'
+                        : 'Connect an API key (CEX) or wallet (DEX) to see live balances and authenticate trading.'}
+                    </div>
+                  </div>
+                  {!isAuthed && (
+                    <Link
+                      to="/profile"
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Connect
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Open positions */}
+        <div>
+          <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <Bot className="w-4 h-4 text-accent" />
+            Open positions ({openTrades.length})
+          </h2>
+          {openTrades.length === 0 ? (
+            <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted">
+              No open paper positions. Bots open positions when matching signals fire on /trade.
+            </div>
+          ) : (
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <Table
+                rows={openTrades.map(t => buildOpenRow(t, bots, adapter.getTicker(t.marketId)?.price))}
+                columns={['Market', 'Side', 'Entry', 'Mark', 'Size', 'PnL', 'Bot']}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Per-market breakdown */}
+        {marketRows.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold mb-2">By market</h2>
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <Table
+                rows={marketRows.map(([marketId, agg]) => [
+                  marketId,
+                  String(agg.trades),
+                  agg.openCount > 0
+                    ? <span className="text-accent">{agg.openCount}</span>
+                    : '—',
+                  <span className={agg.pnl >= 0 ? 'text-long' : 'text-short'}>
+                    {agg.pnl >= 0 ? '+' : ''}${formatUsd(agg.pnl)}
+                  </span>,
+                ])}
+                columns={['Market', 'Total', 'Open', 'Realized']}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Recent closed */}
+        <div>
+          <h2 className="text-sm font-semibold mb-2">Recent closed ({recentClosed.length})</h2>
+          {recentClosed.length === 0 ? (
+            <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted">
+              No closed trades yet.
+            </div>
+          ) : (
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <Table
+                rows={recentClosed.map(t => [
+                  t.marketId,
+                  <DirectionBadge dir={t.direction} />,
+                  `$${formatUsd(t.entryPrice)}`,
+                  t.closePrice !== undefined ? `$${formatUsd(t.closePrice)}` : '—',
+                  <span className={t.pnlUsd >= 0 ? 'text-long' : 'text-short'}>
+                    {t.pnlUsd >= 0 ? '+' : ''}${formatUsd(t.pnlUsd)}
+                  </span>,
+                  new Date(t.closedAt).toLocaleString(),
+                ])}
+                columns={['Market', 'Side', 'Entry', 'Close', 'PnL', 'Closed']}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 text-xs">
+          <Link
+            to="/bots"
+            className="flex items-center gap-1 text-accent hover:underline cursor-pointer"
+          >
+            Manage bots
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }
 
-function StatCard({ label, value, valueClass, large }: {
-  label: string; value: string; valueClass?: string; large?: boolean
-}) {
+function buildOpenRow(
+  t: BotTrade,
+  bots: { id: string; name: string }[],
+  mark: number | undefined,
+): React.ReactNode[] {
+  const liveMark = mark ?? t.entryPrice
+  const sign = t.direction === 'long' ? 1 : -1
+  const livePnl = sign * (liveMark - t.entryPrice) * t.size
+  const botName = bots.find(b => b.id === t.botId)?.name ?? '—'
+  return [
+    t.marketId,
+    <DirectionBadge dir={t.direction} />,
+    `$${formatUsd(t.entryPrice)}`,
+    `$${formatUsd(liveMark)}`,
+    t.size.toFixed(6),
+    <span className={livePnl >= 0 ? 'text-long' : 'text-short'}>
+      {livePnl >= 0 ? '+' : ''}${formatUsd(livePnl)}
+    </span>,
+    <span className="text-text-muted truncate">{botName}</span>,
+  ]
+}
+
+function DirectionBadge({ dir }: { dir: 'long' | 'short' }) {
+  const isLong = dir === 'long'
+  const Icon = isLong ? TrendingUp : TrendingDown
   return (
-    <div className="bg-panel rounded-xl border border-border p-4">
-      <div className="text-[10px] text-text-muted uppercase tracking-wider">{label}</div>
-      <div className={cn(
-        'font-mono font-semibold text-text-primary mt-1',
-        large ? 'text-lg' : 'text-sm',
-        valueClass,
-      )}>
-        {value}
-      </div>
-    </div>
+    <span className={cn(
+      'inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider',
+      isLong ? 'text-long' : 'text-short',
+    )}>
+      <Icon className="w-3 h-3" />
+      {dir}
+    </span>
+  )
+}
+
+function Table({ columns, rows }: { columns: string[]; rows: React.ReactNode[][] }) {
+  return (
+    <table className="w-full text-xs">
+      <thead className="bg-surface/60">
+        <tr className="text-[10px] uppercase tracking-wider text-text-muted">
+          {columns.map(c => (
+            <th key={c} className="text-left font-medium px-3 py-2">{c}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, i) => (
+          <tr key={i} className="border-t border-border/40 hover:bg-panel-light transition-colors">
+            {row.map((cell, j) => (
+              <td key={j} className="px-3 py-2 font-mono tabular-nums truncate">{cell}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
