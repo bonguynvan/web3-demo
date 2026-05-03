@@ -142,6 +142,16 @@ export function useBotEngine(): void {
         if (now < t.closeAt) continue
         const ticker = adapter.getTicker(t.marketId)
         const closePrice = ticker?.price ?? t.entryPrice
+
+        // Live trade with a known venue order id: try to cancel the
+        // unfilled limit order before marking the trade closed locally.
+        // The order may already be filled or canceled — swallow errors.
+        if (t.mode === 'live' && t.venueOrderId) {
+          const a = getAdapter('binance')
+          if (a) {
+            void a.cancelOrder({ marketId: t.marketId, orderId: t.venueOrderId }).catch(() => { /* best-effort */ })
+          }
+        }
         closeTrade(t.id, closePrice, now)
       }
     }, TICK_MS)
