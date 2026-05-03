@@ -18,6 +18,7 @@ import {
   seal, unseal, vaultExists, WrongPassphraseError,
   type VaultPayload,
 } from '../lib/credentialsVault'
+import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
 import { cn } from '../lib/format'
@@ -90,14 +91,32 @@ export function ConnectVenueModal({ open, onClose, venueId }: Props) {
         payload = { venues: {} }
       }
 
-      payload.venues[venueId] = {
-        kind: 'apiKey',
+      const newCred = {
+        kind: 'apiKey' as const,
         apiKey: apiKey.trim(),
         apiSecret: apiSecret.trim(),
         readOnly,
       }
+      payload.venues[venueId] = newCred
       payload.meta = { ...(payload.meta ?? {}), [venueId]: { addedAt: Date.now() } }
       await seal(passphrase, payload)
+
+      // Hot-path: also push the creds into the live adapter so authenticated
+      // requests work in this session without requiring an unlock + restart.
+      const adapter = getAdapter(venueId)
+      if (adapter) {
+        try {
+          await adapter.authenticate(newCred)
+        } catch (e) {
+          // Vault save succeeded — only the in-session activation failed.
+          // Surface a non-blocking warning; user can retry next session.
+          const msg = e instanceof Error ? e.message : 'Unknown error'
+          toast.warning(`${venueId} saved, but session auth failed`, msg)
+          handleClose()
+          return
+        }
+      }
+
       toast.success(`${venueId} connected`, readOnly ? 'Read-only scope' : 'Trading scope enabled')
       handleClose()
     } catch (e) {
