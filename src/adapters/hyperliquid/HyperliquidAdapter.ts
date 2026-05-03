@@ -400,7 +400,48 @@ export class HyperliquidAdapter implements VenueAdapter {
   subscribeBalances(_cb: (b: Balance[]) => void): Unsubscribe { return () => {} }
   async getPositions(): Promise<Position[]> { throw notImplemented('getPositions') }
   subscribePositions(_cb: (p: Position[]) => void): Unsubscribe { return () => {} }
-  async getOpenOrders(_marketId?: string): Promise<Order[]> { throw notImplemented('getOpenOrders') }
+  async getOpenOrders(marketId?: string): Promise<Order[]> {
+    if (!this.auth) {
+      throw venueError('not authenticated — call authenticate(walletCreds) first', false, true)
+    }
+    // Hyperliquid /info endpoint with { type: 'openOrders', user } returns
+    // open orders for the wallet — no signing required.
+    type HlOpenOrder = {
+      coin: string
+      limitPx: string
+      sz: string
+      side: 'B' | 'A'
+      timestamp: number
+      origSz: string
+      oid: number
+    }
+    const orders = await postInfo<HlOpenOrder[]>({
+      type: 'openOrders',
+      user: this.auth.address,
+    })
+    if (!Array.isArray(orders)) return []
+    const filtered = marketId
+      ? orders.filter(o => `${o.coin}-PERP` === marketId)
+      : orders
+    return filtered.map<Order>(o => {
+      const orig = parseFloat(o.origSz)
+      const remaining = parseFloat(o.sz)
+      const filled = Math.max(0, orig - remaining)
+      return {
+        id: String(o.oid),
+        marketId: `${o.coin}-PERP`,
+        side: o.side === 'B' ? 'buy' : 'sell',
+        type: 'limit',
+        tif: 'gtc',
+        price: parseFloat(o.limitPx) || undefined,
+        size: orig,
+        filledSize: filled,
+        status: filled > 0 ? 'partially_filled' : 'open',
+        createdAt: o.timestamp,
+        updatedAt: o.timestamp,
+      }
+    })
+  }
   subscribeOrders(_cb: (o: Order) => void): Unsubscribe { return () => {} }
   subscribeFills(_cb: (f: Fill) => void): Unsubscribe { return () => {} }
   /**
