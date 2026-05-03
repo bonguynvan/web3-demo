@@ -193,6 +193,16 @@ export function PortfolioPage() {
                           Connected
                         </span>
                       )}
+                      {isAuthed && (
+                        <span className={cn(
+                          'text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded',
+                          a.capabilities.trading
+                            ? 'bg-amber-400/15 text-amber-400'
+                            : 'bg-surface border border-border text-text-muted',
+                        )}>
+                          {a.capabilities.trading ? 'Trading' : 'Read-only'}
+                        </span>
+                      )}
                     </div>
                     {!isAuthed && (
                       <div className="text-[11px] text-text-muted mt-1 leading-relaxed">
@@ -219,7 +229,13 @@ export function PortfolioPage() {
                   )}
                 </div>
                 {isAuthed && (
-                  <BalanceList state={venueBalances[a.id as keyof typeof venueBalances]} />
+                  <BalanceList
+                    state={venueBalances[a.id as keyof typeof venueBalances]}
+                    priceOf={(asset) => {
+                      if (STABLES.has(asset)) return 1
+                      return adapter.getTicker(`${asset}/USDT`)?.price
+                    }}
+                  />
                 )}
               </div>
             )
@@ -330,7 +346,12 @@ function buildOpenRow(
   ]
 }
 
-function BalanceList({ state }: { state: VenueBalanceState | undefined }) {
+function BalanceList({
+  state, priceOf,
+}: {
+  state: VenueBalanceState | undefined
+  priceOf: (asset: string) => number | undefined
+}) {
   if (!state) {
     return (
       <div className="text-[11px] text-text-muted mt-2">
@@ -357,19 +378,29 @@ function BalanceList({ state }: { state: VenueBalanceState | undefined }) {
       </div>
     )
   }
-  const top = state.balances.slice(0, 6)
-  const rest = state.balances.length - top.length
+  // Re-sort by USD value (stable = $1, non-stable = qty × ticker).
+  // Holdings without a price fall to the bottom but stay in the list.
+  const ranked = [...state.balances]
+    .map(b => ({ b, usd: (priceOf(b.asset) ?? 0) * (b.free + b.locked) }))
+    .sort((a, b) => b.usd - a.usd)
+  const top = ranked.slice(0, 6)
+  const rest = ranked.length - top.length
   return (
     <div className="mt-3">
       <div className="grid grid-cols-2 gap-1.5">
-        {top.map(b => (
+        {top.map(({ b, usd }) => (
           <div
             key={b.asset}
             className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px]"
           >
             <span className="font-mono text-text-primary truncate">{b.asset}</span>
-            <span className="font-mono tabular-nums text-text-secondary">
-              {(b.free + b.locked).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+            <span className="text-right">
+              <div className="font-mono tabular-nums text-text-secondary">
+                {(b.free + b.locked).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+              </div>
+              {usd > 0 && (
+                <div className="text-[9px] text-text-muted">${formatUsd(usd)}</div>
+              )}
             </span>
           </div>
         ))}
