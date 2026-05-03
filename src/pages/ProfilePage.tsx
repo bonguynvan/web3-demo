@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock } from 'lucide-react'
+import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
 import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
@@ -224,6 +224,16 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
+const VENUE_DOCS: Record<string, { keyUrl?: string; docsUrl?: string }> = {
+  binance: {
+    keyUrl: 'https://www.binance.com/en/my/settings/api-management',
+    docsUrl: 'https://developers.binance.com/docs/binance-spot-api-docs',
+  },
+  hyperliquid: {
+    docsUrl: 'https://hyperliquid.gitbook.io/hyperliquid-docs',
+  },
+}
+
 function VenueCard({
   venueId, isActive, onConnect,
 }: {
@@ -233,6 +243,7 @@ function VenueCard({
 }) {
   const isPerp = venueId === 'hyperliquid'
   const auth = isPerp ? 'Wallet (EIP-712 signing)' : 'API key + secret (HMAC)'
+  const links = VENUE_DOCS[venueId] ?? {}
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">
@@ -255,11 +266,38 @@ function VenueCard({
         </span>
       </div>
 
-      <div className="text-[11px] text-text-muted leading-relaxed mb-3">
+      <div className="text-[11px] text-text-muted leading-relaxed mb-2">
         {isPerp
           ? 'Connect your wallet to sign orders directly. Builder code is automatic — TradingDek receives a small rebate per fill at no extra cost to you.'
           : 'Generate a read-only API key in your venue dashboard, then paste it here. Trading scope is opt-in. Withdrawal scope must be DISABLED on the key.'}
       </div>
+
+      {(links.keyUrl || links.docsUrl) && (
+        <div className="flex flex-wrap gap-3 mb-3 text-[10px]">
+          {links.keyUrl && (
+            <a
+              href={links.keyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-accent hover:underline cursor-pointer"
+            >
+              Create API key <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          )}
+          {links.docsUrl && (
+            <a
+              href={links.docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-text-muted hover:text-text-primary cursor-pointer"
+            >
+              API docs <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          )}
+        </div>
+      )}
 
       <button
         onClick={onConnect}
