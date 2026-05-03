@@ -332,6 +332,10 @@ export function PortfolioPage() {
                       if (STABLES.has(asset)) return 1
                       return adapter.getTicker(`${asset}/USDT`)?.price
                     }}
+                    change24hOf={(asset) => {
+                      if (STABLES.has(asset)) return undefined
+                      return adapter.getTicker(`${asset}/USDT`)?.change24hPct
+                    }}
                     onAssetClick={goToMarket}
                   />
                 )}
@@ -576,11 +580,12 @@ function buildOpenRow(
 }
 
 function BalanceList({
-  state, priceOf, onAssetClick,
+  state, priceOf, onAssetClick, change24hOf,
 }: {
   state: VenueBalanceState | undefined
   priceOf: (asset: string) => number | undefined
   onAssetClick: (asset: string) => void
+  change24hOf: (asset: string) => number | undefined
 }) {
   if (!state) {
     return (
@@ -618,28 +623,41 @@ function BalanceList({
   return (
     <div className="mt-3">
       <div className="grid grid-cols-2 gap-1.5">
-        {top.map(({ b, usd }) => (
-          <button
-            key={b.asset}
-            onClick={() => onAssetClick(b.asset)}
-            title={b.asset === 'USDT' ? '' : `Trade ${b.asset}/USDT`}
-            disabled={b.asset === 'USDT'}
-            className={cn(
-              'flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px] transition-colors text-left',
-              b.asset === 'USDT' ? 'cursor-default' : 'hover:bg-panel-light cursor-pointer',
-            )}
-          >
-            <span className="font-mono text-text-primary truncate">{b.asset}</span>
-            <span className="text-right">
-              <div className="font-mono tabular-nums text-text-secondary">
-                {(b.free + b.locked).toLocaleString(undefined, { maximumFractionDigits: 6 })}
-              </div>
-              {usd > 0 && (
-                <div className="text-[9px] text-text-muted">${formatUsd(usd)}</div>
+        {top.map(({ b, usd }) => {
+          const ch = change24hOf(b.asset)
+          return (
+            <button
+              key={b.asset}
+              onClick={() => onAssetClick(b.asset)}
+              title={b.asset === 'USDT' ? '' : `Trade ${b.asset}/USDT`}
+              disabled={b.asset === 'USDT'}
+              className={cn(
+                'flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px] transition-colors text-left',
+                b.asset === 'USDT' ? 'cursor-default' : 'hover:bg-panel-light cursor-pointer',
               )}
-            </span>
-          </button>
-        ))}
+            >
+              <span className="flex items-center gap-1 min-w-0">
+                <span className="font-mono text-text-primary truncate">{b.asset}</span>
+                {ch !== undefined && (
+                  <span className={cn(
+                    'text-[9px] font-mono tabular-nums',
+                    ch >= 0 ? 'text-long' : 'text-short',
+                  )}>
+                    {ch >= 0 ? '+' : ''}{ch.toFixed(2)}%
+                  </span>
+                )}
+              </span>
+              <span className="text-right">
+                <div className="font-mono tabular-nums text-text-secondary">
+                  {(b.free + b.locked).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                </div>
+                {usd > 0 && (
+                  <div className="text-[9px] text-text-muted">${formatUsd(usd)}</div>
+                )}
+              </span>
+            </button>
+          )
+        })}
       </div>
       <div className="mt-1.5 flex items-center justify-between text-[10px] text-text-muted">
         <span>{rest > 0 ? `+${rest} more` : `${state.balances.length} asset${state.balances.length === 1 ? '' : 's'}`}</span>
