@@ -24,7 +24,8 @@ import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
 import { useVenueFills } from '../hooks/useVenueFills'
 import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
-import { X } from 'lucide-react'
+import { X, Plus } from 'lucide-react'
+import { PlaceOrderModal } from '../components/PlaceOrderModal'
 import type { VenueId } from '../adapters/types'
 import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
@@ -114,6 +115,7 @@ export function PortfolioPage() {
   const liveEquity = stableTotal + cryptoUsd
   const hasLiveBalances = liveEquity > 0 || Object.values(venueBalances).some(v => v?.balances && v.balances.length > 0)
   const [, force] = useState(0)
+  const [placeOrderOpen, setPlaceOrderOpen] = useState(false)
 
   // Heartbeat for live unrealized PnL.
   useEffect(() => {
@@ -264,13 +266,23 @@ export function PortfolioPage() {
                     )}
                   </div>
                   {isAuthed ? (
-                    <button
-                      onClick={refreshBalances}
-                      title="Refresh balances now"
-                      className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-panel-light cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => setPlaceOrderOpen(true)}
+                        title="Place a limit order on this venue"
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-accent text-white hover:bg-accent/90 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Order
+                      </button>
+                      <button
+                        onClick={refreshBalances}
+                        title="Refresh balances now"
+                        className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-panel-light cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ) : (
                     <Link
                       to="/profile"
@@ -464,6 +476,16 @@ export function PortfolioPage() {
           </Link>
         </div>
       </section>
+
+      <PlaceOrderModal
+        open={placeOrderOpen}
+        defaultMarketId={fillMarkets[0]}
+        onClose={() => setPlaceOrderOpen(false)}
+        onPlaced={() => {
+          refreshBalances()
+          refreshOpenOrders()
+        }}
+      />
     </div>
   )
 }
