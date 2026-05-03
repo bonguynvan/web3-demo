@@ -22,6 +22,8 @@ import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
 import { useMarketStats } from '../hooks/useMarketStats'
 import { useModeStore } from '../store/modeStore'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { PlaceOrderModal } from './PlaceOrderModal'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
@@ -239,6 +241,8 @@ function MarketBar() {
   const { mode } = useModeStore()
   const currentPrice = getPrice(selectedMarket.symbol)
   const priceLabel = mode === 'demo' ? t('perp:binance') : t('perp:oracle')
+  const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
+  const [placeOrderOpen, setPlaceOrderOpen] = useState(false)
 
   return (
     <div className="flex items-center h-12 bg-panel/60 border-b border-border px-3 md:px-4 gap-3 md:gap-5 shrink-0 overflow-x-auto">
@@ -374,6 +378,22 @@ function MarketBar() {
           <span className="font-mono text-text-muted leading-tight">—</span>
         )}
       </Stat>
+
+      {vaultUnlocked && (
+        <button
+          onClick={() => setPlaceOrderOpen(true)}
+          title={`Place a limit order on ${selectedMarket.symbol}`}
+          className="ml-auto shrink-0 px-3 py-1.5 text-xs font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
+        >
+          Trade
+        </button>
+      )}
+
+      <PlaceOrderModal
+        open={placeOrderOpen}
+        onClose={() => setPlaceOrderOpen(false)}
+        defaultMarketId={selectedMarket.symbol}
+      />
     </div>
   )
 }
