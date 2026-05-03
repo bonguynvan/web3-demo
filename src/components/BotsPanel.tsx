@@ -7,7 +7,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Bot, Power, Trash2, Plus, Play, BarChart3, Share2, Upload, Check, PauseCircle, PlayCircle, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Bot, Trash2, Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, BookOpen } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -223,6 +224,7 @@ export function BotsPanel() {
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const navigate = useNavigate()
   return (
     <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-2">
       <Bot className="w-6 h-6 text-text-muted" />
@@ -231,12 +233,21 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Bots auto-execute trades when matching signals fire. Run in paper mode
         to validate strategy before enabling live trading.
       </span>
-      <button
-        onClick={onCreate}
-        className="mt-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
-      >
-        Create your first bot
-      </button>
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={onCreate}
+          className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
+        >
+          Create your first bot
+        </button>
+        <button
+          onClick={() => navigate('/library')}
+          className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer flex items-center gap-1"
+        >
+          <BookOpen className="w-3 h-3" />
+          Browse library
+        </button>
+      </div>
     </div>
   )
 }
