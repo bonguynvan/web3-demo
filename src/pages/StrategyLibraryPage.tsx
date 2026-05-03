@@ -323,6 +323,7 @@ function StrategyCard({
   onOpenDetail: () => void
 }) {
   const { bot, performance } = strategy
+  const perpOnly = bot.allowedSources.includes('funding')
   return (
     <article
       onClick={onOpenDetail}
@@ -330,7 +331,17 @@ function StrategyCard({
     >
       <header className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
+            {perpOnly && (
+              <span
+                title="Requires perp markets (funding rates). May not produce signals on spot-only venues."
+                className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-400"
+              >
+                Perp
+              </span>
+            )}
+          </div>
           <div className="text-[11px] text-text-muted">
             by {strategy.author.name}
             {strategy.author.handle && <span className="ml-1 text-text-muted/80">{strategy.author.handle}</span>}
