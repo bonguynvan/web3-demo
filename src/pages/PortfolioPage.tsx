@@ -21,6 +21,7 @@ import { useActiveVenue } from '../hooks/useActiveVenue'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { useVenueBalances, type VenueBalanceState } from '../hooks/useVenueBalances'
 import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
+import { useVenueFills } from '../hooks/useVenueFills'
 import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import { X } from 'lucide-react'
@@ -59,6 +60,21 @@ export function PortfolioPage() {
   }
   const liveOpenOrders = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
+
+  // Markets to fetch fills for: union of open-order markets and the
+  // top-5 non-stable balances. Bounded to keep request count low.
+  const fillMarketSet = new Set<string>()
+  for (const { order } of liveOpenOrders) fillMarketSet.add(order.marketId)
+  const STABLES_FOR_FILLS = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'FDUSD'])
+  const balanceTops = Object.values(venueBalances)
+    .flatMap(v => v?.balances ?? [])
+    .filter(b => !STABLES_FOR_FILLS.has(b.asset) && (b.free + b.locked) > 0)
+    .map(b => `${b.asset}/USDT`)
+    .filter(id => adapter.getMarket(id))
+    .slice(0, 5)
+  for (const m of balanceTops) fillMarketSet.add(m)
+  const fillMarkets = Array.from(fillMarketSet)
+  const recentFills = useVenueFills(fillMarkets, 10)
   const navigate = useNavigate()
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
   const goToMarket = (asset: string) => {
@@ -313,6 +329,40 @@ export function PortfolioPage() {
                   </button>,
                 ])}
                 columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Created', '']}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Live recent fills */}
+        {recentFills.entries.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold mb-2 flex items-center justify-between gap-3">
+              <span>Recent fills ({recentFills.entries.length})</span>
+              {recentFills.fetchedAt && (
+                <span className="text-[10px] text-text-muted font-normal">
+                  Updated {new Date(recentFills.fetchedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </h2>
+            <div className="bg-panel border border-border rounded-lg overflow-hidden">
+              <Table
+                rows={recentFills.entries.slice(0, 20).map(({ venueId, fill }) => [
+                  <span className="capitalize text-text-muted">{venueId}</span>,
+                  fill.marketId,
+                  <span className={cn(
+                    'text-[10px] uppercase tracking-wider font-semibold',
+                    fill.side === 'buy' ? 'text-long' : 'text-short',
+                  )}>
+                    {fill.side}
+                  </span>,
+                  `$${formatUsd(fill.price)}`,
+                  fill.size.toLocaleString(undefined, { maximumFractionDigits: 6 }),
+                  `$${formatUsd(fill.price * fill.size)}`,
+                  `${fill.fee.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${fill.feeAsset}`,
+                  new Date(fill.timestamp).toLocaleString(),
+                ])}
+                columns={['Venue', 'Market', 'Side', 'Price', 'Size', 'Notional', 'Fee', 'Time']}
               />
             </div>
           </div>

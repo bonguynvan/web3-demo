@@ -443,6 +443,45 @@ export class BinanceAdapter implements VenueAdapter {
     }
   }
   async cancelAllOrders(_marketId?: string): Promise<void> { throw notImplemented('cancelAllOrders') }
+
+  /**
+   * Recent fills for a single market via signed `/api/v3/myTrades`.
+   * Returns up to `limit` fills (default 25, max 1000) sorted newest first.
+   */
+  async getRecentFills(marketId: string, limit = 25): Promise<Fill[]> {
+    if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
+    const m = this.markets.find(mk => mk.id === marketId)
+    if (!m?.venueSymbol) throw new Error(`Unknown market: ${marketId}`)
+    const query = await buildSignedQuery(this.creds.apiSecret, {
+      symbol: m.venueSymbol,
+      limit: Math.min(1000, Math.max(1, limit)),
+    })
+    const res = await fetch(`${REST_BASE}/api/v3/myTrades?${query}`, {
+      headers: { 'X-MBX-APIKEY': this.creds.apiKey },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Binance myTrades failed: ${res.status} ${body}`)
+    }
+    const raw = await res.json() as Array<{
+      id: number; orderId: number; symbol: string
+      price: string; qty: string; commission: string; commissionAsset: string
+      isBuyer: boolean; time: number
+    }>
+    return raw
+      .map<Fill>(t => ({
+        id: String(t.id),
+        orderId: String(t.orderId),
+        marketId,
+        side: t.isBuyer ? 'buy' : 'sell',
+        price: parseFloat(t.price),
+        size: parseFloat(t.qty),
+        feeAsset: t.commissionAsset,
+        fee: parseFloat(t.commission),
+        timestamp: t.time,
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }
   async setLeverage(_args: { marketId: string; leverage: number }): Promise<void> {
     throw notImplemented('setLeverage')
   }
