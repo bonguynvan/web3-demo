@@ -102,6 +102,15 @@ function mapBinanceTif(t: string | undefined): Order['tif'] {
   }
 }
 
+function tifToBinance(tif: 'gtc' | 'ioc' | 'fok' | 'post_only'): string {
+  switch (tif) {
+    case 'ioc': return 'IOC'
+    case 'fok': return 'FOK'
+    case 'post_only': return 'GTX'
+    default: return 'GTC'
+  }
+}
+
 function mapBinanceOrderStatus(s: string): Order['status'] {
   switch (s) {
     case 'NEW': return 'open'
@@ -423,7 +432,56 @@ export class BinanceAdapter implements VenueAdapter {
   }
   subscribeOrders(_cb: (o: Order) => void): Unsubscribe { return () => {} }
   subscribeFills(_cb: (f: Fill) => void): Unsubscribe { return () => {} }
-  async placeOrder(_intent: PlaceOrderIntent): Promise<Order> { throw notImplemented('placeOrder') }
+  async placeOrder(intent: PlaceOrderIntent): Promise<Order> {
+    if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
+    if (this.creds.readOnly) throw new Error('Cannot place order: API key is read-only')
+    if (intent.type !== 'limit') {
+      throw new Error('Only limit orders are supported in this build (safer default)')
+    }
+    if (!intent.size || intent.size <= 0) throw new Error('size > 0 required')
+    if (!intent.price || intent.price <= 0) throw new Error('price > 0 required for limit')
+    const m = this.markets.find(mk => mk.id === intent.marketId)
+    if (!m?.venueSymbol) throw new Error(`Unknown market: ${intent.marketId}`)
+
+    const params: Record<string, string | number> = {
+      symbol: m.venueSymbol,
+      side: intent.side === 'buy' ? 'BUY' : 'SELL',
+      type: 'LIMIT',
+      timeInForce: tifToBinance(intent.tif ?? 'gtc'),
+      quantity: intent.size,
+      price: intent.price,
+    }
+    if (intent.clientId) params.newClientOrderId = intent.clientId
+    const query = await buildSignedQuery(this.creds.apiSecret, params)
+    const res = await fetch(`${REST_BASE}/api/v3/order?${query}`, {
+      method: 'POST',
+      headers: { 'X-MBX-APIKEY': this.creds.apiKey },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Binance placeOrder failed: ${res.status} ${body}`)
+    }
+    const o = await res.json() as {
+      orderId: number; clientOrderId?: string; symbol: string
+      price: string; origQty: string; executedQty: string
+      side: 'BUY' | 'SELL'; type: string; timeInForce?: string
+      status: string; transactTime: number
+    }
+    return {
+      id: String(o.orderId),
+      clientId: o.clientOrderId,
+      marketId: intent.marketId,
+      side: o.side === 'BUY' ? 'buy' : 'sell',
+      type: mapBinanceOrderType(o.type),
+      tif: mapBinanceTif(o.timeInForce),
+      price: parseFloat(o.price) || undefined,
+      size: parseFloat(o.origQty),
+      filledSize: parseFloat(o.executedQty),
+      status: mapBinanceOrderStatus(o.status),
+      createdAt: o.transactTime,
+      updatedAt: o.transactTime,
+    }
+  }
   async cancelOrder(args: { marketId: string; orderId: string }): Promise<void> {
     if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
     if (this.creds.readOnly) throw new Error('Cannot cancel: API key is read-only')
