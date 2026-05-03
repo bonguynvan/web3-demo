@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { BookOpen, Plus, Check, Search } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
+import { useActiveVenue } from '../hooks/useActiveVenue'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
 import { cn } from '../lib/format'
 import { Modal } from '../components/ui/Modal'
@@ -26,6 +27,12 @@ export function StrategyLibraryPage() {
   const [query, setQuery] = useState<string>('')
   const [detail, setDetail] = useState<PublishedStrategy | null>(null)
   const [sortBy, setSortBy] = useState<'curated' | 'winrate' | 'sample' | 'name'>('curated')
+
+  const venueId = useActiveVenue()
+  // Today: hyperliquid = perp, binance = spot. Future venue adapters
+  // should be added here (or this should switch to a per-adapter
+  // capability flag once VenueAdapter exposes one synchronously).
+  const activeHasPerps = venueId === 'hyperliquid'
 
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
   const q = query.trim().toLowerCase()
@@ -201,6 +208,8 @@ export function StrategyLibraryPage() {
                   strategy={s}
                   installed={existingBotNames.has(s.bot.name)}
                   overlapCount={overlapCount}
+                  activeHasPerps={activeHasPerps}
+                  activeVenueId={venueId}
                   onInstall={() => install(s)}
                   onOpenDetail={() => setDetail(s)}
                 />
@@ -337,16 +346,19 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 }
 
 function StrategyCard({
-  strategy, installed, overlapCount, onInstall, onOpenDetail,
+  strategy, installed, overlapCount, activeHasPerps, activeVenueId, onInstall, onOpenDetail,
 }: {
   strategy: PublishedStrategy
   installed: boolean
   overlapCount: number
+  activeHasPerps: boolean
+  activeVenueId: string
   onInstall: () => void
   onOpenDetail: () => void
 }) {
   const { bot, performance } = strategy
   const perpOnly = bot.allowedSources.includes('funding')
+  const incompatible = perpOnly && !activeHasPerps
   return (
     <article
       onClick={onOpenDetail}
@@ -356,12 +368,20 @@ function StrategyCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
-            {perpOnly && (
+            {perpOnly && !incompatible && (
               <span
-                title="Requires perp markets (funding rates). May not produce signals on spot-only venues."
+                title="Requires perp markets (funding rates)."
                 className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-400"
               >
                 Perp
+              </span>
+            )}
+            {incompatible && (
+              <span
+                title={`This strategy needs perp markets. Active venue (${activeVenueId}) has no perp data — switch venue to use it.`}
+                className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-short/15 text-short"
+              >
+                Incompatible
               </span>
             )}
           </div>
