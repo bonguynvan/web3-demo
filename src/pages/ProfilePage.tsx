@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink } from 'lucide-react'
+import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
 import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
@@ -183,6 +183,43 @@ export function ProfilePage() {
               Browse library
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+          </div>
+        </div>
+
+        {/* Live trading guide */}
+        <div>
+          <SectionHeader
+            icon={Bot}
+            title="Live trading"
+            subtitle="When you're ready to let bots place real venue orders, the four-step path:"
+          />
+          <ol className="mt-3 space-y-2 text-sm text-text-secondary leading-relaxed list-decimal list-inside">
+            <li>
+              Connect a venue API key above. Generate it on the venue dashboard with{' '}
+              <span className="text-text-primary">trading scope enabled</span> and{' '}
+              <span className="text-short font-semibold">withdrawal scope DISABLED</span>.
+            </li>
+            <li>
+              Each session, unlock the vault from the amber banner at the top of the app.
+              Authenticated trading is paused until then by design.
+            </li>
+            <li>
+              Pick a bot (or build one), then click its{' '}
+              <span className="text-text-primary uppercase tracking-wider text-[11px] font-semibold">paper</span> badge to switch to{' '}
+              <span className="text-amber-400 uppercase tracking-wider text-[11px] font-semibold">live</span>.
+              The confirm shows max daily exposure.
+            </li>
+            <li>
+              Live bots fire signed orders on signal matches. Watch /portfolio for live open orders, fills, and bot ownership badges.
+              Cancel anytime with one click.
+            </li>
+          </ol>
+          <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-400/10 border border-amber-400/30 text-[11px] text-amber-400 leading-relaxed">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>
+              Limit-only by design — market orders skip the price check and can fill far from
+              expected during volatility. Bots also respect the per-bot daily cap.
+            </div>
           </div>
         </div>
 
