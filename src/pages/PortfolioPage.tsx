@@ -26,6 +26,8 @@ import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import { X, Plus } from 'lucide-react'
 import { PlaceOrderModal } from '../components/PlaceOrderModal'
+import { ActivityFeed } from '../components/ActivityFeed'
+import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import type { VenueId } from '../adapters/types'
 import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
@@ -76,6 +78,7 @@ export function PortfolioPage() {
   for (const m of balanceTops) fillMarketSet.add(m)
   const fillMarkets = Array.from(fillMarketSet)
   const recentFills = useVenueFills(fillMarkets, 10)
+  const resolvedSignals = useSignalPerformanceStore(s => s.resolved)
   const navigate = useNavigate()
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
   const goToMarket = (asset: string) => {
@@ -464,6 +467,17 @@ export function PortfolioPage() {
               />
             </div>
           )}
+        </div>
+
+        {/* Unified activity feed */}
+        <div>
+          <h2 className="text-sm font-semibold mb-2">Activity</h2>
+          <ActivityFeed
+            paperTrades={trades}
+            venueFills={recentFills.entries}
+            resolvedSignals={resolvedSignals}
+            limit={20}
+          />
         </div>
 
         <div className="flex items-center justify-end gap-3 text-xs">
