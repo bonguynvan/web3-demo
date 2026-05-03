@@ -12,9 +12,11 @@
  */
 
 import { useState } from 'react'
-import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp } from 'lucide-react'
-import { getActiveAdapter } from '../adapters/registry'
+import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle } from 'lucide-react'
+import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
+import { useBotStore } from '../store/botStore'
+import { useToast } from '../store/toastStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import { computeStats } from '../bots/computeStats'
 import { EquityCurve } from './EquityCurve'
@@ -262,7 +264,29 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
   const livePnl = trade.pnlUsd ?? sign * (liveMark - trade.entryPrice) * trade.size
   const pnlColor = livePnl >= 0 ? 'text-long' : 'text-short'
   const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
+  const closeTrade = useBotStore(s => s.closeTrade)
+  const toast = useToast()
   const [expanded, setExpanded] = useState(false)
+  const cancelLive = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!trade.venueOrderId) return
+    if (!confirm(`Cancel live order ${trade.venueOrderId} on ${trade.marketId}? This kills the venue order AND closes the trade locally.`)) return
+    const adapter = getAdapter('binance')
+    if (!adapter) {
+      toast.error('Cancel failed', 'Binance adapter unavailable')
+      return
+    }
+    try {
+      await adapter.cancelOrder({ marketId: trade.marketId, orderId: trade.venueOrderId })
+      // Mark the local trade closed at entry price (no PnL realised since
+      // we cancelled before the order filled).
+      closeTrade(trade.id, trade.entryPrice, Date.now())
+      toast.success('Live order canceled', `${trade.marketId} ${trade.venueOrderId}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error('Cancel failed', msg)
+    }
+  }
 
   const movePct = ((liveMark - trade.entryPrice) / trade.entryPrice) * 100
   const holdMs = (trade.closedAt ?? Date.now()) - trade.openedAt
@@ -309,6 +333,15 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
           </span>
           <span className="text-text-muted w-8 text-right">{isOpen ? 'open' : 'closed'}</span>
         </button>
+        {isOpen && trade.mode === 'live' && trade.venueOrderId && (
+          <button
+            onClick={cancelLive}
+            title="Cancel live venue order"
+            className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-text-muted hover:text-short hover:bg-short/10 cursor-pointer"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
       {expanded && (
         <div className="px-3 pb-2 pt-1 bg-surface/40 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">

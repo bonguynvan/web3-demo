@@ -40,6 +40,8 @@ export function PortfolioSummary({ bots, trades }: { bots: BotConfig[]; trades: 
   const realizedColor = stats.realizedPnlUsd >= 0 ? 'text-long' : 'text-short'
   const unrealizedColor = stats.unrealizedPnlUsd >= 0 ? 'text-long' : 'text-short'
   const enabledCount = bots.filter(b => b.enabled).length
+  const liveBotCount = bots.filter(b => b.mode === 'live').length
+  const liveTradeCount = trades.filter(t => t.mode === 'live').length
 
   return (
     <div className="sticky top-0 z-10 border-b border-border bg-surface/95 backdrop-blur px-3 py-3">
@@ -154,8 +156,13 @@ export function PortfolioSummary({ bots, trades }: { bots: BotConfig[]; trades: 
         </div>
       )}
 
-      <div className="text-[10px] text-text-muted mt-2">
-        {bots.length} bot{bots.length === 1 ? '' : 's'} · {enabledCount} active
+      <div className="text-[10px] text-text-muted mt-2 flex items-center gap-2">
+        <span>{bots.length} bot{bots.length === 1 ? '' : 's'} · {enabledCount} active</span>
+        {liveBotCount > 0 && (
+          <span className="text-amber-400 font-semibold uppercase tracking-wider">
+            {liveBotCount} live{liveTradeCount > 0 ? ` · ${liveTradeCount} live trade${liveTradeCount === 1 ? '' : 's'}` : ''}
+          </span>
+        )}
       </div>
     </div>
   )
