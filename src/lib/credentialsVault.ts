@@ -33,8 +33,16 @@ interface VaultEnvelope {
   ct: string
 }
 
+export interface VaultEntryMeta {
+  /** Epoch ms when this venue's credentials were sealed. */
+  addedAt: number
+}
+
 export interface VaultPayload {
   venues: Partial<Record<VenueId, VenueCredentials>>
+  /** Per-venue metadata (timestamps, last-used, etc.). Backward-compatible
+   *  — older vaults that omit this still decrypt fine. */
+  meta?: Partial<Record<VenueId, VaultEntryMeta>>
 }
 
 function bufToB64(buf: ArrayBuffer | Uint8Array): string {

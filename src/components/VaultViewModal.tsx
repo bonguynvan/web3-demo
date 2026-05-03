@@ -57,8 +57,13 @@ export function VaultViewModal({ open, onClose }: Props) {
   const removeVenue = async (venueId: string) => {
     if (!unlocked) return
     if (!confirm(`Remove ${venueId} credentials from the vault?`)) return
-    const next: VaultPayload = { ...unlocked, venues: { ...unlocked.venues } }
+    const next: VaultPayload = {
+      ...unlocked,
+      venues: { ...unlocked.venues },
+      meta: unlocked.meta ? { ...unlocked.meta } : undefined,
+    }
     delete next.venues[venueId as keyof typeof next.venues]
+    if (next.meta) delete next.meta[venueId as keyof typeof next.meta]
     try {
       await seal(passphrase, next)
       setUnlocked(next)
@@ -141,6 +146,7 @@ export function VaultViewModal({ open, onClose }: Props) {
                     : cred?.kind === 'wallet'
                       ? 'Wallet'
                       : '—'
+                  const addedAt = unlocked.meta?.[v as keyof NonNullable<typeof unlocked.meta>]?.addedAt
                   return (
                     <div
                       key={v}
@@ -151,6 +157,11 @@ export function VaultViewModal({ open, onClose }: Props) {
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-panel text-text-muted">
                           {scope}
                         </span>
+                        {addedAt && (
+                          <span className="text-[10px] text-text-muted truncate">
+                            added {new Date(addedAt).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
                       <button
                         onClick={() => removeVenue(v)}

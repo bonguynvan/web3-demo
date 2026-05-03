@@ -96,6 +96,7 @@ export function ConnectVenueModal({ open, onClose, venueId }: Props) {
         apiSecret: apiSecret.trim(),
         readOnly,
       }
+      payload.meta = { ...(payload.meta ?? {}), [venueId]: { addedAt: Date.now() } }
       await seal(passphrase, payload)
       toast.success(`${venueId} connected`, readOnly ? 'Read-only scope' : 'Trading scope enabled')
       handleClose()
