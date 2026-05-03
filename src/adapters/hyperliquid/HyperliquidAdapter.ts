@@ -168,6 +168,22 @@ export class HyperliquidAdapter implements VenueAdapter {
     return this.auth !== null
   }
 
+  /**
+   * Hyperliquid clearinghouse snapshot for the connected wallet.
+   * Public `/info` endpoint — no signing required. Returns the raw HL
+   * shape (assetPositions, marginSummary, etc.); higher layers can
+   * normalise fields they care about.
+   */
+  async getAccountSnapshot(): Promise<unknown> {
+    if (!this.auth) {
+      throw venueError('not authenticated — call authenticate(walletCreds) first', false, true)
+    }
+    return postInfo({
+      type: 'clearinghouseState',
+      user: this.auth.address,
+    })
+  }
+
   // ─── Market metadata ────────────────────────────────────────────────
 
   async listMarkets(): Promise<Market[]> {

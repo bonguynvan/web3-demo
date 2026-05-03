@@ -47,6 +47,23 @@ function parseBinance(snap: unknown): VenueBalance[] {
     .sort((a, b) => (b.free + b.locked) - (a.free + a.locked))
 }
 
+interface RawHlSummary { accountValue?: string | number; totalMarginUsed?: string | number }
+interface RawHlSnapshot { marginSummary?: RawHlSummary; withdrawable?: string | number }
+
+function parseHyperliquid(snap: unknown): VenueBalance[] {
+  if (!snap || typeof snap !== 'object') return []
+  const s = snap as RawHlSnapshot
+  const equity = Number(s.marginSummary?.accountValue ?? 0)
+  const used = Number(s.marginSummary?.totalMarginUsed ?? 0)
+  const withdrawable = Number(s.withdrawable ?? Math.max(0, equity - used))
+  if (equity <= 0 && withdrawable <= 0) return []
+  return [{
+    asset: 'USDC',
+    free: withdrawable,
+    locked: Math.max(0, equity - withdrawable),
+  }]
+}
+
 export interface UseVenueBalancesResult {
   states: Record<VenueId, VenueBalanceState>
   /** Trigger an immediate fetch of all authed venues. */
@@ -89,7 +106,11 @@ export function useVenueBalances(): UseVenueBalancesResult {
           if (cancelled) return
           // Normalise per-venue. Adding a new authed venue means adding
           // its parser here.
-          const balances = adapter.id === 'binance' ? parseBinance(raw) : []
+          const balances = adapter.id === 'binance'
+            ? parseBinance(raw)
+            : adapter.id === 'hyperliquid'
+              ? parseHyperliquid(raw)
+              : []
           setState(prev => ({
             ...prev,
             [adapter.id]: { loading: false, balances, error: null, fetchedAt: Date.now() },
