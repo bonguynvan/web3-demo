@@ -210,6 +210,16 @@ Authenticated venue trading is wired end-to-end for Binance:
   resolved signals on Portfolio.
 - **Status banners** — amber "Vault locked" CTA and green "Live trading
   active" indicator across the app.
+- **Hyperliquid wallet** — connect via wagmi (EIP-712 signing). Public
+  data flows (balances, open orders, account snapshot) work; order
+  placement is intentionally stubbed pending testnet validation of the
+  msgpack signing recipe (the existing JSDoc in `HyperliquidAdapter.placeOrder`
+  documents the exact path).
+- **Reduce-only** flag in the place-order modal for perp venues — close
+  positions without accidentally opening new ones.
+- **Emergency stop** button on `/profile` — disables every bot and
+  cancels every open live order across all connected venues in one
+  click. The kill switch.
 
 ---
 
