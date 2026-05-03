@@ -33,16 +33,33 @@ export function PortfolioPage() {
   const adapters = listAdapters()
   const { states: venueBalances, refresh: refreshBalances } = useVenueBalances()
 
-  // Stablecoin USD-equivalent total across all authed venues.
-  // Treats listed stables as $1 each — close enough for a portfolio
-  // glance; real pricing per asset can come later.
+  // Live equity across authed venues. Stablecoins count at $1.
+  // Non-stables priced via the active adapter's ticker cache (best-effort
+  // `${asset}/USDT` lookup). Holdings without a ticker are skipped — the
+  // figure is "live equity I can see right now", not a forced 100%-attributed
+  // valuation.
   const STABLES = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'FDUSD'])
   let stableTotal = 0
+  let cryptoUsd = 0
+  let unpricedCount = 0
   for (const v of Object.values(venueBalances)) {
     for (const b of v?.balances ?? []) {
-      if (STABLES.has(b.asset)) stableTotal += b.free + b.locked
+      const total = b.free + b.locked
+      if (total === 0) continue
+      if (STABLES.has(b.asset)) {
+        stableTotal += total
+        continue
+      }
+      const ticker = adapter.getTicker(`${b.asset}/USDT`)
+      if (ticker?.price) {
+        cryptoUsd += total * ticker.price
+      } else {
+        unpricedCount += 1
+      }
     }
   }
+  const liveEquity = stableTotal + cryptoUsd
+  const hasLiveBalances = liveEquity > 0 || Object.values(venueBalances).some(v => v?.balances && v.balances.length > 0)
   const [, force] = useState(0)
 
   // Heartbeat for live unrealized PnL.
@@ -125,11 +142,19 @@ export function PortfolioPage() {
               <div className="text-[10px] uppercase tracking-wider text-text-muted">Open</div>
               <div className="text-base font-mono mt-1">{stats.open}</div>
             </div>
-            {stableTotal > 0 && (
+            {hasLiveBalances && (
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-muted">Cash on venues</div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">Live equity</div>
                 <div className="text-base font-mono mt-1 text-text-primary">
-                  ${formatUsd(stableTotal)}
+                  ${formatUsd(liveEquity)}
+                </div>
+                <div className="text-[10px] text-text-muted mt-0.5">
+                  {stableTotal > 0 && `$${formatUsd(stableTotal)} cash`}
+                  {stableTotal > 0 && cryptoUsd > 0 && ' · '}
+                  {cryptoUsd > 0 && `$${formatUsd(cryptoUsd)} crypto`}
+                  {unpricedCount > 0 && (
+                    <span className="ml-1">· {unpricedCount} unpriced</span>
+                  )}
                 </div>
               </div>
             )}
