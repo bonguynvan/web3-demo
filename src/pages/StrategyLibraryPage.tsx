@@ -160,14 +160,26 @@ export function StrategyLibraryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {visible.map(s => (
-              <StrategyCard
-                key={s.id}
-                strategy={s}
-                installed={existingBotNames.has(s.bot.name)}
-                onInstall={() => install(s)}
-              />
-            ))}
+            {visible.map(s => {
+              // Bots already running that share at least one signal source
+              // with this strategy. Empty allowedSources on a bot means
+              // "any source" so it overlaps with everything.
+              const overlapCount = bots.filter(b => {
+                if (!b.enabled) return false
+                if (b.allowedSources.length === 0) return true
+                if (s.bot.allowedSources.length === 0) return true
+                return b.allowedSources.some(src => s.bot.allowedSources.includes(src))
+              }).length
+              return (
+                <StrategyCard
+                  key={s.id}
+                  strategy={s}
+                  installed={existingBotNames.has(s.bot.name)}
+                  overlapCount={overlapCount}
+                  onInstall={() => install(s)}
+                />
+              )
+            })}
           </div>
         )}
 
@@ -182,10 +194,11 @@ export function StrategyLibraryPage() {
 }
 
 function StrategyCard({
-  strategy, installed, onInstall,
+  strategy, installed, overlapCount, onInstall,
 }: {
   strategy: PublishedStrategy
   installed: boolean
+  overlapCount: number
   onInstall: () => void
 }) {
   const { bot, performance } = strategy
@@ -252,6 +265,12 @@ function StrategyCard({
       {performance && (
         <div className="text-[10px] text-text-muted mb-3">
           Tracked since {performance.since}
+        </div>
+      )}
+
+      {overlapCount > 0 && !installed && (
+        <div className="text-[10px] text-text-muted mb-3">
+          You have {overlapCount} active bot{overlapCount === 1 ? '' : 's'} watching overlapping sources.
         </div>
       )}
 
