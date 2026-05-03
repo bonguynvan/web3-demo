@@ -26,6 +26,8 @@ import { useActiveVenue } from '../hooks/useActiveVenue'
 import { listAdapters } from '../adapters/registry'
 import { vaultExists, clear as clearVault } from '../lib/credentialsVault'
 import { useToast } from '../store/toastStore'
+import { useBotStore } from '../store/botStore'
+import { useVenueOpenOrders } from '../hooks/useVenueOpenOrders'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { getAdapter } from '../adapters/registry'
 import { cn } from '../lib/format'
@@ -37,6 +39,28 @@ export function ProfilePage() {
   const activeVenue = useActiveVenue()
   const adapters = listAdapters()
   const toast = useToast()
+  const setAllEnabled = useBotStore(s => s.setAllEnabled)
+  const { states: venueOpenOrders, refresh: refreshOpenOrders } = useVenueOpenOrders()
+  const liveOpenOrdersAll = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
+    (st?.orders ?? []).map(o => ({ venueId, order: o })))
+
+  const emergencyStop = async () => {
+    if (!confirm('EMERGENCY STOP\n\nThis will:\n  • Disable ALL bots immediately\n  • Cancel ALL open live orders on connected venues\n\nYour open positions on the venue stay open — go to the venue UI to flatten them.\n\nProceed?')) return
+    setAllEnabled(false)
+    let canceled = 0
+    for (const { venueId, order } of liveOpenOrdersAll) {
+      const a = adapters.find(x => x.id === venueId)
+      if (!a) continue
+      try {
+        await a.cancelOrder({ marketId: order.marketId, orderId: order.id })
+        canceled += 1
+      } catch {
+        // best-effort
+      }
+    }
+    refreshOpenOrders()
+    toast.success('Emergency stop complete', `Bots disabled · ${canceled}/${liveOpenOrdersAll.length} live orders canceled`)
+  }
   const [connectVenue, setConnectVenue] = useState<VenueId | null>(null)
   // Track vault presence locally so the clear button removes the row
   // without a page reload.
@@ -220,6 +244,26 @@ export function ProfilePage() {
               Limit-only by design — market orders skip the price check and can fill far from
               expected during volatility. Bots also respect the per-bot daily cap.
             </div>
+          </div>
+        </div>
+
+        {/* Emergency stop */}
+        <div>
+          <SectionHeader
+            icon={AlertTriangle}
+            title="Emergency stop"
+            subtitle="One-click kill switch — disables every bot AND cancels every open live order across connected venues. Useful when something feels wrong."
+          />
+          <div className="mt-3">
+            <button
+              onClick={emergencyStop}
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-md bg-short text-white hover:bg-short/90 transition-colors cursor-pointer"
+            >
+              Emergency stop
+            </button>
+            <span className="ml-3 text-[11px] text-text-muted">
+              Open positions on the venue stay open — visit the venue UI to flatten them.
+            </span>
           </div>
         </div>
 
