@@ -10,6 +10,7 @@ import { Outlet } from 'react-router-dom'
 import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
 import { ConnectionBanner } from './ConnectionBanner'
+import { VaultLockBanner } from './VaultLockBanner'
 import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
@@ -59,6 +60,7 @@ export function AppShell() {
         <Web3Header />
         <AccountBar />
         <ConnectionBanner />
+        <VaultLockBanner />
 
         {/* Page content */}
         <div className="flex-1 min-h-0">

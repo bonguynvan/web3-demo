@@ -13,6 +13,7 @@ import { Lock, Unlock, Trash2, AlertTriangle } from 'lucide-react'
 import { unseal, seal, WrongPassphraseError, type VaultPayload } from '../lib/credentialsVault'
 import { getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { cn } from '../lib/format'
 import type { VenueId } from '../adapters/types'
 
@@ -23,14 +24,15 @@ interface Props {
 
 export function VaultViewModal({ open, onClose }: Props) {
   const toast = useToast()
+  const setUnlocked = useVaultSessionStore(s => s.setUnlocked)
   const [passphrase, setPassphrase] = useState('')
   const [busy, setBusy] = useState(false)
-  const [unlocked, setUnlocked] = useState<VaultPayload | null>(null)
+  const [unlocked, setUnlockedPayload] = useState<VaultPayload | null>(null)
 
   const reset = () => {
     setPassphrase('')
     setBusy(false)
-    setUnlocked(null)
+    setUnlockedPayload(null)
   }
 
   const handleClose = () => {
@@ -43,7 +45,8 @@ export function VaultViewModal({ open, onClose }: Props) {
     setBusy(true)
     try {
       const payload = await unseal(passphrase)
-      setUnlocked(payload)
+      setUnlockedPayload(payload)
+      setUnlocked(true)
 
       // Push creds into matching adapters so authenticated calls work
       // for the rest of this session. Failures are logged via toast but
@@ -88,7 +91,7 @@ export function VaultViewModal({ open, onClose }: Props) {
     if (next.meta) delete next.meta[venueId as keyof typeof next.meta]
     try {
       await seal(passphrase, next)
-      setUnlocked(next)
+      setUnlockedPayload(next)
       toast.success(`Removed ${venueId}`, 'Vault re-sealed')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error'

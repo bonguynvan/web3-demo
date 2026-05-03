@@ -19,6 +19,7 @@ import {
   type VaultPayload,
 } from '../lib/credentialsVault'
 import { getAdapter } from '../adapters/registry'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
 import { cn } from '../lib/format'
@@ -31,6 +32,7 @@ interface Props {
 
 export function ConnectVenueModal({ open, onClose, venueId }: Props) {
   const toast = useToast()
+  const setUnlocked = useVaultSessionStore(s => s.setUnlocked)
   const exists = vaultExists()
 
   const [passphrase, setPassphrase] = useState('')
@@ -117,6 +119,7 @@ export function ConnectVenueModal({ open, onClose, venueId }: Props) {
         }
       }
 
+      setUnlocked(true)
       toast.success(`${venueId} connected`, readOnly ? 'Read-only scope' : 'Trading scope enabled')
       handleClose()
     } catch (e) {
