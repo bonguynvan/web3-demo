@@ -11,6 +11,7 @@ import { Modal } from './ui/Modal'
 
 const GLOBAL: Array<{ keys: string[]; desc: string }> = [
   { keys: ['Cmd / Ctrl', 'K'], desc: 'Open the market quick-jump palette' },
+  { keys: ['Cmd / Ctrl', 'L'], desc: 'Place a live order (vault must be unlocked)' },
   { keys: ['?'], desc: 'Show this hotkeys reference' },
   { keys: ['Esc'], desc: 'Close any open modal / dropdown' },
   { keys: ['↑', '↓'], desc: 'Navigate items in the market palette' },

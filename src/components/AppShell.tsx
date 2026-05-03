@@ -18,6 +18,7 @@ import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
 import { MarketPalette } from './MarketPalette'
 import { HotkeysModal } from './HotkeysModal'
+import { GlobalPlaceOrder } from './GlobalPlaceOrder'
 import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
@@ -77,6 +78,7 @@ export function AppShell() {
         <OnboardingCard />
         <MarketPalette />
         <HotkeysModal />
+        <GlobalPlaceOrder />
       </div>
     </div>
   )
