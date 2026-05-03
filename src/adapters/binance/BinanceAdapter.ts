@@ -10,6 +10,7 @@
  */
 
 import { binanceTicker, type TickerData } from '../../lib/binanceTicker'
+import { buildSignedQuery } from '../../lib/binanceAuth'
 import type { VenueAdapter } from '../VenueAdapter'
 import type {
   Balance,
@@ -103,6 +104,9 @@ export class BinanceAdapter implements VenueAdapter {
   // ─── Internal state ─────────────────────────────────────────────────
 
   private markets: Market[] = []
+  // Authenticated session — set by authenticate(), cleared on disconnect.
+  // Lives only in memory; the vault layer is responsible for persistence.
+  private creds: { apiKey: string; apiSecret: string; readOnly: boolean } | null = null
 
   // ─── Lifecycle ──────────────────────────────────────────────────────
 
@@ -114,8 +118,38 @@ export class BinanceAdapter implements VenueAdapter {
     // Singleton manages its own lifecycle by subscriber count.
   }
 
-  async authenticate(_creds: VenueCredentials): Promise<void> {
-    throw notImplemented('authenticate')
+  async authenticate(creds: VenueCredentials): Promise<void> {
+    if (creds.kind !== 'apiKey') {
+      throw new Error('Binance requires apiKey credentials')
+    }
+    if (!creds.apiKey || !creds.apiSecret) {
+      throw new Error('Both apiKey and apiSecret are required')
+    }
+    this.creds = {
+      apiKey: creds.apiKey,
+      apiSecret: creds.apiSecret,
+      readOnly: creds.readOnly !== false,
+    }
+    // Flip trading capability based on the connected key's scope.
+    this.capabilities.trading = !this.creds.readOnly
+  }
+
+  /**
+   * Signed REST call to /api/v3/account. Returns the raw Binance shape;
+   * higher layers can map balances into venue-agnostic types.
+   * Throws if not yet authenticated.
+   */
+  async getAccountSnapshot(): Promise<unknown> {
+    if (!this.creds) throw new Error('Not authenticated — call authenticate() first')
+    const query = await buildSignedQuery(this.creds.apiSecret)
+    const res = await fetch(`${REST_BASE}/api/v3/account?${query}`, {
+      headers: { 'X-MBX-APIKEY': this.creds.apiKey },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Binance account fetch failed: ${res.status} ${body}`)
+    }
+    return res.json()
   }
 
   // ─── Market metadata ────────────────────────────────────────────────
