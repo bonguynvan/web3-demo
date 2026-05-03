@@ -25,10 +25,11 @@ export function StrategyLibraryPage() {
   const [filterTag, setFilterTag] = useState<string>('')
   const [query, setQuery] = useState<string>('')
   const [detail, setDetail] = useState<PublishedStrategy | null>(null)
+  const [sortBy, setSortBy] = useState<'curated' | 'winrate' | 'sample' | 'name'>('curated')
 
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
   const q = query.trim().toLowerCase()
-  const visible = STRATEGY_LIBRARY.filter(s => {
+  const filtered = STRATEGY_LIBRARY.filter(s => {
     if (filterTag && !s.tags.includes(filterTag)) return false
     if (q) {
       const hay = `${s.name} ${s.summary} ${s.author.name} ${s.tags.join(' ')}`.toLowerCase()
@@ -36,6 +37,15 @@ export function StrategyLibraryPage() {
     }
     return true
   })
+  const visible = (() => {
+    if (sortBy === 'curated') return filtered
+    if (sortBy === 'name') return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    return [...filtered].sort((a, b) => {
+      const av = sortBy === 'winrate' ? (a.performance?.winRate ?? -1) : (a.performance?.sample ?? -1)
+      const bv = sortBy === 'winrate' ? (b.performance?.winRate ?? -1) : (b.performance?.sample ?? -1)
+      return bv - av
+    })
+  })()
 
   const install = (s: PublishedStrategy) => {
     if (existingBotNames.has(s.bot.name)) {
@@ -74,23 +84,36 @@ export function StrategyLibraryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 bg-panel border border-border rounded-md px-3 py-2 max-w-md">
-          <Search className="w-4 h-4 text-text-muted shrink-0" />
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search strategies…"
-            className="flex-1 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-muted"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="text-[10px] text-text-muted hover:text-text-primary cursor-pointer"
-            >
-              clear
-            </button>
-          )}
+        <div className="flex items-center gap-2 mb-4 max-w-2xl">
+          <div className="flex items-center gap-2 flex-1 bg-panel border border-border rounded-md px-3 py-2">
+            <Search className="w-4 h-4 text-text-muted shrink-0" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search strategies…"
+              className="flex-1 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-muted"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="text-[10px] text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                clear
+              </button>
+            )}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            title="Sort strategies"
+            className="text-xs bg-panel border border-border rounded-md px-2 py-2 text-text-secondary cursor-pointer focus:outline-none focus:border-accent"
+          >
+            <option value="curated">Curated</option>
+            <option value="winrate">Win rate</option>
+            <option value="sample">Sample size</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mb-6">
