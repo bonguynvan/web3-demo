@@ -43,6 +43,7 @@ function loadSort(): BotSort {
 }
 
 export function BotsPanel() {
+  const navigate = useNavigate()
   const bots = useBotStore(s => s.bots)
   const trades = useBotStore(s => s.trades)
   const toggleBot = useBotStore(s => s.toggleBot)
@@ -136,6 +137,13 @@ export function BotsPanel() {
               {anyEnabled ? <PauseCircle className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
             </button>
           )}
+          <button
+            onClick={() => navigate('/library')}
+            title="Browse strategy library"
+            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => setCompareOpen(true)}
             title="Compare strategies side-by-side"
