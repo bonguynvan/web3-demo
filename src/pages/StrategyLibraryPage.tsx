@@ -15,7 +15,11 @@ import { cn } from '../lib/format'
 
 export function StrategyLibraryPage() {
   const addBot = useBotStore(s => s.addBot)
-  const existingBotNames = useBotStore(s => new Set(s.bots.map(b => b.name)))
+  const bots = useBotStore(s => s.bots)
+  const existingBotNames = new Set(bots.map(b => b.name))
+  // For each strategy already installed, look up the matching bot's
+  // createdAt so we can show "Recently added" sorted newest first.
+  const createdAtByName = new Map(bots.map(b => [b.name, b.createdAt]))
   const toast = useToast()
   const [filterTag, setFilterTag] = useState<string>('')
   const [query, setQuery] = useState<string>('')
@@ -114,6 +118,31 @@ export function StrategyLibraryPage() {
             </button>
           ))}
         </div>
+
+        {(() => {
+          const yours = STRATEGY_LIBRARY
+            .filter(s => existingBotNames.has(s.bot.name))
+            .map(s => ({ s, ts: createdAtByName.get(s.bot.name) ?? 0 }))
+            .sort((a, b) => b.ts - a.ts)
+            .slice(0, 4)
+            .map(x => x.s)
+          if (yours.length === 0) return null
+          return (
+            <div className="mb-6">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2">Yours</div>
+              <div className="flex flex-wrap gap-1.5">
+                {yours.map(s => (
+                  <span
+                    key={s.id}
+                    className="px-2 py-1 text-[11px] rounded-full bg-accent-dim text-accent border border-accent/30"
+                  >
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {visible.length === 0 ? (
           <div className="bg-panel/40 border border-border rounded-lg p-8 text-center">
