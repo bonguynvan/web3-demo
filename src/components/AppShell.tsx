@@ -11,6 +11,7 @@ import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
 import { ConnectionBanner } from './ConnectionBanner'
 import { VaultLockBanner } from './VaultLockBanner'
+import { LiveStatusBanner } from './LiveStatusBanner'
 import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
@@ -61,6 +62,7 @@ export function AppShell() {
         <AccountBar />
         <ConnectionBanner />
         <VaultLockBanner />
+        <LiveStatusBanner />
 
         {/* Page content */}
         <div className="flex-1 min-h-0">
