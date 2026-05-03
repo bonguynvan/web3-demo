@@ -53,6 +53,12 @@ export interface BotTrade {
   openedAt: number
   /** Auto-close deadline (entryAt + holdMinutes). */
   closeAt: number
+  /** Mode at the time the trade was opened. Optional for backward compat
+   *  with trades persisted before this field existed (treat as 'paper'). */
+  mode?: BotMode
+  /** Venue order id when mode === 'live'. Lets the UI correlate to
+   *  live open orders / fills. */
+  venueOrderId?: string
   /** Set when the trade closes. */
   closedAt?: number
   closePrice?: number

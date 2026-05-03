@@ -100,6 +100,8 @@ export function useBotEngine(): void {
                 positionUsd: bot.positionSizeUsd,
                 openedAt: Date.now(),
                 closeAt: Date.now() + bot.holdMinutes * 60_000,
+                mode: 'live',
+                venueOrderId: placed.id,
               }
               recordTrade(trade)
               toast.success(`${bot.name} placed live order`, `${s.marketId} ${s.direction} · order ${placed.id}`)

@@ -59,8 +59,13 @@ export function BotCard({
         ? 'border-l-2 border-l-long'
         : 'border-l-2 border-l-short'
 
+  const isLive = bot.mode === 'live'
   return (
-    <div className={cn('border-b border-border', stripeClass)}>
+    <div className={cn(
+      'border-b border-border relative',
+      stripeClass,
+      isLive && 'ring-1 ring-inset ring-amber-400/30 bg-amber-400/[0.02]',
+    )}>
       <div className="px-3 py-2.5">
         <div className="flex items-start gap-2">
           <button
@@ -293,6 +298,11 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
             {trade.direction[0]}
           </span>
           <span className="font-mono text-text-secondary truncate flex-1">{trade.marketId}</span>
+          {trade.mode === 'live' && (
+            <span className="text-[8px] uppercase tracking-wider px-1 py-px rounded bg-amber-400/15 text-amber-400 font-bold">
+              live
+            </span>
+          )}
           <span className="font-mono text-text-muted">${formatUsd(trade.entryPrice)}</span>
           <span className={cn('font-mono w-16 text-right', pnlColor)}>
             {livePnl >= 0 ? '+' : ''}${formatUsd(livePnl)}

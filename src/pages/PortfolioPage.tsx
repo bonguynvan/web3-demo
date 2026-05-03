@@ -405,7 +405,7 @@ export function PortfolioPage() {
         <div>
           <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
             <Bot className="w-4 h-4 text-accent" />
-            Paper open positions ({openTrades.length})
+            Bot positions ({openTrades.length})
           </h2>
           {openTrades.length === 0 ? (
             <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted">
@@ -514,7 +514,14 @@ function buildOpenRow(
   const livePnl = sign * (liveMark - t.entryPrice) * t.size
   const botName = bots.find(b => b.id === t.botId)?.name ?? '—'
   return [
-    t.marketId,
+    <span className="inline-flex items-center gap-1.5">
+      <span>{t.marketId}</span>
+      {t.mode === 'live' && (
+        <span className="text-[9px] uppercase tracking-wider px-1 py-px rounded bg-amber-400/15 text-amber-400 font-semibold">
+          live
+        </span>
+      )}
+    </span>,
     <DirectionBadge dir={t.direction} />,
     `$${formatUsd(t.entryPrice)}`,
     `$${formatUsd(liveMark)}`,
