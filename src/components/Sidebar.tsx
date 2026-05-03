@@ -23,6 +23,7 @@ import {
   LineChart,
   PieChart,
   BookOpen,
+  Bot,
   User,
   Sun,
   Moon,
@@ -41,6 +42,7 @@ import { cn } from '../lib/format'
 const NAV_ITEMS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
+  { path: '/bots', label: 'Bot manager', icon: Bot },
   { path: '/library', label: 'Library', icon: BookOpen },
   { path: '/profile', label: 'Profile', icon: User },
 ] as const

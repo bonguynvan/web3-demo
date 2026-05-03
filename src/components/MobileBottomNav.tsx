@@ -9,12 +9,13 @@
  */
 
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LineChart, PieChart, BookOpen, User } from 'lucide-react'
+import { LineChart, PieChart, BookOpen, User, Bot } from 'lucide-react'
 import { cn } from '../lib/format'
 
 const TABS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
+  { path: '/bots', label: 'Bots', icon: Bot },
   { path: '/library', label: 'Library', icon: BookOpen },
   { path: '/profile', label: 'Profile', icon: User },
 ] as const
