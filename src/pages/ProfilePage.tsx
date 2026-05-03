@@ -14,8 +14,11 @@
  * direction and security guardrails.
  */
 
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock } from 'lucide-react'
+import { ConnectVenueModal } from '../components/ConnectVenueModal'
+import type { VenueId } from '../adapters/types'
 import { useBotStore } from '../store/botStore'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
@@ -30,6 +33,7 @@ export function ProfilePage() {
   const activeVenue = useActiveVenue()
   const adapters = listAdapters()
   const hasVault = vaultExists()
+  const [connectVenue, setConnectVenue] = useState<VenueId | null>(null)
 
   return (
     <div className="h-full overflow-y-auto bg-surface text-text-primary">
@@ -90,6 +94,7 @@ export function ProfilePage() {
                 key={adapter.id}
                 venueId={adapter.id}
                 isActive={adapter.id === activeVenue}
+                onConnect={() => setConnectVenue(adapter.id)}
               />
             ))}
           </div>
@@ -139,6 +144,12 @@ export function ProfilePage() {
           />
         </div>
       </section>
+
+      <ConnectVenueModal
+        open={!!connectVenue}
+        venueId={connectVenue ?? 'binance'}
+        onClose={() => setConnectVenue(null)}
+      />
     </div>
   )
 }
@@ -170,7 +181,13 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function VenueCard({ venueId, isActive }: { venueId: string; isActive: boolean }) {
+function VenueCard({
+  venueId, isActive, onConnect,
+}: {
+  venueId: string
+  isActive: boolean
+  onConnect: () => void
+}) {
   const isPerp = venueId === 'hyperliquid'
   const auth = isPerp ? 'Wallet (EIP-712 signing)' : 'API key + secret (HMAC)'
 
@@ -202,14 +219,17 @@ function VenueCard({ venueId, isActive }: { venueId: string; isActive: boolean }
       </div>
 
       <button
-        disabled
+        onClick={onConnect}
+        disabled={isPerp}
         className={cn(
-          'w-full py-2 text-xs font-semibold rounded-md',
-          'bg-surface border border-border text-text-muted cursor-not-allowed',
+          'w-full py-2 text-xs font-semibold rounded-md transition-colors',
+          isPerp
+            ? 'bg-surface border border-border text-text-muted cursor-not-allowed'
+            : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
         )}
-        title="Connection flow is not implemented yet"
+        title={isPerp ? 'Wallet connect coming soon (uses wagmi)' : 'Open connection form'}
       >
-        Connect (coming soon)
+        {isPerp ? 'Wallet connect (coming soon)' : 'Connect API key'}
       </button>
     </div>
   )
