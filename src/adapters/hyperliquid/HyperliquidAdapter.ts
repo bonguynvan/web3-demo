@@ -163,6 +163,11 @@ export class HyperliquidAdapter implements VenueAdapter {
     ;(this.capabilities as { trading: boolean }).trading = true
   }
 
+  /** True once authenticate() has been called with valid wallet creds. */
+  isAuthenticated(): boolean {
+    return this.auth !== null
+  }
+
   // ─── Market metadata ────────────────────────────────────────────────
 
   async listMarkets(): Promise<Market[]> {
