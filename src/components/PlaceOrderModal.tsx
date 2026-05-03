@@ -13,6 +13,7 @@ import { Modal } from './ui/Modal'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { getAdapter, getActiveAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
+import { useVenueBalances } from '../hooks/useVenueBalances'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
 import { cn, formatUsd } from '../lib/format'
@@ -27,6 +28,7 @@ interface Props {
 export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Props) {
   const toast = useToast()
   const markets = useTradingStore(s => s.markets)
+  const { states: venueBalances } = useVenueBalances()
   const [venueId, setVenueId] = useState<VenueId>('binance')
   const [marketId, setMarketId] = useState(defaultMarketId ?? '')
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
@@ -66,6 +68,15 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const priceNum = Number(price)
   const sizeNum = Number(size)
   const notional = priceNum > 0 && sizeNum > 0 ? priceNum * sizeNum : 0
+
+  // Compute USDT cash on the selected venue (if visible).
+  const usdtFree = (() => {
+    const v = venueBalances[venueId as keyof typeof venueBalances]
+    const usdt = v?.balances?.find(b => b.asset === 'USDT')
+    return usdt?.free ?? 0
+  })()
+  const notionalRatio = usdtFree > 0 ? notional / usdtFree : 0
+  const showHighRiskWarning = side === 'buy' && notional > 0 && usdtFree > 0 && notionalRatio > 0.5
 
   const submit = async () => {
     if (!marketId.trim()) {
@@ -200,8 +211,23 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
         </div>
 
         {notional > 0 && (
-          <div className="text-xs text-text-secondary bg-surface/60 rounded-md px-3 py-2">
-            Notional: <span className="font-mono text-text-primary">${formatUsd(notional)}</span>
+          <div className="text-xs text-text-secondary bg-surface/60 rounded-md px-3 py-2 flex items-center justify-between gap-3">
+            <span>Notional: <span className="font-mono text-text-primary">${formatUsd(notional)}</span></span>
+            {usdtFree > 0 && (
+              <span className="text-text-muted">
+                {Math.round(notionalRatio * 100)}% of ${formatUsd(usdtFree)} USDT
+              </span>
+            )}
+          </div>
+        )}
+
+        {showHighRiskWarning && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-short/15 border border-short/40 text-[11px] text-short leading-relaxed">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>
+              This order would consume {Math.round(notionalRatio * 100)}% of your free USDT balance.
+              Confirm twice — large positions are riskier when limit orders sit unfilled.
+            </div>
           </div>
         )}
 
