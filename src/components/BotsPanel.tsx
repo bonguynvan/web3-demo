@@ -233,6 +233,24 @@ export function BotsPanel() {
   )
 }
 
+function CumulativeFooter({ bots, trades }: { bots: BotConfig[]; trades: BotTrade[] }) {
+  const adapter = getActiveAdapter()
+  const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
+  const enabled = bots.filter(b => b.enabled).length
+  const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
+
+  return (
+    <div className="px-3 py-2 border-t border-border shrink-0 flex items-center justify-between gap-3 text-[10px]">
+      <span className="text-text-muted">
+        {enabled}/{bots.length} active · {stats.open} open · {stats.closed} closed
+      </span>
+      <span className={cn('font-mono tabular-nums', pnlColor)}>
+        {stats.totalPnlUsd >= 0 ? '+' : ''}${formatUsd(stats.totalPnlUsd)} total
+      </span>
+    </div>
+  )
+}
+
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   const navigate = useNavigate()
   return (
