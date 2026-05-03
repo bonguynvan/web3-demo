@@ -18,6 +18,7 @@ import { computeStats } from '../bots/computeStats'
 import { getActiveAdapter, listAdapters } from '../adapters/registry'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { useVenueBalances, type VenueBalanceState } from '../hooks/useVenueBalances'
 import { EquityCurve } from '../components/EquityCurve'
 import { cn, formatUsd } from '../lib/format'
 import type { BotTrade } from '../bots/types'
@@ -30,6 +31,7 @@ export function PortfolioPage() {
   const activeVenueId = useActiveVenue()
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const adapters = listAdapters()
+  const venueBalances = useVenueBalances()
   const [, force] = useState(0)
 
   // Heartbeat for live unrealized PnL.
@@ -148,11 +150,11 @@ export function PortfolioPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-text-muted mt-1 leading-relaxed">
-                      {isAuthed
-                        ? 'Live balances will appear here once the venue snapshot endpoint is wired.'
-                        : 'Connect an API key (CEX) or wallet (DEX) to see live balances and authenticate trading.'}
-                    </div>
+                    {!isAuthed && (
+                      <div className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                        Connect an API key (CEX) or wallet (DEX) to see live balances and authenticate trading.
+                      </div>
+                    )}
                   </div>
                   {!isAuthed && (
                     <Link
@@ -164,6 +166,9 @@ export function PortfolioPage() {
                     </Link>
                   )}
                 </div>
+                {isAuthed && (
+                  <BalanceList state={venueBalances[a.id as keyof typeof venueBalances]} />
+                )}
               </div>
             )
           })}
@@ -271,6 +276,60 @@ function buildOpenRow(
     </span>,
     <span className="text-text-muted truncate">{botName}</span>,
   ]
+}
+
+function BalanceList({ state }: { state: VenueBalanceState | undefined }) {
+  if (!state) {
+    return (
+      <div className="text-[11px] text-text-muted mt-2">
+        Loading balances…
+      </div>
+    )
+  }
+  if (state.error) {
+    return (
+      <div className="text-[11px] text-short mt-2">
+        Failed to fetch: {state.error}
+      </div>
+    )
+  }
+  if (state.loading && !state.balances) {
+    return (
+      <div className="text-[11px] text-text-muted mt-2">Loading balances…</div>
+    )
+  }
+  if (!state.balances || state.balances.length === 0) {
+    return (
+      <div className="text-[11px] text-text-muted mt-2">
+        No non-zero balances on this account.
+      </div>
+    )
+  }
+  const top = state.balances.slice(0, 6)
+  const rest = state.balances.length - top.length
+  return (
+    <div className="mt-3">
+      <div className="grid grid-cols-2 gap-1.5">
+        {top.map(b => (
+          <div
+            key={b.asset}
+            className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px]"
+          >
+            <span className="font-mono text-text-primary truncate">{b.asset}</span>
+            <span className="font-mono tabular-nums text-text-secondary">
+              {(b.free + b.locked).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[10px] text-text-muted">
+        <span>{rest > 0 ? `+${rest} more` : `${state.balances.length} asset${state.balances.length === 1 ? '' : 's'}`}</span>
+        {state.fetchedAt && (
+          <span>Updated {new Date(state.fetchedAt).toLocaleTimeString()}</span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function DirectionBadge({ dir }: { dir: 'long' | 'short' }) {
