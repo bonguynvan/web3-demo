@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useTradingStore } from '../store/tradingStore'
 import { Wallet, Bot, TrendingUp, TrendingDown, KeyRound, ArrowRight, RefreshCw } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { computeStats } from '../bots/computeStats'
@@ -58,6 +59,16 @@ export function PortfolioPage() {
   }
   const liveOpenOrders = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
+  const navigate = useNavigate()
+  const setSelectedMarket = useTradingStore(s => s.setSelectedMarket)
+  const goToMarket = (asset: string) => {
+    if (asset === 'USDT') return // no self-pair
+    const id = `${asset}/USDT`
+    if (adapter.getMarket(id)) {
+      setSelectedMarket(id)
+      navigate('/trade')
+    }
+  }
 
   // Live equity across authed venues. Stablecoins count at $1.
   // Non-stables priced via the active adapter's ticker cache (best-effort
@@ -261,6 +272,7 @@ export function PortfolioPage() {
                       if (STABLES.has(asset)) return 1
                       return adapter.getTicker(`${asset}/USDT`)?.price
                     }}
+                    onAssetClick={goToMarket}
                   />
                 )}
               </div>
@@ -411,10 +423,11 @@ function buildOpenRow(
 }
 
 function BalanceList({
-  state, priceOf,
+  state, priceOf, onAssetClick,
 }: {
   state: VenueBalanceState | undefined
   priceOf: (asset: string) => number | undefined
+  onAssetClick: (asset: string) => void
 }) {
   if (!state) {
     return (
@@ -453,9 +466,15 @@ function BalanceList({
     <div className="mt-3">
       <div className="grid grid-cols-2 gap-1.5">
         {top.map(({ b, usd }) => (
-          <div
+          <button
             key={b.asset}
-            className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px]"
+            onClick={() => onAssetClick(b.asset)}
+            title={b.asset === 'USDT' ? '' : `Trade ${b.asset}/USDT`}
+            disabled={b.asset === 'USDT'}
+            className={cn(
+              'flex items-center justify-between gap-2 px-2 py-1 rounded bg-surface/60 text-[11px] transition-colors text-left',
+              b.asset === 'USDT' ? 'cursor-default' : 'hover:bg-panel-light cursor-pointer',
+            )}
           >
             <span className="font-mono text-text-primary truncate">{b.asset}</span>
             <span className="text-right">
@@ -466,7 +485,7 @@ function BalanceList({
                 <div className="text-[9px] text-text-muted">${formatUsd(usd)}</div>
               )}
             </span>
-          </div>
+          </button>
         ))}
       </div>
       <div className="mt-1.5 flex items-center justify-between text-[10px] text-text-muted">
