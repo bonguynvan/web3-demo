@@ -23,6 +23,7 @@ import { usePrices } from '../hooks/usePrices'
 import { useMarketStats } from '../hooks/useMarketStats'
 import { useModeStore } from '../store/modeStore'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { vaultExists } from '../lib/credentialsVault'
 import { PlaceOrderModal } from './PlaceOrderModal'
 import { useThemeStore } from '../store/themeStore'
 import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
@@ -379,7 +380,7 @@ function MarketBar() {
         )}
       </Stat>
 
-      {vaultUnlocked && (
+      {vaultUnlocked ? (
         <button
           onClick={() => setPlaceOrderOpen(true)}
           title={`Place a limit order on ${selectedMarket.symbol}`}
@@ -387,7 +388,15 @@ function MarketBar() {
         >
           Trade
         </button>
-      )}
+      ) : !vaultExists() ? (
+        <button
+          onClick={() => navigate('/profile')}
+          title="Connect a venue API key to enable live trading"
+          className="ml-auto shrink-0 px-3 py-1.5 text-xs font-semibold rounded-md bg-surface border border-border text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+        >
+          Connect
+        </button>
+      ) : null}
 
       <PlaceOrderModal
         open={placeOrderOpen}
