@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Wallet, Bot, TrendingUp, TrendingDown, KeyRound, ArrowRight } from 'lucide-react'
+import { Wallet, Bot, TrendingUp, TrendingDown, KeyRound, ArrowRight, RefreshCw } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { computeStats } from '../bots/computeStats'
 import { getActiveAdapter, listAdapters } from '../adapters/registry'
@@ -31,7 +31,18 @@ export function PortfolioPage() {
   const activeVenueId = useActiveVenue()
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const adapters = listAdapters()
-  const venueBalances = useVenueBalances()
+  const { states: venueBalances, refresh: refreshBalances } = useVenueBalances()
+
+  // Stablecoin USD-equivalent total across all authed venues.
+  // Treats listed stables as $1 each — close enough for a portfolio
+  // glance; real pricing per asset can come later.
+  const STABLES = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'FDUSD'])
+  let stableTotal = 0
+  for (const v of Object.values(venueBalances)) {
+    for (const b of v?.balances ?? []) {
+      if (STABLES.has(b.asset)) stableTotal += b.free + b.locked
+    }
+  }
   const [, force] = useState(0)
 
   // Heartbeat for live unrealized PnL.
@@ -114,6 +125,14 @@ export function PortfolioPage() {
               <div className="text-[10px] uppercase tracking-wider text-text-muted">Open</div>
               <div className="text-base font-mono mt-1">{stats.open}</div>
             </div>
+            {stableTotal > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">Cash on venues</div>
+                <div className="text-base font-mono mt-1 text-text-primary">
+                  ${formatUsd(stableTotal)}
+                </div>
+              </div>
+            )}
           </div>
 
           {closedSorted.length >= 2 ? (
@@ -156,7 +175,15 @@ export function PortfolioPage() {
                       </div>
                     )}
                   </div>
-                  {!isAuthed && (
+                  {isAuthed ? (
+                    <button
+                      onClick={refreshBalances}
+                      title="Refresh balances now"
+                      className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-panel-light cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
                     <Link
                       to="/profile"
                       className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer"

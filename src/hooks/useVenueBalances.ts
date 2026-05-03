@@ -10,7 +10,7 @@
  * UI can render a degraded state rather than crash.
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { listAdapters } from '../adapters/registry'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
 import type { VenueId } from '../adapters/types'
@@ -47,13 +47,21 @@ function parseBinance(snap: unknown): VenueBalance[] {
     .sort((a, b) => (b.free + b.locked) - (a.free + a.locked))
 }
 
-export function useVenueBalances(): Record<VenueId, VenueBalanceState> {
+export interface UseVenueBalancesResult {
+  states: Record<VenueId, VenueBalanceState>
+  /** Trigger an immediate fetch of all authed venues. */
+  refresh: () => void
+}
+
+export function useVenueBalances(): UseVenueBalancesResult {
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const [state, setState] = useState<Record<VenueId, VenueBalanceState>>({} as Record<VenueId, VenueBalanceState>)
+  const fetchRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
     if (!sessionUnlocked) {
       setState({} as Record<VenueId, VenueBalanceState>)
+      fetchRef.current = null
       return
     }
     let cancelled = false
@@ -97,10 +105,13 @@ export function useVenueBalances(): Record<VenueId, VenueBalanceState> {
       }
     }
 
+    fetchRef.current = fetchAll
     fetchAll()
     const id = setInterval(fetchAll, POLL_MS)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => { cancelled = true; clearInterval(id); fetchRef.current = null }
   }, [sessionUnlocked])
 
-  return state
+  const refresh = useCallback(() => { void fetchRef.current?.() }, [])
+
+  return { states: state, refresh }
 }
