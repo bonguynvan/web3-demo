@@ -13,6 +13,7 @@ import { LandingPage } from './pages/LandingPage'
 import { TradePage } from './pages/TradePage'
 import { PortfolioPage } from './pages/PortfolioPage'
 import { StrategyLibraryPage } from './pages/StrategyLibraryPage'
+import { ProfilePage } from './pages/ProfilePage'
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
           <Route path="/trade" element={<TradePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/library" element={<StrategyLibraryPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
