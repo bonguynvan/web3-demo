@@ -12,6 +12,7 @@ import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
 import { cn } from '../lib/format'
+import { Modal } from '../components/ui/Modal'
 
 export function StrategyLibraryPage() {
   const addBot = useBotStore(s => s.addBot)
@@ -23,6 +24,7 @@ export function StrategyLibraryPage() {
   const toast = useToast()
   const [filterTag, setFilterTag] = useState<string>('')
   const [query, setQuery] = useState<string>('')
+  const [detail, setDetail] = useState<PublishedStrategy | null>(null)
 
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
   const q = query.trim().toLowerCase()
@@ -177,6 +179,7 @@ export function StrategyLibraryPage() {
                   installed={existingBotNames.has(s.bot.name)}
                   overlapCount={overlapCount}
                   onInstall={() => install(s)}
+                  onOpenDetail={() => setDetail(s)}
                 />
               )
             })}
@@ -189,21 +192,142 @@ export function StrategyLibraryPage() {
           backend ships.
         </div>
       </section>
+
+      <StrategyDetailModal
+        strategy={detail}
+        installed={detail ? existingBotNames.has(detail.bot.name) : false}
+        onClose={() => setDetail(null)}
+        onInstall={() => {
+          if (detail) {
+            install(detail)
+            setDetail(null)
+          }
+        }}
+      />
+    </div>
+  )
+}
+
+function StrategyDetailModal({
+  strategy, installed, onClose, onInstall,
+}: {
+  strategy: PublishedStrategy | null
+  installed: boolean
+  onClose: () => void
+  onInstall: () => void
+}) {
+  if (!strategy) return null
+  const { bot, performance, author } = strategy
+  return (
+    <Modal open={!!strategy} onClose={onClose} title={strategy.name} maxWidth="max-w-lg">
+      <div className="p-4 space-y-4">
+        <div className="text-[11px] text-text-muted">
+          by {author.name}
+          {author.handle && <span className="ml-1">{author.handle}</span>}
+        </div>
+        <p className="text-sm text-text-secondary leading-relaxed">{strategy.summary}</p>
+
+        <div className="flex flex-wrap gap-1">
+          {strategy.tags.map(t => (
+            <span
+              key={t}
+              className="px-1.5 py-0.5 text-[10px] uppercase tracking-wider rounded bg-surface border border-border text-text-muted"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <div className="text-xs font-medium text-text-primary mb-2">Bot configuration</div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+            <DetailRow label="Mode" value={bot.mode} />
+            <DetailRow label="Min confidence" value={`${Math.round(bot.minConfidence * 100)}%`} />
+            <DetailRow label="Position size" value={`$${bot.positionSizeUsd}`} />
+            <DetailRow label="Hold window" value={`${bot.holdMinutes} min`} />
+            <DetailRow label="Daily cap" value={`${bot.maxTradesPerDay} trades`} />
+            <DetailRow label="Markets" value={bot.allowedMarkets.length === 0 ? 'any market' : bot.allowedMarkets.join(', ')} />
+            <DetailRow
+              label="Sources"
+              value={bot.allowedSources.length === 0 ? 'any source' : bot.allowedSources.join(', ')}
+              span2
+            />
+          </dl>
+        </div>
+
+        {performance && (
+          <div className="border-t border-border pt-3">
+            <div className="text-xs font-medium text-text-primary mb-2">Performance</div>
+            <div className="grid grid-cols-3 gap-2 text-[11px]">
+              <DetailStat label="Win rate" value={`${Math.round(performance.winRate * 100)}%`} />
+              <DetailStat label="Sample" value={`${performance.sample} trades`} />
+              <DetailStat label="Since" value={performance.since} />
+            </div>
+            <div className="text-[10px] text-text-muted mt-2 leading-relaxed">
+              Past performance is not predictive. Paper-traded on the publisher's setup; results
+              on your active venue may differ.
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold rounded-md bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+          <button
+            onClick={onInstall}
+            disabled={installed}
+            className={cn(
+              'px-4 py-2 text-xs font-semibold rounded-md transition-colors',
+              installed
+                ? 'bg-long/15 text-long cursor-default'
+                : 'bg-accent text-white hover:bg-accent/90 cursor-pointer',
+            )}
+          >
+            {installed ? 'Already added' : 'Add to my bots'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function DetailRow({ label, value, span2 }: { label: string; value: string; span2?: boolean }) {
+  return (
+    <div className={cn('flex justify-between gap-2', span2 && 'col-span-2')}>
+      <span className="text-text-muted">{label}</span>
+      <span className="font-mono text-text-primary capitalize text-right truncate">{value}</span>
+    </div>
+  )
+}
+
+function DetailStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-surface/60 rounded px-2 py-1.5 border border-border/60">
+      <div className="text-[9px] uppercase tracking-wider text-text-muted">{label}</div>
+      <div className="font-mono text-text-primary tabular-nums">{value}</div>
     </div>
   )
 }
 
 function StrategyCard({
-  strategy, installed, overlapCount, onInstall,
+  strategy, installed, overlapCount, onInstall, onOpenDetail,
 }: {
   strategy: PublishedStrategy
   installed: boolean
   overlapCount: number
   onInstall: () => void
+  onOpenDetail: () => void
 }) {
   const { bot, performance } = strategy
   return (
-    <article className="bg-panel border border-border rounded-lg p-4 flex flex-col">
+    <article
+      onClick={onOpenDetail}
+      className="bg-panel border border-border rounded-lg p-4 flex flex-col cursor-pointer hover:border-border-light transition-colors"
+    >
       <header className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
@@ -275,7 +399,7 @@ function StrategyCard({
       )}
 
       <button
-        onClick={onInstall}
+        onClick={(e) => { e.stopPropagation(); onInstall() }}
         disabled={installed}
         className={cn(
           'w-full py-2 text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5',
