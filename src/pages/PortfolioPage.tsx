@@ -319,40 +319,53 @@ export function PortfolioPage() {
             </h2>
             <div className="bg-panel border border-border rounded-lg overflow-hidden">
               <Table
-                rows={liveOpenOrders.map(({ venueId, order }) => [
-                  <span className="capitalize text-text-muted">{venueId}</span>,
-                  <button
-                    onClick={() => {
-                      setSelectedMarket(order.marketId)
-                      navigate('/trade')
-                    }}
-                    title={`Open ${order.marketId} on the chart`}
-                    className="font-mono text-text-primary hover:text-accent cursor-pointer text-left"
-                  >
-                    {order.marketId}
-                  </button>,
-                  <span className={cn(
-                    'text-[10px] uppercase tracking-wider font-semibold',
-                    order.side === 'buy' ? 'text-long' : 'text-short',
-                  )}>
-                    {order.side}
-                  </span>,
-                  order.type,
-                  order.price !== undefined ? `$${formatUsd(order.price)}` : '—',
-                  order.size.toLocaleString(undefined, { maximumFractionDigits: 6 }),
-                  order.filledSize > 0
-                    ? `${((order.filledSize / order.size) * 100).toFixed(0)}%`
-                    : '—',
-                  new Date(order.createdAt).toLocaleString(),
-                  <button
-                    onClick={() => cancelOrder(venueId, order.marketId, order.id)}
-                    title="Cancel this order"
-                    className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>,
-                ])}
-                columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Created', '']}
+                rows={liveOpenOrders.map(({ venueId, order }) => {
+                  const matchingTrade = trades.find(t => t.venueOrderId === order.id)
+                  const matchingBot = matchingTrade
+                    ? bots.find(b => b.id === matchingTrade.botId)
+                    : null
+                  return [
+                    <span className="capitalize text-text-muted">{venueId}</span>,
+                    <button
+                      onClick={() => {
+                        setSelectedMarket(order.marketId)
+                        navigate('/trade')
+                      }}
+                      title={`Open ${order.marketId} on the chart`}
+                      className="font-mono text-text-primary hover:text-accent cursor-pointer text-left"
+                    >
+                      {order.marketId}
+                    </button>,
+                    <span className={cn(
+                      'text-[10px] uppercase tracking-wider font-semibold',
+                      order.side === 'buy' ? 'text-long' : 'text-short',
+                    )}>
+                      {order.side}
+                    </span>,
+                    order.type,
+                    order.price !== undefined ? `$${formatUsd(order.price)}` : '—',
+                    order.size.toLocaleString(undefined, { maximumFractionDigits: 6 }),
+                    order.filledSize > 0
+                      ? `${((order.filledSize / order.size) * 100).toFixed(0)}%`
+                      : '—',
+                    matchingBot ? (
+                      <span className="text-amber-400 truncate" title={`Placed by bot: ${matchingBot.name}`}>
+                        🤖 {matchingBot.name}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">manual</span>
+                    ),
+                    new Date(order.createdAt).toLocaleString(),
+                    <button
+                      onClick={() => cancelOrder(venueId, order.marketId, order.id)}
+                      title="Cancel this order"
+                      className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>,
+                  ]
+                })}
+                columns={['Venue', 'Market', 'Side', 'Type', 'Price', 'Size', 'Filled', 'Source', 'Created', '']}
               />
             </div>
           </div>
