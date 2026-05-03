@@ -23,7 +23,8 @@ import { useBotStore } from '../store/botStore'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { listAdapters } from '../adapters/registry'
-import { vaultExists } from '../lib/credentialsVault'
+import { vaultExists, clear as clearVault } from '../lib/credentialsVault'
+import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
 
 export function ProfilePage() {
@@ -32,8 +33,17 @@ export function ProfilePage() {
   const resolved = useSignalPerformanceStore(s => s.resolved)
   const activeVenue = useActiveVenue()
   const adapters = listAdapters()
-  const hasVault = vaultExists()
+  const toast = useToast()
   const [connectVenue, setConnectVenue] = useState<VenueId | null>(null)
+  // Track vault presence locally so the clear button removes the row
+  // without a page reload.
+  const [vaultPresent, setVaultPresent] = useState(() => vaultExists())
+  const handleClearVault = () => {
+    if (!confirm('Clear vault and forget all stored credentials? This cannot be undone.')) return
+    clearVault()
+    setVaultPresent(false)
+    toast.success('Vault cleared', 'All encrypted credentials removed from this browser')
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-surface text-text-primary">
@@ -81,11 +91,22 @@ export function ProfilePage() {
             <div className="flex items-center gap-2">
               <Lock className="w-3.5 h-3.5 text-text-muted" />
               <span className="text-text-secondary">Credentials vault:</span>
-              <span className={cn('font-medium', hasVault ? 'text-accent' : 'text-text-muted')}>
-                {hasVault ? 'Locked (passphrase required)' : 'Empty'}
+              <span className={cn('font-medium', vaultPresent ? 'text-accent' : 'text-text-muted')}>
+                {vaultPresent ? 'Locked (passphrase required)' : 'Empty'}
               </span>
             </div>
-            <span className="text-text-muted">AES-GCM · PBKDF2 600k iters</span>
+            <div className="flex items-center gap-3">
+              <span className="text-text-muted">AES-GCM · PBKDF2 600k iters</span>
+              {vaultPresent && (
+                <button
+                  onClick={handleClearVault}
+                  title="Delete the encrypted vault"
+                  className="text-text-muted hover:text-short transition-colors cursor-pointer uppercase tracking-wider"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -148,7 +169,10 @@ export function ProfilePage() {
       <ConnectVenueModal
         open={!!connectVenue}
         venueId={connectVenue ?? 'binance'}
-        onClose={() => setConnectVenue(null)}
+        onClose={() => {
+          setConnectVenue(null)
+          setVaultPresent(vaultExists())
+        }}
       />
     </div>
   )
