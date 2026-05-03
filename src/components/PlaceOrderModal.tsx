@@ -8,10 +8,10 @@
  * Read-only keys are caught by the adapter and surface as a toast.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from './ui/Modal'
-import { AlertTriangle } from 'lucide-react'
-import { getAdapter } from '../adapters/registry'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { getAdapter, getActiveAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
 import { cn, formatUsd } from '../lib/format'
@@ -31,6 +31,26 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const [price, setPrice] = useState('')
   const [size, setSize] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // Pre-fill price from the current ticker when the modal opens with a
+  // default market. Avoids forcing the user to look up the price first.
+  useEffect(() => {
+    if (!open) return
+    const target = defaultMarketId
+    if (!target) return
+    const t = getActiveAdapter().getTicker(target)
+    if (t?.price && t.price > 0) {
+      setPrice(t.price.toString())
+    }
+  }, [open, defaultMarketId])
+
+  const refreshPriceFromMarket = () => {
+    if (!marketId.trim()) return
+    const t = getActiveAdapter().getTicker(marketId.trim())
+    if (t?.price && t.price > 0) {
+      setPrice(t.price.toString())
+    }
+  }
 
   const reset = () => {
     setMarketId(defaultMarketId ?? '')
@@ -137,14 +157,24 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Price (quote)">
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              step="any"
-              min="0"
-              className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent font-mono"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                step="any"
+                min="0"
+                className="flex-1 text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent font-mono"
+              />
+              <button
+                type="button"
+                onClick={refreshPriceFromMarket}
+                title="Use current mark price"
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-md bg-surface border border-border text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </Field>
           <Field label="Size (base)">
             <input
