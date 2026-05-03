@@ -28,11 +28,12 @@ interface BotCardProps {
   onRemove: () => void
   onBacktest: () => void
   onShare: () => void
+  onModeChange?: (mode: 'paper' | 'live') => void
   shared: boolean
 }
 
 export function BotCard({
-  bot, trades, onToggle, onRename, onRemove, onBacktest, onShare, shared,
+  bot, trades, onToggle, onRename, onRemove, onBacktest, onShare, onModeChange, shared,
 }: BotCardProps) {
   const adapter = getActiveAdapter()
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
@@ -77,9 +78,29 @@ export function BotCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <BotNameEditor name={bot.name} onRename={onRename} />
-              <span className="text-[9px] uppercase tracking-wider px-1.5 py-px rounded bg-surface text-text-muted">
+              <button
+                disabled={!onModeChange}
+                onClick={() => {
+                  if (!onModeChange) return
+                  if (bot.mode === 'paper') {
+                    if (confirm(`Switch ${bot.name} to LIVE mode?\n\nReal orders will be placed on the connected venue (Binance) when matching signals fire.\n\nGuardrails: vault must be unlocked, key must have trading scope, daily cap of ${bot.maxTradesPerDay} still applies.\n\nAre you sure?`)) {
+                      onModeChange('live')
+                    }
+                  } else {
+                    onModeChange('paper')
+                  }
+                }}
+                title={onModeChange ? (bot.mode === 'paper' ? 'Switch to live (real orders)' : 'Switch back to paper') : ''}
+                className={cn(
+                  'text-[9px] uppercase tracking-wider px-1.5 py-px rounded font-semibold transition-colors',
+                  bot.mode === 'live'
+                    ? 'bg-amber-400/20 text-amber-400'
+                    : 'bg-surface text-text-muted',
+                  onModeChange && 'cursor-pointer hover:opacity-80',
+                )}
+              >
                 {bot.mode}
-              </span>
+              </button>
             </div>
             <div className="text-[10px] text-text-muted mt-0.5">
               {bot.allowedSources.length === 0 ? 'any source' : bot.allowedSources.join(' / ')}

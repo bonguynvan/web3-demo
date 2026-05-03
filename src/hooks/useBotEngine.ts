@@ -12,8 +12,9 @@
 import { useEffect, useRef } from 'react'
 import { useSignals } from './useSignals'
 import { useBotStore } from '../store/botStore'
-import { getActiveAdapter } from '../adapters/registry'
+import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import type { Signal } from '../signals/types'
 
@@ -29,6 +30,7 @@ export function useBotEngine(): void {
   const closeTrade = useBotStore(s => s.closeTrade)
 
   const toast = useToast()
+  const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
   // Track signals already acted on per bot to avoid duplicates if the
   // signal feed re-emits the same id across recompute cycles.
   const actedRef = useRef<Set<string>>(new Set())
@@ -40,7 +42,6 @@ export function useBotEngine(): void {
   useEffect(() => {
     for (const bot of bots) {
       if (!bot.enabled) continue
-      if (bot.mode !== 'paper') continue   // live mode gated on Phase 2d
 
       const dayAgo = Date.now() - 24 * 60 * 60 * 1000
       const last24h = trades.filter(t => t.botId === bot.id && t.openedAt >= dayAgo).length
@@ -58,30 +59,76 @@ export function useBotEngine(): void {
         if (!matches(bot, s)) continue
         const dedupKey = `${bot.id}:${s.id}`
         if (actedRef.current.has(dedupKey)) continue
-        // Already have an open trade for this signal id?
         if (trades.some(t => t.botId === bot.id && t.signalId === s.id && !t.closedAt)) continue
-
-        actedRef.current.add(dedupKey)
 
         const entryPrice = s.suggestedPrice
         if (entryPrice === undefined || entryPrice <= 0) continue
         const size = bot.positionSizeUsd / entryPrice
-        const trade: BotTrade = {
-          id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          botId: bot.id,
-          signalId: s.id,
-          marketId: s.marketId,
-          direction: s.direction,
-          entryPrice,
-          size,
-          positionUsd: bot.positionSizeUsd,
-          openedAt: Date.now(),
-          closeAt: Date.now() + bot.holdMinutes * 60_000,
+
+        if (bot.mode === 'live') {
+          // Live mode hard guards. Any failure → fall through and skip
+          // this signal cycle. Bot stays in live mode but takes no action
+          // until the operator fixes the underlying condition.
+          if (!vaultUnlocked) continue
+          const adapter = getAdapter('binance')
+          const isAuthed = adapter && typeof (adapter as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
+            && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
+          if (!adapter || !isAuthed) continue
+          if (!adapter.capabilities.trading) continue
+
+          actedRef.current.add(dedupKey)
+          // Place the order. We don't block the loop on the signed POST —
+          // do it async, log the trade once we have an order id back.
+          ;(async () => {
+            try {
+              const placed = await adapter.placeOrder({
+                marketId: s.marketId,
+                side: s.direction === 'long' ? 'buy' : 'sell',
+                type: 'limit',
+                tif: 'gtc',
+                size,
+                price: entryPrice,
+              })
+              const trade: BotTrade = {
+                id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                botId: bot.id,
+                signalId: s.id,
+                marketId: s.marketId,
+                direction: s.direction,
+                entryPrice,
+                size,
+                positionUsd: bot.positionSizeUsd,
+                openedAt: Date.now(),
+                closeAt: Date.now() + bot.holdMinutes * 60_000,
+              }
+              recordTrade(trade)
+              toast.success(`${bot.name} placed live order`, `${s.marketId} ${s.direction} · order ${placed.id}`)
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : 'Unknown error'
+              toast.error(`${bot.name} live order failed`, msg)
+              // Allow retry next cycle.
+              actedRef.current.delete(dedupKey)
+            }
+          })()
+        } else {
+          actedRef.current.add(dedupKey)
+          const trade: BotTrade = {
+            id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            botId: bot.id,
+            signalId: s.id,
+            marketId: s.marketId,
+            direction: s.direction,
+            entryPrice,
+            size,
+            positionUsd: bot.positionSizeUsd,
+            openedAt: Date.now(),
+            closeAt: Date.now() + bot.holdMinutes * 60_000,
+          }
+          recordTrade(trade)
         }
-        recordTrade(trade)
       }
     }
-  }, [signals, bots, trades, recordTrade])
+  }, [signals, bots, trades, recordTrade, vaultUnlocked, toast])
 
   // ─── Close expired trades on a heartbeat ───────────────────────────
   useEffect(() => {

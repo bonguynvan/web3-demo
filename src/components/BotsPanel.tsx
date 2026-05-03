@@ -49,6 +49,7 @@ export function BotsPanel() {
   const toggleBot = useBotStore(s => s.toggleBot)
   const setAllEnabled = useBotStore(s => s.setAllEnabled)
   const renameBot = useBotStore(s => s.renameBot)
+  const setMode = useBotStore(s => s.setMode)
   const removeBot = useBotStore(s => s.removeBot)
   const clearClosedTrades = useBotStore(s => s.clearClosedTrades)
   const closedCount = trades.filter(t => t.closedAt !== undefined).length
@@ -206,6 +207,7 @@ export function BotsPanel() {
                 trades={trades.filter(t => t.botId === bot.id)}
                 onToggle={() => toggleBot(bot.id)}
                 onRename={(name) => renameBot(bot.id, name)}
+                onModeChange={(mode) => setMode(bot.id, mode)}
                 onRemove={() => removeBot(bot.id)}
                 onBacktest={() => setBacktestBot(bot)}
                 onShare={() => handleShare(bot)}
