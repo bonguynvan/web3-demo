@@ -210,6 +210,29 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
           </Field>
         </div>
 
+        {/* Quick-size from free USDT */}
+        {usdtFree > 0 && priceNum > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted shrink-0">% of cash</span>
+            <div className="flex gap-1.5 flex-1">
+              {[25, 50, 75, 100].map(pct => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => {
+                    const targetUsd = (usdtFree * pct) / 100
+                    const computedSize = targetUsd / priceNum
+                    setSize(computedSize.toFixed(8))
+                  }}
+                  className="flex-1 py-1.5 text-[11px] font-semibold rounded bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-panel-light cursor-pointer"
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {notional > 0 && (
           <div className="text-xs text-text-secondary bg-surface/60 rounded-md px-3 py-2 flex items-center justify-between gap-3">
             <span>Notional: <span className="font-mono text-text-primary">${formatUsd(notional)}</span></span>
