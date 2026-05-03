@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { X, Zap, Bot, BarChart3 } from 'lucide-react'
+import { X, Zap, Bot, BarChart3, KeyRound } from 'lucide-react'
 
 const STORAGE_KEY = 'tc-onboarded-v1'
 
@@ -49,7 +49,12 @@ export function OnboardingCard() {
         <Tip
           Icon={Bot}
           title="Paper bots"
-          body="Switch to the Bots tab. Start with the seeded Confluence Sniper or build your own."
+          body="Visit /bots. Start with the seeded Confluence Sniper or build your own."
+        />
+        <Tip
+          Icon={KeyRound}
+          title="Live trading (when ready)"
+          body="Connect a Binance API key on /profile. Cmd/Ctrl+L places a live limit order from anywhere."
         />
       </div>
       <button
