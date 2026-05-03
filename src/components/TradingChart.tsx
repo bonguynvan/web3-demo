@@ -26,6 +26,8 @@ import {
   clearStoredLayout, downloadLayoutFile, loadLayoutFromFile,
 } from '../lib/chartLayout'
 import { getDemoOrders, type DemoOrder } from '../lib/demoData'
+import { useSignals } from '../hooks/useSignals'
+import { buildSignalDrawings, isSignalDrawing } from '../lib/signalChartMarkers'
 
 // Map our market symbols to Binance symbols
 const BINANCE_SYMBOLS: Record<string, string> = {
@@ -292,6 +294,20 @@ export function TradingChart({ loading }: { loading: boolean }) {
       if (rafId) cancelAnimationFrame(rafId)
     }
   }, [chartReady])
+
+  // ─── Signal markers ──────────────────────────────────────────────────
+  // Paint long/short arrows on the chart for signals matching the
+  // selected market. We merge with user-drawn shapes so manual
+  // trendlines/annotations are preserved across signal updates.
+  const signals = useSignals()
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+    const existing = chart.getDrawings() as { id: string }[]
+    const userKept = existing.filter(d => !isSignalDrawing(d))
+    const signalDrawings = buildSignalDrawings(signals, selectedMarket.symbol)
+    chart.setDrawings([...userKept, ...signalDrawings] as Parameters<typeof chart.setDrawings>[0])
+  }, [signals, selectedMarket.symbol, chartReady])
 
   // Live price line (also rAF-throttled)
   const currentPrice = getPrice(selectedMarket.symbol)
