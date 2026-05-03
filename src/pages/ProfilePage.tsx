@@ -18,6 +18,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
+import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
 import { useBotStore } from '../store/botStore'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
@@ -38,6 +39,7 @@ export function ProfilePage() {
   // Track vault presence locally so the clear button removes the row
   // without a page reload.
   const [vaultPresent, setVaultPresent] = useState(() => vaultExists())
+  const [vaultViewOpen, setVaultViewOpen] = useState(false)
   const handleClearVault = () => {
     if (!confirm('Clear vault and forget all stored credentials? This cannot be undone.')) return
     clearVault()
@@ -98,13 +100,22 @@ export function ProfilePage() {
             <div className="flex items-center gap-3">
               <span className="text-text-muted">AES-GCM · PBKDF2 600k iters</span>
               {vaultPresent && (
-                <button
-                  onClick={handleClearVault}
-                  title="Delete the encrypted vault"
-                  className="text-text-muted hover:text-short transition-colors cursor-pointer uppercase tracking-wider"
-                >
-                  Clear
-                </button>
+                <>
+                  <button
+                    onClick={() => setVaultViewOpen(true)}
+                    title="Unlock and view stored venues"
+                    className="text-text-muted hover:text-text-primary transition-colors cursor-pointer uppercase tracking-wider"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={handleClearVault}
+                    title="Delete the encrypted vault"
+                    className="text-text-muted hover:text-short transition-colors cursor-pointer uppercase tracking-wider"
+                  >
+                    Clear
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -171,6 +182,14 @@ export function ProfilePage() {
         venueId={connectVenue ?? 'binance'}
         onClose={() => {
           setConnectVenue(null)
+          setVaultPresent(vaultExists())
+        }}
+      />
+
+      <VaultViewModal
+        open={vaultViewOpen}
+        onClose={() => {
+          setVaultViewOpen(false)
           setVaultPresent(vaultExists())
         }}
       />
