@@ -90,7 +90,21 @@ export function BotCard({
                 onClick={() => {
                   if (!onModeChange) return
                   if (bot.mode === 'paper') {
-                    if (confirm(`Switch ${bot.name} to LIVE mode?\n\nReal orders will be placed on the connected venue (Binance) when matching signals fire.\n\nGuardrails: vault must be unlocked, key must have trading scope, daily cap of ${bot.maxTradesPerDay} still applies.\n\nAre you sure?`)) {
+                    const maxExposure = bot.positionSizeUsd * bot.maxTradesPerDay
+                    const msg = [
+                      `Switch ${bot.name} to LIVE mode?`,
+                      '',
+                      'REAL orders will be placed on Binance when matching signals fire.',
+                      '',
+                      `Position size: $${bot.positionSizeUsd}/trade`,
+                      `Daily cap: ${bot.maxTradesPerDay} trades`,
+                      `Max daily exposure: $${maxExposure.toLocaleString()}`,
+                      '',
+                      'Guardrails: vault must be unlocked, API key must have trading scope, limit-only orders.',
+                      '',
+                      'Are you sure?',
+                    ].join('\n')
+                    if (confirm(msg)) {
                       onModeChange('live')
                     }
                   } else {
