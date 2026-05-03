@@ -15,8 +15,8 @@ import { cn } from '../lib/format'
 
 export function StrategyLibraryPage() {
   const addBot = useBotStore(s => s.addBot)
+  const existingBotNames = useBotStore(s => new Set(s.bots.map(b => b.name)))
   const toast = useToast()
-  const [installed, setInstalled] = useState<Set<string>>(() => new Set())
   const [filterTag, setFilterTag] = useState<string>('')
 
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
@@ -25,6 +25,10 @@ export function StrategyLibraryPage() {
     : STRATEGY_LIBRARY
 
   const install = (s: PublishedStrategy) => {
+    if (existingBotNames.has(s.bot.name)) {
+      toast.info(`Already added`, `${s.name} is already in your bots`)
+      return
+    }
     addBot({
       name: s.bot.name,
       enabled: true,
@@ -36,7 +40,6 @@ export function StrategyLibraryPage() {
       holdMinutes: s.bot.holdMinutes,
       maxTradesPerDay: s.bot.maxTradesPerDay,
     })
-    setInstalled(prev => new Set(prev).add(s.id))
     toast.success(`Added ${s.name}`, 'Now running in paper mode on your active venue')
   }
 
@@ -102,7 +105,7 @@ export function StrategyLibraryPage() {
               <StrategyCard
                 key={s.id}
                 strategy={s}
-                installed={installed.has(s.id)}
+                installed={existingBotNames.has(s.bot.name)}
                 onInstall={() => install(s)}
               />
             ))}
