@@ -34,6 +34,7 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
   const [price, setPrice] = useState('')
   const [size, setSize] = useState('')
+  const [reduceOnly, setReduceOnly] = useState(false)
   const [busy, setBusy] = useState(false)
 
   // Pre-fill price from the current ticker when the modal opens with a
@@ -61,6 +62,7 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
     setSide('buy')
     setPrice('')
     setSize('')
+    setReduceOnly(false)
     setBusy(false)
   }
   const handleClose = () => { reset(); onClose() }
@@ -68,6 +70,12 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const priceNum = Number(price)
   const sizeNum = Number(size)
   const notional = priceNum > 0 && sizeNum > 0 ? priceNum * sizeNum : 0
+
+  // Reduce-only is a perp concept. Hide the checkbox if the venue is spot-only.
+  const reduceOnlySupported = (() => {
+    const a = getAdapter(venueId)
+    return Boolean(a?.capabilities.perp)
+  })()
 
   // Compute USDT cash on the selected venue (if visible).
   const usdtFree = (() => {
@@ -105,6 +113,7 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
         tif: 'gtc',
         size: sizeNum,
         price: priceNum,
+        reduceOnly,
       })
       toast.success('Order placed', `id ${order.id} · ${order.status}`)
       onPlaced?.()
@@ -252,6 +261,20 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
               Confirm twice — large positions are riskier when limit orders sit unfilled.
             </div>
           </div>
+        )}
+
+        {reduceOnlySupported && (
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary">
+            <input
+              type="checkbox"
+              checked={reduceOnly}
+              onChange={(e) => setReduceOnly(e.target.checked)}
+              className="w-4 h-4 accent-accent cursor-pointer"
+            />
+            <span>
+              Reduce-only (close existing position; will not open a new one)
+            </span>
+          </label>
         )}
 
         <div className="flex justify-end gap-2 pt-2">
