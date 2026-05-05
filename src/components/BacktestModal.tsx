@@ -8,7 +8,8 @@
  */
 
 import { useState } from 'react'
-import { X, Play, ArrowDown, ArrowUp } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { X, Play, ArrowDown, ArrowUp, Film } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useTradingStore } from '../store/tradingStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -46,12 +47,20 @@ type RunState =
   | { kind: 'error'; message: string }
 
 export function BacktestModal({ open, onClose, bot }: Props) {
+  const navigate = useNavigate()
   const markets = useTradingStore(s => s.markets)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const [marketId, setMarketId] = useState(selectedMarket.symbol)
   const [timeframe, setTimeframe] = useState<TimeFrame>('15m')
   const [days, setDays] = useState(7)
   const [state, setState] = useState<RunState>({ kind: 'idle' })
+
+  const handleLaunchReplay = (result: BacktestResult, mid: string, tf: TimeFrame) => {
+    navigate('/replay', {
+      state: { bot, marketId: mid, timeframe: tf, days, result },
+    })
+    onClose()
+  }
 
   const handleRun = async () => {
     setState({ kind: 'fetching' })
@@ -157,6 +166,7 @@ export function BacktestModal({ open, onClose, bot }: Props) {
             result={state.result}
             marketId={state.marketId}
             timeframe={state.timeframe}
+            onLaunchReplay={() => handleLaunchReplay(state.result, state.marketId, state.timeframe)}
           />
         )}
       </div>
@@ -175,11 +185,12 @@ export function BacktestModal({ open, onClose, bot }: Props) {
 }
 
 function BacktestResults({
-  result, marketId, timeframe,
+  result, marketId, timeframe, onLaunchReplay,
 }: {
   result: BacktestResult
   marketId: string
   timeframe: TimeFrame
+  onLaunchReplay?: () => void
 }) {
   const pnlColor = result.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
 
@@ -199,18 +210,30 @@ function BacktestResults({
   return (
     <div className="space-y-3">
       <div className="bg-surface/30 border border-border rounded-md p-4">
-        <div className="flex items-end justify-between mb-3">
+        <div className="flex items-end justify-between mb-3 gap-3">
           <div>
             <div className="text-[10px] text-text-muted uppercase tracking-wider">Backtest P&L</div>
             <div className={cn('text-2xl font-mono font-bold tabular-nums', pnlColor)}>
               {result.totalPnlUsd >= 0 ? '+' : ''}${formatUsd(result.totalPnlUsd)}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">Win rate</div>
-            <div className="text-lg font-mono text-text-primary tabular-nums">
-              {Math.round(result.winRate * 100)}%
+          <div className="flex items-end gap-3">
+            <div className="text-right">
+              <div className="text-[10px] text-text-muted uppercase tracking-wider">Win rate</div>
+              <div className="text-lg font-mono text-text-primary tabular-nums">
+                {Math.round(result.winRate * 100)}%
+              </div>
             </div>
+            {onLaunchReplay && (
+              <button
+                onClick={onLaunchReplay}
+                title="Watch the bot trade bar-by-bar"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-surface text-[11px] font-semibold uppercase tracking-[0.14em] hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                <Film className="w-3.5 h-3.5" />
+                Watch replay
+              </button>
+            )}
           </div>
         </div>
         <EquityCurveSpark points={result.equityCurve} className="mb-3" />

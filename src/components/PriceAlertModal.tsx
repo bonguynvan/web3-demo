@@ -55,23 +55,17 @@ export function PriceAlertModal({ open, onClose }: PriceAlertModalProps) {
       <div className="bg-surface/50 rounded-lg p-3 mb-4 space-y-2.5">
         <div className="text-[10px] text-text-muted uppercase tracking-wider font-medium">New Alert</div>
 
-        {/* Market selector */}
-        <div className="flex gap-1.5">
+        {/* Market selector — venues with 100+ pairs would overflow if
+            rendered as buttons, so we use a single dropdown. */}
+        <select
+          value={selectedMarket}
+          onChange={(e) => setSelectedMarket(e.target.value)}
+          className="w-full bg-surface border border-border rounded px-3 py-2 text-xs font-mono text-text-primary outline-none focus:border-accent/40 cursor-pointer"
+        >
           {markets.map(m => (
-            <button
-              key={m.symbol}
-              onClick={() => setSelectedMarket(m.symbol)}
-              className={cn(
-                'flex-1 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer',
-                selectedMarket === m.symbol
-                  ? 'bg-accent-dim text-accent'
-                  : 'bg-surface text-text-muted hover:text-text-primary',
-              )}
-            >
-              {m.baseAsset}
-            </button>
+            <option key={m.symbol} value={m.symbol}>{m.symbol}</option>
           ))}
-        </div>
+        </select>
 
         {/* Condition + price */}
         <div className="flex gap-1.5">

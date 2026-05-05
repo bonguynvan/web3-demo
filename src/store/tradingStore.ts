@@ -18,9 +18,12 @@ export interface MarketInfo {
 
 // Seed list — keeps selectedMarket non-null on first render before
 // useSyncMarkets replaces this with the active venue's real list.
+// BTC seeded first so the baseAsset-preserving logic in setMarkets()
+// keeps users on BTC after the real venue list loads. ETH stays as a
+// fallback when a venue has no BTC pair.
 const SEED_MARKETS: MarketInfo[] = [
-  { symbol: 'ETH-PERP', baseAsset: 'ETH' },
   { symbol: 'BTC-PERP', baseAsset: 'BTC' },
+  { symbol: 'ETH-PERP', baseAsset: 'ETH' },
 ]
 
 interface TradingState {

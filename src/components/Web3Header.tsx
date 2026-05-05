@@ -14,8 +14,10 @@ import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  ChevronDown, Wallet, LogOut, Menu, Target, BarChart3,
+  ChevronDown, Wallet, LogOut, Menu, Target, Star,
 } from 'lucide-react'
+import { Logo } from './ui/Logo'
+import { useWatchlistStore } from '../store/watchlistStore'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
@@ -31,7 +33,6 @@ import { cn, formatUsd, formatCompact, formatCountdown } from '../lib/format'
 import { Dropdown, DropdownItem } from './ui/Dropdown'
 import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
-import { StatusPill } from './StatusPill'
 import { VenueSwitcher } from './VenueSwitcher'
 import { NotificationBell } from './NotificationBell'
 import { PriceAlertModal } from './PriceAlertModal'
@@ -104,9 +105,7 @@ function TopBar({
         title="Back to TradingDek home"
         className="md:hidden flex items-center gap-2 cursor-pointer"
       >
-        <div className="flex items-center justify-center w-7 h-7 rounded-md bg-accent text-white">
-          <BarChart3 className="w-4 h-4" />
-        </div>
+        <Logo size="sm" variant="tile" />
       </button>
 
       {/* Push everything else to the right */}
@@ -116,9 +115,6 @@ function TopBar({
       <div className="hidden md:flex">
         <VenueSwitcher />
       </div>
-
-      {/* Service health */}
-      <StatusPill />
 
       {/* Alerts + bell — connected only */}
       {isConnected && (
@@ -183,39 +179,21 @@ function TopBar({
           align="right"
           width="min-w-[220px]"
         >
-          {mode === 'demo' ? (
-            <>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-                {t('demo_accounts')}
+          <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
+            {t('real_wallets')}
+          </div>
+          {connectors.filter(c => c.type !== 'demo').map(c => (
+            <DropdownItem key={c.uid} onClick={() => connect({ connector: c })}>
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-accent" />
+                {c.name}
               </div>
-              {connectors.filter(c => c.type === 'demo').map(c => (
-                <DropdownItem key={c.uid} onClick={() => connect({ connector: c })}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-long/20 flex items-center justify-center text-[10px] text-long font-bold">D</div>
-                    <span>{c.name}</span>
-                  </div>
-                </DropdownItem>
-              ))}
-            </>
-          ) : (
-            <>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1" onClick={e => e.stopPropagation()}>
-                {t('real_wallets')}
-              </div>
-              {connectors.filter(c => c.type !== 'demo').map(c => (
-                <DropdownItem key={c.uid} onClick={() => connect({ connector: c })}>
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-4 h-4 text-accent" />
-                    {c.name}
-                  </div>
-                </DropdownItem>
-              ))}
-              {connectors.filter(c => c.type !== 'demo').length === 0 && (
-                <div className="text-[10px] text-text-muted px-3 py-2" onClick={e => e.stopPropagation()}>
-                  {t('no_wallet_detected')}
-                </div>
-              )}
-            </>
+            </DropdownItem>
+          ))}
+          {connectors.filter(c => c.type !== 'demo').length === 0 && (
+            <div className="text-[10px] text-text-muted px-3 py-2" onClick={e => e.stopPropagation()}>
+              {t('no_wallet_detected')}
+            </div>
           )}
         </Dropdown>
       )}
@@ -238,11 +216,14 @@ function TopBar({
 function MarketBar() {
   const { t } = useTranslation()
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
+  const watchlist = useWatchlistStore(s => s.symbols)
+  const toggleWatch = useWatchlistStore(s => s.toggle)
+  const isPinned = watchlist.includes(selectedMarket.symbol)
   const { getPrice } = usePrices()
   const stats = useMarketStats()
-  const { mode } = useModeStore()
   const currentPrice = getPrice(selectedMarket.symbol)
-  const priceLabel = mode === 'demo' ? t('perp:binance') : t('perp:oracle')
+  const activeVenueId = useActiveVenue()
+  const priceLabel = activeVenueId === 'binance' ? t('perp:binance') : 'Hyperliquid'
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
   const activeVenue = useActiveVenue()
   const [placeOrderOpen, setPlaceOrderOpen] = useState(false)
@@ -287,6 +268,19 @@ function MarketBar() {
           )
         })}
       </Dropdown>
+
+      <button
+        onClick={() => toggleWatch(selectedMarket.symbol)}
+        title={isPinned ? 'Unpin from watchlist' : 'Pin to watchlist'}
+        className={cn(
+          'flex items-center justify-center w-7 h-7 rounded transition-colors cursor-pointer shrink-0',
+          isPinned
+            ? 'text-accent hover:bg-accent-dim/30'
+            : 'text-text-muted hover:text-text-primary hover:bg-panel-light',
+        )}
+      >
+        <Star className={cn('w-3.5 h-3.5', isPinned && 'fill-accent')} />
+      </button>
 
       {/* Price + 24h change */}
       <div className="flex items-center gap-3 shrink-0">

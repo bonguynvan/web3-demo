@@ -19,7 +19,6 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  BarChart3,
   LineChart,
   PieChart,
   BookOpen,
@@ -32,6 +31,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react'
+import { Logo } from './ui/Logo'
 import { useSettingsStore } from '../store/settingsStore'
 import { useThemeStore } from '../store/themeStore'
 import { SettingsModal } from './SettingsModal'
@@ -77,11 +77,9 @@ export function Sidebar() {
             collapsed && 'justify-center px-0',
           )}
         >
-          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-accent text-white shrink-0">
-            <BarChart3 className="w-4 h-4" />
-          </div>
+          <Logo size="sm" variant="tile" />
           {!collapsed && (
-            <span className="font-bold text-text-primary text-sm tracking-tight">
+            <span className="font-mono font-semibold text-text-primary text-xs uppercase tracking-[0.18em]">
               Trading<span className="text-accent">Dek</span>
             </span>
           )}

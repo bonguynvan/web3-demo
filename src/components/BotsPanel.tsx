@@ -7,10 +7,12 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Bot, Trash2, Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, BookOpen } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAccount } from 'wagmi'
+import { Bot, Trash2, Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, BookOpen, MoreVertical, Lock } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { BotConfigForm } from './BotConfigForm'
@@ -44,6 +46,9 @@ function loadSort(): BotSort {
 
 export function BotsPanel() {
   const navigate = useNavigate()
+  const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
+  const { isConnected: walletConnected } = useAccount()
+  const hasConnection = vaultUnlocked || walletConnected
   const bots = useBotStore(s => s.bots)
   const trades = useBotStore(s => s.trades)
   const toggleBot = useBotStore(s => s.toggleBot)
@@ -87,6 +92,7 @@ export function BotsPanel() {
   const [compareOpen, setCompareOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sharedBotId, setSharedBotId] = useState<string | null>(null)
+  const [overflowOpen, setOverflowOpen] = useState(false)
 
   const handleShare = async (b: BotConfig) => {
     const ok = await copyToClipboard(exportBot(b))
@@ -105,25 +111,13 @@ export function BotsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-medium text-text-primary flex items-center gap-1.5">
-          <Bot className="w-3.5 h-3.5 text-accent" />
-          Paper bots
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
+        <span className="text-xs font-medium text-text-primary flex items-center gap-1.5 min-w-0">
+          <Bot className="w-3.5 h-3.5 text-accent shrink-0" />
+          <span className="truncate">Paper bots</span>
+          <span className="text-[10px] text-text-muted shrink-0">· {bots.length}</span>
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-text-muted">{bots.length} configured</span>
-          {bots.length > 1 && (
-            <select
-              value={sortBy}
-              onChange={(e) => updateSort(e.target.value as BotSort)}
-              title="Sort bots (win rate requires ≥3 closed trades)"
-              className="text-[10px] bg-surface border border-border rounded px-1.5 py-0.5 text-text-secondary cursor-pointer focus:outline-none focus:border-accent"
-            >
-              {SORT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          )}
+        <div className="flex items-center gap-1 shrink-0">
           {bots.length > 0 && (
             <button
               onClick={() => setAllEnabled(!anyEnabled)}
@@ -138,49 +132,6 @@ export function BotsPanel() {
               {anyEnabled ? <PauseCircle className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
             </button>
           )}
-          <button
-            onClick={() => navigate('/library')}
-            title="Browse strategy library"
-            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setCompareOpen(true)}
-            title="Compare strategies side-by-side"
-            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-          </button>
-          {trades.length > 0 && (
-            <button
-              onClick={() => exportTradesCsv(trades, bots)}
-              title="Export bot trades as CSV"
-              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {closedCount > 0 && (
-            <button
-              onClick={() => {
-                if (confirm(`Clear ${closedCount} closed trade${closedCount === 1 ? '' : 's'}? Open positions are kept.`)) {
-                  clearClosedTrades()
-                }
-              }}
-              title="Clear closed trades from ledger"
-              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <button
-            onClick={() => setImportOpen(true)}
-            title="Import bot from JSON"
-            className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 transition-colors cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-          </button>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
@@ -190,8 +141,98 @@ export function BotsPanel() {
               <Plus className="w-3.5 h-3.5" />
             </button>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setOverflowOpen(o => !o)}
+              title="More actions"
+              aria-haspopup="menu"
+              aria-expanded={overflowOpen}
+              className="flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
+            {overflowOpen && (
+              <>
+                {/* click-away */}
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setOverflowOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-1 z-30 w-[200px] rounded-md border border-border bg-panel shadow-lg overflow-hidden"
+                >
+                  {bots.length > 1 && (
+                    <div className="px-3 py-2 border-b border-border">
+                      <div className="text-[9px] uppercase tracking-[0.16em] text-text-muted font-mono mb-1">Sort by</div>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => updateSort(e.target.value as BotSort)}
+                        className="w-full text-[11px] bg-surface border border-border rounded px-2 py-1 text-text-primary cursor-pointer focus:outline-none focus:border-accent"
+                      >
+                        {SORT_OPTIONS.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <OverflowItem
+                    icon={BookOpen}
+                    label="Strategy library"
+                    onClick={() => { setOverflowOpen(false); navigate('/library') }}
+                  />
+                  <OverflowItem
+                    icon={BarChart3}
+                    label="Compare strategies"
+                    onClick={() => { setOverflowOpen(false); setCompareOpen(true) }}
+                  />
+                  <OverflowItem
+                    icon={Upload}
+                    label="Import bot (JSON)"
+                    onClick={() => { setOverflowOpen(false); setImportOpen(true) }}
+                  />
+                  {trades.length > 0 && (
+                    <OverflowItem
+                      icon={Download}
+                      label="Export trades (CSV)"
+                      onClick={() => { setOverflowOpen(false); exportTradesCsv(trades, bots) }}
+                    />
+                  )}
+                  {closedCount > 0 && (
+                    <OverflowItem
+                      icon={Trash2}
+                      label={`Clear ${closedCount} closed trade${closedCount === 1 ? '' : 's'}`}
+                      tone="danger"
+                      onClick={() => {
+                        setOverflowOpen(false)
+                        if (confirm(`Clear ${closedCount} closed trade${closedCount === 1 ? '' : 's'}? Open positions are kept.`)) {
+                          clearClosedTrades()
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {!hasConnection && bots.length > 0 && (
+        <div className="px-3 py-2 border-b border-border bg-amber-400/5 flex items-start gap-2 text-[11px] text-amber-400 leading-snug shrink-0">
+          <Lock className="w-3 h-3 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">Engine paused</div>
+            <div className="text-[10px] text-text-secondary mt-0.5">
+              Connect a venue to let bots execute on signals. You can still
+              edit configs and run backtests.{' '}
+              <Link to="/profile" className="text-accent hover:underline whitespace-nowrap">
+                Connect →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {showForm && <BotConfigForm onClose={() => setShowForm(false)} />}
@@ -230,6 +271,31 @@ export function BotsPanel() {
       <StrategyComparisonModal open={compareOpen} onClose={() => setCompareOpen(false)} />
       <BotImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
+  )
+}
+
+function OverflowItem({
+  icon: Icon, label, onClick, tone = 'neutral',
+}: {
+  icon: typeof BookOpen
+  label: string
+  onClick: () => void
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-center gap-2 px-3 py-2 text-[11px] text-left transition-colors cursor-pointer',
+        tone === 'danger'
+          ? 'text-text-secondary hover:bg-short/10 hover:text-short'
+          : 'text-text-secondary hover:bg-panel-light hover:text-text-primary',
+      )}
+    >
+      <Icon className="w-3.5 h-3.5 shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
   )
 }
 

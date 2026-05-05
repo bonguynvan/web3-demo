@@ -1,8 +1,11 @@
 /**
  * signalChartMarkers — map live signals to `@tradecanvas/chart` drawings.
  *
- * Renders an arrow at each signal's (triggeredAt, suggestedPrice) for
- * the selected market. Long signals get a green arrow, short signals red.
+ * Renders an up/down arrow at each signal's (triggeredAt, suggestedPrice)
+ * for the selected market. The time anchor encodes WHEN the signal fired
+ * — a horizontal line couldn't communicate that. Long signals get a
+ * green arrow pointing up to the trigger price; short signals get a red
+ * arrow pointing down to it.
  *
  * IDs are prefixed `signal:` so the caller can merge with user-drawn
  * shapes (preserve everything that DOESN'T start with `signal:`, then
@@ -47,11 +50,12 @@ export function buildSignalDrawings(
     if (s.suggestedPrice == null || !Number.isFinite(s.suggestedPrice)) continue
 
     const isLong = s.direction === 'long'
-    const color = isLong ? '#22c55e' : '#ef4444'
-    // The arrow tool uses two anchors (tail → head). Place the tail a
-    // little above (long) or below (short) the suggested price so the
-    // arrow points AT the trigger price.
-    const offset = s.suggestedPrice * 0.005
+    const color = isLong ? '#26d984' : '#ff5d6d'
+    // Tail offset 2.5% of price — large enough that the arrow stays
+    // visible at any zoom level. Head sits AT the trigger price so the
+    // user can read the exact level the signal anchored to. Long: tail
+    // BELOW head (arrow points up). Short: tail ABOVE head (points down).
+    const offset = s.suggestedPrice * 0.025
     const head: DrawingAnchor = { time: s.triggeredAt, price: s.suggestedPrice }
     const tail: DrawingAnchor = {
       time: s.triggeredAt,
@@ -63,10 +67,10 @@ export function buildSignalDrawings(
       anchors: [tail, head],
       style: {
         color,
-        lineWidth: 2,
+        lineWidth: 3,
         lineStyle: 'solid',
         fillColor: color,
-        fillOpacity: 0.6,
+        fillOpacity: 0.85,
       },
       visible: true,
       locked: true,
@@ -74,6 +78,7 @@ export function buildSignalDrawings(
         source: s.source,
         confidence: s.confidence,
         title: s.title,
+        direction: s.direction,
       },
     })
   }

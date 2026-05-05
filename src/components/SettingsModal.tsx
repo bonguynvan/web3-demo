@@ -16,8 +16,9 @@ import { Trash2, RotateCcw, Sun, Moon, AlertTriangle, Globe, Download, Upload } 
 import { Modal } from './ui/Modal'
 import { useSettingsStore } from '../store/settingsStore'
 import { useThemeStore } from '../store/themeStore'
-import { resetDemoAccount, clearClientStateStorage } from '../lib/demoData'
+import { clearClientStateStorage } from '../lib/demoData'
 import { clearStoredLayout } from '../lib/chartLayout'
+import { useRiskStore } from '../store/riskStore'
 import { downloadBackup, importBackup } from '../lib/userBackup'
 import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
@@ -46,6 +47,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const setCriticalPct = useSettingsStore(s => s.setAlertCriticalPct)
   const resetSettings = useSettingsStore(s => s.reset)
   const toast = useToast()
+  const dailyPnlCapUsd = useRiskStore(s => s.dailyPnlCapUsd)
+  const maxDrawdownUsd = useRiskStore(s => s.maxDrawdownUsd)
+  const maxExposureUsd = useRiskStore(s => s.maxExposureUsd)
+  const setRiskLimits = useRiskStore(s => s.setLimits)
+  const riskBreach = useRiskStore(s => s.breach)
 
   return (
     <Modal open={open} onClose={onClose} title="Settings" maxWidth="max-w-lg">
@@ -124,6 +130,52 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
           )}
         </Section>
 
+        {/* Risk caps */}
+        <Section
+          title="Risk caps"
+          subtitle="Portfolio-level guardrails. When any cap is breached, every bot is auto-paused and a toast fires. 0 disables that cap."
+        >
+          <SliderRow
+            label="Daily loss cap"
+            value={dailyPnlCapUsd}
+            min={0}
+            max={1000}
+            step={10}
+            unit="$"
+            onChange={(v) => setRiskLimits({ dailyPnlCapUsd: v })}
+            colorClass="accent-short"
+          />
+          <SliderRow
+            label="Max drawdown"
+            value={maxDrawdownUsd}
+            min={0}
+            max={2000}
+            step={25}
+            unit="$"
+            onChange={(v) => setRiskLimits({ maxDrawdownUsd: v })}
+            colorClass="accent-amber-400"
+          />
+          <SliderRow
+            label="Max open exposure"
+            value={maxExposureUsd}
+            min={0}
+            max={5000}
+            step={50}
+            unit="$"
+            onChange={(v) => setRiskLimits({ maxExposureUsd: v })}
+            colorClass="accent-accent"
+          />
+          {riskBreach && (
+            <div className="flex items-start gap-2 text-[10px] text-short px-2 py-1.5 bg-short/10 border border-short/30 rounded">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              <span>
+                Bots paused — {riskBreach.reason}. Raise a cap or wait for
+                tomorrow's PnL window to clear it automatically.
+              </span>
+            </div>
+          )}
+        </Section>
+
         {/* Backup */}
         <Section
           title="Backup"
@@ -167,7 +219,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
         {/* Reset */}
         <Section
           title="Reset"
-          subtitle="Destructive — clears local state. The on-chain contracts are not affected."
+          subtitle="Destructive — clears local state in this browser only. Venue accounts and server data are untouched."
         >
           <ResetButton
             label="Clear chart layout"
@@ -178,16 +230,8 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             }}
           />
           <ResetButton
-            label="Reset demo balance"
-            description="Empties demo positions, history, and pending orders. Restores starting USDC balance."
-            onConfirm={() => {
-              resetDemoAccount()
-              toast.success('Demo state reset', 'Starting balance restored')
-            }}
-          />
-          <ResetButton
             label="Wipe all client storage"
-            description="Clears persisted demo state AND saved settings. Same effect as DevTools → Application → Clear storage."
+            description="Clears bots, signal settings, performance history, and saved preferences. Same effect as DevTools → Application → Clear storage."
             onConfirm={() => {
               clearClientStateStorage()
               clearStoredLayout()

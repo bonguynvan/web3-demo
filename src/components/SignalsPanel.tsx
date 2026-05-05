@@ -22,8 +22,9 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff, ExternalLink } from 'lucide-react'
 import { ensureAudio, playSignalTone } from '../lib/signalSound'
+import { venueTradeLink } from '../lib/venueLinks'
 
 // Dismissals are session-scoped — refreshing the page clears them so
 // genuinely new fires of the same id can resurface. Stored in a Set
@@ -458,6 +459,22 @@ function SignalCard({
             <span>·</span>
             <span className="tabular-nums">{formatAge(ageMs)}</span>
           </div>
+          {(() => {
+            const link = venueTradeLink(signal.marketId, signal.venue)
+            if (!link) return null
+            return (
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.12em] text-accent border border-accent/40 hover:bg-accent-dim/30 transition-colors"
+              >
+                {link.label}
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            )
+          })()}
         </div>
       </div>
     </div>

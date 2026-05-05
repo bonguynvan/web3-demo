@@ -10,8 +10,10 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { useAccount } from 'wagmi'
 import { useSignals } from './useSignals'
 import { useBotStore } from '../store/botStore'
+import { useRiskStore } from '../store/riskStore'
 import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
@@ -31,6 +33,16 @@ export function useBotEngine(): void {
 
   const toast = useToast()
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
+  const { isConnected: walletConnected } = useAccount()
+  const maxExposureUsd = useRiskStore(s => s.maxExposureUsd)
+  // Toast at most once per bot per "exposure-blocked" episode so a busy
+  // signal feed doesn't spam the user with the same warning every 5s.
+  const exposureNotifiedRef = useRef<Set<string>>(new Set())
+  // Bots only execute when the user has a real connection — vault
+  // unlocked (Binance API key) or wagmi wallet connected. Anonymous
+  // visitors can still browse configs, run backtests, and view the
+  // panel; we just don't burn cycles opening trades on their behalf.
+  const hasConnection = vaultUnlocked || walletConnected
   // Track signals already acted on per bot to avoid duplicates if the
   // signal feed re-emits the same id across recompute cycles.
   const actedRef = useRef<Set<string>>(new Set())
@@ -40,6 +52,7 @@ export function useBotEngine(): void {
 
   // ─── Open trades on matching signals ───────────────────────────────
   useEffect(() => {
+    if (!hasConnection) return
     for (const bot of bots) {
       if (!bot.enabled) continue
 
@@ -64,6 +77,29 @@ export function useBotEngine(): void {
         const entryPrice = s.suggestedPrice
         if (entryPrice === undefined || entryPrice <= 0) continue
         const size = bot.positionSizeUsd / entryPrice
+
+        // Exposure cap pre-check. Without this the bot would open the
+        // trade and useRiskMonitor would *then* detect the breach and
+        // pause everything — leaving an oversized position open. By
+        // gating before recordTrade we keep total exposure under the cap.
+        if (maxExposureUsd > 0) {
+          const currentExposure = trades
+            .filter(t => t.closedAt === undefined)
+            .reduce((acc, t) => acc + t.positionUsd, 0)
+          if (currentExposure + bot.positionSizeUsd > maxExposureUsd) {
+            if (!exposureNotifiedRef.current.has(bot.id)) {
+              exposureNotifiedRef.current.add(bot.id)
+              toast.warning(
+                `${bot.name} skipped — exposure cap`,
+                `Open $${currentExposure.toFixed(0)} + $${bot.positionSizeUsd} would exceed cap $${maxExposureUsd}`,
+              )
+            }
+            continue
+          } else {
+            // Headroom restored — let future blocks toast again.
+            exposureNotifiedRef.current.delete(bot.id)
+          }
+        }
 
         if (bot.mode === 'live') {
           // Live mode hard guards. Any failure → fall through and skip
@@ -130,7 +166,7 @@ export function useBotEngine(): void {
         }
       }
     }
-  }, [signals, bots, trades, recordTrade, vaultUnlocked, toast])
+  }, [signals, bots, trades, recordTrade, vaultUnlocked, walletConnected, hasConnection, maxExposureUsd, toast])
 
   // ─── Close expired trades on a heartbeat ───────────────────────────
   useEffect(() => {

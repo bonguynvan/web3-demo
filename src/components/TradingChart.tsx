@@ -27,7 +27,9 @@ import {
 } from '../lib/chartLayout'
 import { getDemoOrders, type DemoOrder } from '../lib/demoData'
 import { useSignals } from '../hooks/useSignals'
+import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import { buildSignalDrawings, isSignalDrawing } from '../lib/signalChartMarkers'
+import type { Signal } from '../signals/types'
 
 // Map our market symbols to Binance symbols
 const BINANCE_SYMBOLS: Record<string, string> = {
@@ -296,18 +298,32 @@ export function TradingChart({ loading }: { loading: boolean }) {
   }, [chartReady])
 
   // ─── Signal markers ──────────────────────────────────────────────────
-  // Paint long/short arrows on the chart for signals matching the
-  // selected market. We merge with user-drawn shapes so manual
-  // trendlines/annotations are preserved across signal updates.
+  // Paint long/short arrows for every signal that has fired on the active
+  // market. We merge live signals (still in the active feed) with the
+  // performance store's pending + resolved history so historical fires
+  // stay on the chart instead of disappearing when the signal ages out
+  // of the live list. User-drawn shapes are preserved.
   const signals = useSignals()
+  const performancePending = useSignalPerformanceStore(s => s.pending)
+  const performanceResolved = useSignalPerformanceStore(s => s.resolved)
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !chartReady) return
+
+    const merged = new Map<string, Signal>()
+    for (const s of signals) merged.set(s.id, s)
+    for (const p of performancePending) {
+      if (!merged.has(p.id)) merged.set(p.id, performanceEntryToSignal(p))
+    }
+    for (const r of performanceResolved) {
+      if (!merged.has(r.id)) merged.set(r.id, performanceEntryToSignal(r))
+    }
+
     const existing = chart.getDrawings() as { id: string }[]
     const userKept = existing.filter(d => !isSignalDrawing(d))
-    const signalDrawings = buildSignalDrawings(signals, selectedMarket.symbol)
+    const signalDrawings = buildSignalDrawings(Array.from(merged.values()), selectedMarket.symbol)
     chart.setDrawings([...userKept, ...signalDrawings] as Parameters<typeof chart.setDrawings>[0])
-  }, [signals, selectedMarket.symbol, chartReady])
+  }, [signals, performancePending, performanceResolved, selectedMarket.symbol, chartReady])
 
   // Live price line (also rAF-throttled)
   const currentPrice = getPrice(selectedMarket.symbol)
@@ -653,4 +669,34 @@ function ChartLoadingSpinner({ market }: { market: string }) {
       </div>
     </>
   )
+}
+
+/**
+ * Reshape a performance-store entry (pending OR resolved) into the
+ * Signal shape the marker builder expects. The fields the marker
+ * builder actually reads are: id, source, marketId, direction,
+ * suggestedPrice, triggeredAt — the rest are filled with reasonable
+ * defaults so the resulting object satisfies the Signal interface.
+ */
+function performanceEntryToSignal(entry: {
+  id: string
+  source: Signal['source']
+  marketId: string
+  direction: Signal['direction']
+  entryPrice: number
+  triggeredAt: number
+}): Signal {
+  return {
+    id: entry.id,
+    source: entry.source,
+    venue: 'binance',
+    marketId: entry.marketId,
+    direction: entry.direction,
+    confidence: 0.6,
+    triggeredAt: entry.triggeredAt,
+    expiresAt: entry.triggeredAt + 60 * 60_000,
+    title: '',
+    detail: '',
+    suggestedPrice: entry.entryPrice,
+  }
 }

@@ -15,21 +15,38 @@
 import { useEffect, useRef } from 'react'
 import { useSignals } from './useSignals'
 import { useNotificationStore } from '../store/notificationStore'
+import { useToast } from '../store/toastStore'
 import type { Signal } from '../signals/types'
 
 export const ALERT_ENABLED_KEY = 'signal-alerts-enabled'
 export const ALERT_TOGGLE_EVENT = 'signal-alerts-toggle'
 const MIN_CONFIDENCE = 0.6
 
+/**
+ * On first run (key absent) we default alerts ON. The previous default
+ * was OFF, which meant new users saw signals firing in the panel but
+ * got no audio/visual feedback elsewhere — easy to miss. Once the user
+ * has explicitly toggled the bell, we honor whichever side they pick.
+ */
 function readEnabled(): boolean {
-  try { return localStorage.getItem(ALERT_ENABLED_KEY) === 'true' } catch { return false }
+  try {
+    const raw = localStorage.getItem(ALERT_ENABLED_KEY)
+    if (raw === null) return true
+    return raw === 'true'
+  } catch { return true }
 }
 
 export function useSignalAlerts(): void {
   const signals = useSignals()
   const addNotification = useNotificationStore(s => s.add)
+  const toast = useToast()
   const alertedRef = useRef<Set<string>>(new Set())
   const enabledRef = useRef<boolean>(readEnabled())
+  // First render is a "warm-up" — the signal compute layer pushes any
+  // already-live signals on mount, and we don't want to spam toasts for
+  // things that fired before the page loaded. Mark them as alerted but
+  // suppress the side-effects.
+  const warmedUpRef = useRef<boolean>(false)
 
   // Keep the enabled flag in sync without re-running the alert loop
   useEffect(() => {
@@ -45,18 +62,39 @@ export function useSignalAlerts(): void {
   useEffect(() => {
     if (!enabledRef.current) return
 
+    // Warm-up: on first pass, mark all current signals as already
+    // alerted but emit nothing. Anything that fires AFTER mount gets
+    // the full toast + bell + browser notification treatment.
+    if (!warmedUpRef.current) {
+      for (const s of signals) alertedRef.current.add(s.id)
+      warmedUpRef.current = true
+      return
+    }
+
     for (const s of signals) {
       if (s.confidence < MIN_CONFIDENCE) continue
       if (alertedRef.current.has(s.id)) continue
       alertedRef.current.add(s.id)
 
-      // Always add to in-app bell so the user has history regardless
-      // of OS notification permission state.
+      // In-app bell so the user has history regardless of OS perms.
       addNotification({
         type: 'alert',
         title: s.title,
         message: alertMessage(s),
       })
+
+      // Visible toast — short, scoped to direction so the user can
+      // glance at it without reading. Confluence (highest-confidence)
+      // gets the accent tone; everything else uses long/short coloring.
+      const conf = Math.round(s.confidence * 100)
+      const body = `${s.marketId} · ${s.direction.toUpperCase()} · ${conf}%`
+      if (s.source === 'confluence') {
+        toast.info(`Signal · ${s.title}`, body)
+      } else if (s.direction === 'long') {
+        toast.success(`Signal · ${s.title}`, body)
+      } else {
+        toast.error(`Signal · ${s.title}`, body)
+      }
 
       // Best-effort browser notification
       maybeFireBrowserNotification(s)

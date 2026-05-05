@@ -15,12 +15,18 @@ import { PortfolioPage } from './pages/PortfolioPage'
 import { StrategyLibraryPage } from './pages/StrategyLibraryPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { BotManagerPage } from './pages/BotManagerPage'
+import { ProofPage } from './pages/ProofPage'
+import { BacktestReplayPage } from './pages/BacktestReplayPage'
+import { AuthorProfilePage } from './pages/AuthorProfilePage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/proof" element={<ProofPage />} />
+        <Route path="/replay" element={<BacktestReplayPage />} />
+        <Route path="/author/:handle" element={<AuthorProfilePage />} />
         <Route element={<AppShell />}>
           <Route path="/trade" element={<TradePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />

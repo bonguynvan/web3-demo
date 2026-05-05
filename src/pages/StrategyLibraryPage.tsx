@@ -7,9 +7,11 @@
  */
 
 import { useState } from 'react'
-import { BookOpen, Plus, Check, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BookOpen, Plus, Check, Search, Heart, BadgeCheck, Upload } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
+import { useFollowStore } from '../store/followStore'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { setActiveVenue } from '../adapters/registry'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
@@ -24,10 +26,15 @@ export function StrategyLibraryPage() {
   // createdAt so we can show "Recently added" sorted newest first.
   const createdAtByName = new Map(bots.map(b => [b.name, b.createdAt]))
   const toast = useToast()
+  const followsStrategy = useFollowStore(s => s.followsStrategy)
+  const toggleStrategy = useFollowStore(s => s.toggleStrategy)
+  const followedStrategyIds = useFollowStore(s => s.strategies)
   const [filterTag, setFilterTag] = useState<string>('')
   const [query, setQuery] = useState<string>('')
   const [detail, setDetail] = useState<PublishedStrategy | null>(null)
   const [sortBy, setSortBy] = useState<'curated' | 'winrate' | 'sample' | 'name'>('curated')
+  const [kindFilter, setKindFilter] = useState<'all' | 'curated' | 'community' | 'following'>('all')
+  const [publishOpen, setPublishOpen] = useState(false)
 
   const venueId = useActiveVenue()
   // Today: hyperliquid = perp, binance = spot. Future venue adapters
@@ -38,6 +45,10 @@ export function StrategyLibraryPage() {
   const allTags = Array.from(new Set(STRATEGY_LIBRARY.flatMap(s => s.tags))).sort()
   const q = query.trim().toLowerCase()
   const filtered = STRATEGY_LIBRARY.filter(s => {
+    const kind = s.kind ?? 'curated'
+    if (kindFilter === 'curated' && kind !== 'curated') return false
+    if (kindFilter === 'community' && kind !== 'community') return false
+    if (kindFilter === 'following' && !followedStrategyIds.includes(s.id)) return false
     if (filterTag && !s.tags.includes(filterTag)) return false
     if (q) {
       const hay = `${s.name} ${s.summary} ${s.author.name} ${s.tags.join(' ')}`.toLowerCase()
@@ -45,6 +56,13 @@ export function StrategyLibraryPage() {
     }
     return true
   })
+
+  const kindCounts = {
+    all: STRATEGY_LIBRARY.length,
+    curated: STRATEGY_LIBRARY.filter(s => (s.kind ?? 'curated') === 'curated').length,
+    community: STRATEGY_LIBRARY.filter(s => s.kind === 'community').length,
+    following: followedStrategyIds.length,
+  }
   const visible = (() => {
     if (sortBy === 'curated') return filtered
     if (sortBy === 'name') return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
@@ -81,15 +99,49 @@ export function StrategyLibraryPage() {
           <BookOpen className="w-5 h-5 text-accent" />
           <span className="text-base font-semibold">Strategy library</span>
         </div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Curated strategies, one-click install
-          </h1>
-          <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
-            Strategies published by the TradingDek team and the community. Each runs in paper mode
-            on your active venue (CEX or DEX) so you can validate before risking real capital.
-            Past performance is not predictive — sample sizes shown.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-2">
+              Strategy marketplace
+            </h1>
+            <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+              Strategies published by the TradingDek team and the community. Each
+              runs in paper mode on your active venue, so you can backtest, replay,
+              and validate before risking real capital. Past performance is not
+              predictive — sample sizes shown.
+            </p>
+          </div>
+          <button
+            onClick={() => setPublishOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-md border border-accent/40 text-accent text-xs font-mono uppercase tracking-[0.14em] hover:bg-accent-dim/30 transition-colors cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Publish
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 mb-4 flex-wrap">
+          {(['all', 'curated', 'community', 'following'] as const).map(k => (
+            <button
+              key={k}
+              onClick={() => setKindFilter(k)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs uppercase tracking-[0.14em] font-mono transition-colors cursor-pointer',
+                kindFilter === k
+                  ? 'bg-accent text-surface'
+                  : 'bg-panel border border-border text-text-secondary hover:text-text-primary',
+              )}
+            >
+              {k === 'following' && <Heart className="w-3 h-3" />}
+              {k}
+              <span className={cn(
+                'text-[9px] tabular-nums',
+                kindFilter === k ? 'text-surface/70' : 'text-text-muted',
+              )}>
+                {kindCounts[k]}
+              </span>
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 mb-4 max-w-2xl">
@@ -208,10 +260,12 @@ export function StrategyLibraryPage() {
                   key={s.id}
                   strategy={s}
                   installed={existingBotNames.has(s.bot.name)}
+                  followed={followsStrategy(s.id)}
                   overlapCount={overlapCount}
                   activeHasPerps={activeHasPerps}
                   activeVenueId={venueId}
                   onInstall={() => install(s)}
+                  onToggleFollow={() => toggleStrategy(s.id)}
                   onOpenDetail={() => setDetail(s)}
                 />
               )
@@ -219,10 +273,16 @@ export function StrategyLibraryPage() {
           </div>
         )}
 
-        <div className="mt-10 p-4 bg-panel/60 border border-border rounded-lg text-[11px] text-text-muted leading-relaxed">
-          Want to publish your own strategy? Export your bot from the Bots panel — the same
-          portable JSON format powers this library. A submission flow lands when the marketplace
-          backend ships.
+        <div className="mt-10 p-4 bg-panel/60 border border-border rounded-lg text-[11px] text-text-muted leading-relaxed flex items-start gap-3">
+          <Upload className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+          <div>
+            <div className="text-text-secondary font-medium mb-0.5">Publish your own bot</div>
+            Export it as JSON from any bot card, then submit a PR adding it to{' '}
+            <code className="text-text-primary bg-surface px-1 rounded">src/strategies/library.ts</code>{' '}
+            with <code className="text-text-primary bg-surface px-1 rounded">kind: 'community'</code>.
+            Until a backend ships, the team reviews submissions in-repo so authorship and
+            performance numbers are version-controlled.
+          </div>
         </div>
       </section>
 
@@ -237,7 +297,47 @@ export function StrategyLibraryPage() {
           }
         }}
       />
+
+      <PublishGuideModal open={publishOpen} onClose={() => setPublishOpen(false)} />
     </div>
+  )
+}
+
+function PublishGuideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Publish your bot" maxWidth="max-w-md">
+      <div className="p-4 space-y-3 text-xs leading-relaxed text-text-secondary">
+        <p>
+          Until the marketplace has a server, publication is a pull request — that
+          way authorship, performance numbers, and review history live in version
+          control where they can't be silently rewritten.
+        </p>
+        <ol className="list-decimal ml-4 space-y-1.5 text-[11px]">
+          <li>Open the Bots panel, click ⋮ on your bot, choose "Share / export JSON".</li>
+          <li>Add a new entry to <code className="text-text-primary bg-surface px-1 rounded">src/strategies/library.ts</code>.
+            Set <code className="text-text-primary bg-surface px-1 rounded">kind: 'community'</code>,
+            include your handle, and optionally a starting <code className="text-text-primary bg-surface px-1 rounded">performance</code> snapshot.</li>
+          <li>Submit a PR. The team verifies the config compiles and the
+            performance claim is consistent with public hit-rate data.</li>
+          <li>Once merged, your strategy shows up in the Community tab with your
+            handle next to it. Followers see new bots from you in the Following tab.</li>
+        </ol>
+        <div className="pt-3 border-t border-border text-[10px] text-text-muted">
+          Curated entries are vetted by the TradingDek team and carry the verified
+          badge. Community entries are unverified by default — followers should
+          run them in paper mode and read the proof page (<code className="text-text-primary bg-surface px-1 rounded">/proof</code>)
+          before enabling live execution.
+        </div>
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold rounded-md bg-accent text-surface hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -347,28 +447,45 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 }
 
 function StrategyCard({
-  strategy, installed, overlapCount, activeHasPerps, activeVenueId, onInstall, onOpenDetail,
+  strategy, installed, followed, overlapCount, activeHasPerps, activeVenueId, onInstall, onToggleFollow, onOpenDetail,
 }: {
   strategy: PublishedStrategy
   installed: boolean
+  followed: boolean
   overlapCount: number
   activeHasPerps: boolean
   activeVenueId: string
   onInstall: () => void
+  onToggleFollow: () => void
   onOpenDetail: () => void
 }) {
   const { bot, performance } = strategy
   const perpOnly = bot.allowedSources.includes('funding')
   const incompatible = perpOnly && !activeHasPerps
+  const isCommunity = strategy.kind === 'community'
   return (
     <article
       onClick={onOpenDetail}
       className="bg-panel border border-border rounded-lg p-4 flex flex-col cursor-pointer hover:border-border-light transition-colors"
     >
       <header className="flex items-start justify-between gap-3 mb-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
+            {!isCommunity && (
+              <BadgeCheck
+                title="Curated by the TradingDek team — vetted before publication."
+                className="shrink-0 w-3.5 h-3.5 text-accent"
+              />
+            )}
+            {isCommunity && (
+              <span
+                title="Community submission — not yet vetted by the team."
+                className="shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted"
+              >
+                Community
+              </span>
+            )}
             {perpOnly && !incompatible && (
               <span
                 title="Requires perp markets (funding rates)."
@@ -392,9 +509,29 @@ function StrategyCard({
           </div>
           <div className="text-[11px] text-text-muted">
             by {strategy.author.name}
-            {strategy.author.handle && <span className="ml-1 text-text-muted/80">{strategy.author.handle}</span>}
+            {strategy.author.handle && (
+              <Link
+                to={`/author/${strategy.author.handle.replace(/^@/, '')}`}
+                onClick={(e) => e.stopPropagation()}
+                className="ml-1 text-accent hover:underline"
+              >
+                {strategy.author.handle}
+              </Link>
+            )}
           </div>
         </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFollow() }}
+          title={followed ? 'Unfollow' : 'Follow'}
+          className={cn(
+            'shrink-0 flex items-center justify-center w-7 h-7 rounded transition-colors cursor-pointer',
+            followed
+              ? 'text-accent hover:bg-accent-dim/30'
+              : 'text-text-muted hover:text-text-primary hover:bg-panel-light',
+          )}
+        >
+          <Heart className={cn('w-3.5 h-3.5', followed && 'fill-accent')} />
+        </button>
         {performance && (
           <div className="shrink-0 text-right min-w-[64px]">
             <div className={cn(

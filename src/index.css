@@ -2,21 +2,29 @@
 
 /* ─── Semantic color tokens — components use these, never raw hex ─── */
 
+/*
+ * Brand: "Terminal Noir"
+ *
+ * Deep near-black canvas with an electric amber signal accent — terminal
+ * / Bloomberg lineage rather than generic shadcn-violet. Long / short
+ * are tuned warmer (emerald + coral) so they read on amber-adjacent
+ * surfaces without going neon.
+ */
 @theme {
-  --color-panel: #111827;
-  --color-panel-light: #1a2235;
-  --color-surface: #0A0F1A;
-  --color-border: #1e293b;
-  --color-border-light: #334155;
-  --color-long: #22c55e;
-  --color-long-dim: rgba(34, 197, 94, 0.15);
-  --color-short: #ef4444;
-  --color-short-dim: rgba(239, 68, 68, 0.15);
-  --color-accent: #8b5cf6;
-  --color-accent-dim: rgba(139, 92, 246, 0.15);
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  --color-panel: #0d1015;
+  --color-panel-light: #161a22;
+  --color-surface: #06080c;
+  --color-border: #1f242d;
+  --color-border-light: #2d343f;
+  --color-long: #26d984;
+  --color-long-dim: rgba(38, 217, 132, 0.15);
+  --color-short: #ff5d6d;
+  --color-short-dim: rgba(255, 93, 109, 0.15);
+  --color-accent: #ffb547;
+  --color-accent-dim: rgba(255, 181, 71, 0.15);
+  --color-text-primary: #f5f0e6;
+  --color-text-secondary: #a0a4ab;
+  --color-text-muted: #5e6469;
 
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -24,40 +32,48 @@
 
 /* ─── Dark theme (default) ─── */
 [data-theme="dark"] {
-  --color-panel: #111827;
-  --color-panel-light: #1a2235;
-  --color-surface: #0A0F1A;
-  --color-border: #1e293b;
-  --color-border-light: #334155;
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-long-dim: rgba(34, 197, 94, 0.15);
-  --color-short-dim: rgba(239, 68, 68, 0.15);
-  --color-accent-dim: rgba(139, 92, 246, 0.15);
+  --color-panel: #0d1015;
+  --color-panel-light: #161a22;
+  --color-surface: #06080c;
+  --color-border: #1f242d;
+  --color-border-light: #2d343f;
+  --color-text-primary: #f5f0e6;
+  --color-text-secondary: #a0a4ab;
+  --color-text-muted: #5e6469;
+  --color-long-dim: rgba(38, 217, 132, 0.15);
+  --color-short-dim: rgba(255, 93, 109, 0.15);
+  --color-accent-dim: rgba(255, 181, 71, 0.15);
 }
 
-/* ─── Light theme ─── */
+/* ─── Light theme — warm off-white with deep amber for contrast ─── */
 [data-theme="light"] {
   --color-panel: #ffffff;
-  --color-panel-light: #f1f5f9;
-  --color-surface: #f8fafc;
-  --color-border: #e2e8f0;
-  --color-border-light: #cbd5e1;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
-  --color-long: #16a34a;
-  --color-long-dim: rgba(22, 163, 74, 0.1);
-  --color-short: #dc2626;
-  --color-short-dim: rgba(220, 38, 38, 0.1);
-  --color-accent: #7c3aed;
-  --color-accent-dim: rgba(124, 58, 237, 0.1);
+  --color-panel-light: #f6f3ec;
+  --color-surface: #faf8f3;
+  --color-border: #e6e1d6;
+  --color-border-light: #d4cdbe;
+  --color-text-primary: #1a1814;
+  --color-text-secondary: #4a4640;
+  --color-text-muted: #8a857c;
+  --color-long: #1a9e62;
+  --color-long-dim: rgba(26, 158, 98, 0.1);
+  --color-short: #d44150;
+  --color-short-dim: rgba(212, 65, 80, 0.1);
+  --color-accent: #b56e00;
+  --color-accent-dim: rgba(181, 110, 0, 0.1);
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-light) transparent;
+}
+
+/* 14px root — Binance-terminal density. Every Tailwind rem unit
+   (text-xs / sm / base, gap, padding, etc.) scales 87.5%. Pixel-prefixed
+   utilities (text-[11px], w-3.5, h-12) are unaffected. Tweak here if
+   global density needs nudging. */
+html {
+  font-size: 14px;
 }
 
 body {

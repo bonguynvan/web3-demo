@@ -25,6 +25,8 @@ export interface StrategyPerformance {
   since: string
 }
 
+export type StrategyKind = 'curated' | 'community'
+
 export interface PublishedStrategy {
   id: string
   slug: string
@@ -34,6 +36,14 @@ export interface PublishedStrategy {
   tags: string[]
   bot: PortableBot
   performance?: StrategyPerformance
+  /** Provenance — curated entries are vetted by the TradingDek team;
+   *  community entries are user-published and shown with an unverified
+   *  badge until the team reviews them. Defaults to 'curated' for
+   *  backward compat with the existing seed list. */
+  kind?: StrategyKind
+  /** ISO 8601 publish date — used by the marketplace to sort newest-first
+   *  and to compute "tracked since" when no explicit performance is set. */
+  publishedAt?: string
 }
 
 export const STRATEGY_LIBRARY: PublishedStrategy[] = [
@@ -134,5 +144,72 @@ export const STRATEGY_LIBRARY: PublishedStrategy[] = [
       holdMinutes: 120,
       maxTradesPerDay: 10,
     },
+  },
+
+  // ─── Community submissions (unverified) ──────────────────────────────
+  {
+    id: 'comm-fade-shorts',
+    slug: 'fade-the-shorts',
+    name: 'Fade The Shorts',
+    author: { name: 'Anita K.', handle: '@anitatrades' },
+    summary: 'Fades crowded shorts on funding inversions, but only when EMA crossover agrees on direction. Two-of-eight confluence variant.',
+    tags: ['funding', 'crossover', 'community'],
+    kind: 'community',
+    publishedAt: '2026-04-22',
+    bot: {
+      v: 1,
+      name: 'Fade The Shorts',
+      mode: 'paper',
+      allowedSources: ['confluence'],
+      allowedMarkets: [],
+      minConfidence: 0.7,
+      positionSizeUsd: 80,
+      holdMinutes: 60,
+      maxTradesPerDay: 6,
+    },
+    performance: { winRate: 0.59, sample: 27, since: '2026-04-22' },
+  },
+  {
+    id: 'comm-liq-cascades',
+    slug: 'liq-hunter',
+    name: 'Liq Hunter',
+    author: { name: 'cryptoshrimp', handle: '@shrimpsays' },
+    summary: 'Goes with the cascade. Opens immediately on liquidation signals, exits inside 20 minutes.',
+    tags: ['liquidation', 'fast', 'community'],
+    kind: 'community',
+    publishedAt: '2026-04-28',
+    bot: {
+      v: 1,
+      name: 'Liq Hunter',
+      mode: 'paper',
+      allowedSources: ['liquidation'],
+      allowedMarkets: [],
+      minConfidence: 0.5,
+      positionSizeUsd: 60,
+      holdMinutes: 20,
+      maxTradesPerDay: 25,
+    },
+  },
+  {
+    id: 'comm-bigcap-only',
+    slug: 'bigcap-only',
+    name: 'Big-Cap Only',
+    author: { name: 'Maya R.', handle: '@mayatrade' },
+    summary: 'Restricts to BTC and ETH. Slow, conservative, only acts on confluence ≥0.8. Built for sleep-friendly trading.',
+    tags: ['confluence', 'conservative', 'community'],
+    kind: 'community',
+    publishedAt: '2026-05-01',
+    bot: {
+      v: 1,
+      name: 'Big-Cap Only',
+      mode: 'paper',
+      allowedSources: ['confluence'],
+      allowedMarkets: ['BTC/USDT', 'ETH/USDT'],
+      minConfidence: 0.8,
+      positionSizeUsd: 200,
+      holdMinutes: 180,
+      maxTradesPerDay: 4,
+    },
+    performance: { winRate: 0.66, sample: 18, since: '2026-05-01' },
   },
 ]

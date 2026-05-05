@@ -1,16 +1,12 @@
 /**
- * AboutModal — static "what is this app and how does it work" content.
+ * AboutModal — static "what is this app" content.
  *
- * Aimed at first-time users who land on the site cold and need a 60-second
- * orientation. Covers: project pitch, demo vs live mode, the GMX-style fee
- * model the contracts implement, where data comes from in each mode, and
- * pointers to the underlying repos.
- *
- * Intentionally NO heavy formatting / dynamic content. If something here
- * needs to update with state, it shouldn't live in About.
+ * Aimed at first-time users who land cold and need a 60-second orientation
+ * to TradingDek's positioning: research deck for signals + paper bots,
+ * not a custodian or order router.
  */
 
-import { ExternalLink, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { Modal } from './ui/Modal'
 
 interface AboutModalProps {
@@ -20,98 +16,92 @@ interface AboutModalProps {
 
 export function AboutModal({ open, onClose }: AboutModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="About Perp DEX" maxWidth="max-w-lg">
+    <Modal open={open} onClose={onClose} title="About TradingDek" maxWidth="max-w-lg">
       <div className="space-y-5 text-xs leading-relaxed text-text-secondary max-h-[70dvh] overflow-y-auto">
-        {/* Hero */}
         <div className="flex items-start gap-3 pb-4 border-b border-border">
           <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
             <Zap className="w-5 h-5 text-accent" />
           </div>
           <div>
             <div className="text-sm font-semibold text-text-primary mb-1">
-              Perp DEX — GMX-style perpetuals on Anvil
+              TradingDek — your trading deck. One screen.
             </div>
             <div className="text-[11px] text-text-muted">
-              An end-to-end perpetuals trading interface backed by Foundry contracts,
-              an event indexer, and a custom canvas chart library. Built as a
-              learning + reference project.
+              A multi-venue research workstation: live signal scanner, paper-trading
+              bots, hit-rate tracking, and one-click deep-links into the venues you
+              already trade on.
             </div>
           </div>
         </div>
 
-        {/* Demo vs Live */}
-        <Section title="Demo vs live mode">
+        <Section title="What we do, what we don't">
           <p>
-            <span className="font-semibold text-text-primary">Demo mode</span> runs entirely
-            in your browser. No wallet, no transactions, no real anything — positions,
-            balances, and history are simulated against live Binance prices so you can
-            try the UI risk-free.
+            <span className="font-semibold text-text-primary">We do:</span> aggregate
+            charts and signals across Binance and Hyperliquid, run paper-trading bots
+            against the live signal feed, track every fired signal so you can audit
+            the win rate yourself, and let you deep-link out to whichever venue you
+            already have an account on.
           </p>
           <p>
-            <span className="font-semibold text-text-primary">Live mode</span> talks to a
-            local Anvil chain running a deployed copy of the perp DEX contracts. Trades
-            are real on-chain transactions signed by your connected wallet (or one of
-            the pre-funded local Anvil accounts). The keeper services (price updater
-            + liquidator) and the indexer backend run alongside the frontend.
+            <span className="font-semibold text-text-primary">We don't:</span> custody
+            funds, run a matching engine, or compete with venue-native order entry.
+            Execution is one tap away on Binance / Hyperliquid / OKX, where you
+            already have liquidity and risk tools.
           </p>
         </Section>
 
-        {/* Fee model */}
-        <Section title="Fee model">
-          <p>The contracts implement a GMX-style AMM with these defaults:</p>
+        <Section title="Signal sources">
           <ul className="list-disc ml-4 space-y-0.5 text-[11px]">
-            <li><span className="font-mono">0.10%</span> open fee on position size</li>
-            <li><span className="font-mono">0.10%</span> close fee on position size</li>
-            <li><span className="font-mono">0.05%</span> spread applied to entry price (longs pay higher, shorts lower)</li>
-            <li><span className="font-mono">~0.01%/8h</span> funding rate (placeholder — accumulator not yet wired)</li>
-            <li><span className="font-mono">$5</span> flat liquidation fee paid to the liquidator keeper</li>
+            <li>Funding extremes (perp markets)</li>
+            <li>EMA9 / EMA21 crossover on closed bars</li>
+            <li>RSI overbought / oversold extremes</li>
+            <li>Volatility spikes vs rolling baseline</li>
+            <li>Liquidation cascades</li>
+            <li>Whale flow (large notional with directional skew)</li>
+            <li>News catalyst (when a CryptoPanic token is configured)</li>
+            <li>Confluence — synthesized when ≥2 sources agree on direction</li>
           </ul>
-          <p className="text-[11px] text-text-muted">
-            All fees are deducted from collateral on close. Realised PnL = usdcOut −
-            collateralDelta − fee.
-          </p>
         </Section>
 
-        {/* Data sources */}
         <Section title="Where the data comes from">
           <ul className="space-y-1.5 text-[11px]">
             <li>
-              <span className="font-semibold text-text-primary">Demo prices</span> →
-              Binance public WebSocket ticker (free, no key)
+              <span className="font-semibold text-text-primary">Prices + tickers</span> —
+              Binance and Hyperliquid public WebSocket feeds (no key required)
             </li>
             <li>
-              <span className="font-semibold text-text-primary">Live prices</span> →
-              local price-updater keeper writing to the on-chain oracle every ~5s
+              <span className="font-semibold text-text-primary">Real account state</span> —
+              signed REST to your venue (Binance API key kept in an encrypted
+              client-side vault; never sent to a server)
             </li>
             <li>
-              <span className="font-semibold text-text-primary">Live trades / history</span> →
-              backend indexer streaming PositionManager events into SQLite, served
-              over REST + WebSocket
+              <span className="font-semibold text-text-primary">Bot ledger</span> —
+              localStorage; bots run in your browser, not on a server
             </li>
             <li>
-              <span className="font-semibold text-text-primary">Live positions</span> →
-              read directly from PositionManager.getPosition (no caching)
+              <span className="font-semibold text-text-primary">Hit-rate stats</span> —
+              every signal records its trigger price; we resolve 30 minutes later
+              against the live mark and store the outcome
             </li>
           </ul>
         </Section>
 
-        {/* Tips */}
         <Section title="Tips">
           <ul className="space-y-1 text-[11px]">
-            <li>• Press <kbd className="px-1 bg-surface border border-border rounded">B</kbd> / <kbd className="px-1 bg-surface border border-border rounded">S</kbd> to switch sides, <kbd className="px-1 bg-surface border border-border rounded">1</kbd>–<kbd className="px-1 bg-surface border border-border rounded">5</kbd> for leverage presets</li>
-            <li>• Hover any metric label for an explanation tooltip</li>
-            <li>• Click the green/yellow/red status pill in the header for diagnostics</li>
-            <li>• Use the gear icon to tune liquidation alert thresholds or wipe local state</li>
-            <li>• Save your chart layout (drawings + indicators) via the chart toolbar's Save dropdown</li>
+            <li>• Press <kbd className="px-1 bg-surface border border-border rounded">⌘K</kbd> for the market quick-jump palette</li>
+            <li>• Press <kbd className="px-1 bg-surface border border-border rounded">⌘L</kbd> to open the live-order modal pre-filled with the active market</li>
+            <li>• Press <kbd className="px-1 bg-surface border border-border rounded">?</kbd> for the full keyboard shortcut list</li>
+            <li>• ★ next to the market name pins it to your watchlist</li>
+            <li>• Run any bot through the backtest replay (/replay) to watch trade decisions bar-by-bar</li>
+            <li>• Settings → Backup exports your bots, signal settings, and performance history as JSON for cross-browser migration</li>
           </ul>
         </Section>
 
-        {/* Disclaimer */}
         <div className="pt-3 border-t border-border text-[10px] text-text-muted leading-relaxed">
-          This is a reference implementation, not financial advice or production
-          software. Demo mode is fake. Live mode is real on whatever chain you point
-          it at — never connect a wallet holding real funds to a local development
-          contract you haven't audited.
+          Not financial advice. Bots run paper-only by default; live mode requires
+          you to connect a venue API key, which only ever lives encrypted in your
+          browser — we cannot move funds, place orders without your explicit
+          approval, or see what your other accounts are doing.
         </div>
       </div>
     </Modal>
@@ -126,21 +116,5 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       {children}
     </section>
-  )
-}
-
-// External link is exported so the parent can render it next to the modal trigger
-// if it ever wants to (kept here to avoid a separate file).
-export function ExternalRepoLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-accent hover:underline"
-    >
-      {label}
-      <ExternalLink className="w-3 h-3" />
-    </a>
   )
 }

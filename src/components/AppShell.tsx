@@ -9,7 +9,6 @@
 import { Outlet } from 'react-router-dom'
 import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
-import { ConnectionBanner } from './ConnectionBanner'
 import { VaultLockBanner } from './VaultLockBanner'
 import { LiveStatusBanner } from './LiveStatusBanner'
 import { Sidebar } from './Sidebar'
@@ -26,6 +25,7 @@ import { useTelegramAlerts } from '../hooks/useTelegramAlerts'
 import { useSignals, useSignalsRoot } from '../hooks/useSignals'
 import { useSignalPerformanceTracker } from '../hooks/useSignalPerformanceTracker'
 import { useBotEngine } from '../hooks/useBotEngine'
+import { useRiskMonitor } from '../hooks/useRiskMonitor'
 import { useTradeFeed } from '../hooks/useTradeFeed'
 import { useLimitOrderWatcher } from '../hooks/useLimitOrderWatcher'
 import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
@@ -46,6 +46,7 @@ export function AppShell() {
   useSignalAlerts()
   useTelegramAlerts()
   useBotEngine()
+  useRiskMonitor()
   useMarketWs({ wsUrl: null, market: selectedMarket.symbol })
   useTradeFeed()
   useLimitOrderWatcher()
@@ -62,7 +63,6 @@ export function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <Web3Header />
         <AccountBar />
-        <ConnectionBanner />
         <VaultLockBanner />
         <LiveStatusBanner />
 

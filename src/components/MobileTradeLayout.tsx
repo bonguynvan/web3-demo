@@ -1,37 +1,31 @@
 /**
- * MobileTradeLayout — mobile layout for the Trade page only.
+ * MobileTradeLayout — mobile layout for the Trade page.
  *
- * Simplified from MobileLayout: just chart + positions + Long/Short CTA.
- * Spot and Margin have their own pages now.
+ * Chart + tabbed bottom panel (positions / book / trades) + a sticky
+ * "Trade on venue" deep-link CTA. Manual order entry was removed in
+ * the "TradingView lane" pivot — research and bots here, execution on
+ * the venue's own terminal.
  */
 
-import { useState, lazy, Suspense } from 'react'
-import { useTranslation } from 'react-i18next'
-import { TrendingUp, TrendingDown, X, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { TradingChart } from './TradingChart'
 import { PositionsTable } from './PositionsTable'
 import { DepthBook } from './DepthBook'
 import { RecentTrades } from './RecentTrades'
-import { Web3OrderForm } from './Web3OrderForm'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useTradingStore } from '../store/tradingStore'
+import { useActiveVenue } from '../hooks/useActiveVenue'
+import { venueTradeLink } from '../lib/venueLinks'
 import { cn } from '../lib/format'
-
-const FuturesOrderForm = lazy(() => import('./futures/FuturesOrderForm').then(m => ({ default: m.FuturesOrderForm })))
 
 type MobileTab = 'positions' | 'book' | 'trades'
 
 export function MobileTradeLayout({ chartLoading }: { chartLoading: boolean }) {
-  const { t } = useTranslation('perp')
   const [activeTab, setActiveTab] = useState<MobileTab>('positions')
-  const [orderOpen, setOrderOpen] = useState(false)
-  const setOrderSide = useTradingStore(s => s.setOrderSide)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
-
-  const openOrderForm = (side: 'long' | 'short') => {
-    setOrderSide(side)
-    setOrderOpen(true)
-  }
+  const venueId = useActiveVenue()
+  const venueLink = venueTradeLink(selectedMarket.symbol, venueId)
 
   return (
     <>
@@ -66,43 +60,20 @@ export function MobileTradeLayout({ chartLoading }: { chartLoading: boolean }) {
         </div>
       </div>
 
-      {/* Sticky bottom CTA */}
-      <div
-        className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-border bg-panel"
-        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}
-      >
-        <button
-          onClick={() => openOrderForm('long')}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-white bg-long hover:bg-long/90 transition-colors cursor-pointer shadow-sm"
+      {venueLink && (
+        <div
+          className="shrink-0 px-3 py-2.5 border-t border-border bg-panel"
+          style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}
         >
-          <TrendingUp className="w-4 h-4" />
-          {t('long')} {selectedMarket.baseAsset}
-        </button>
-        <button
-          onClick={() => openOrderForm('short')}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-white bg-short hover:bg-short/90 transition-colors cursor-pointer shadow-sm"
-        >
-          <TrendingDown className="w-4 h-4" />
-          {t('short')} {selectedMarket.baseAsset}
-        </button>
-      </div>
-
-      {orderOpen && (
-        <div className="fixed inset-0 z-[90] bg-surface flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-panel shrink-0">
-            <span className="text-sm font-semibold text-text-primary">{t('place_order')}</span>
-            <button
-              onClick={() => setOrderOpen(false)}
-              className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 p-2">
-            <ErrorBoundary name="OrderForm">
-              <Web3OrderForm />
-            </ErrorBoundary>
-          </div>
+          <a
+            href={venueLink.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm text-surface bg-accent hover:opacity-90 transition-colors shadow-sm"
+          >
+            {venueLink.label}
+            <ExternalLink className="w-4 h-4" />
+          </a>
         </div>
       )}
     </>

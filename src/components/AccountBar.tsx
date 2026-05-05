@@ -1,193 +1,162 @@
 /**
  * AccountBar — always-visible account summary strip.
  *
- * Shows: Total Equity, Available Balance, Margin Used, Unrealized PnL, Daily PnL.
- * Only visible when a wallet is connected.
- * Uses demo data for unrealized PnL from positions and daily PnL tracking.
+ * Reads from two real, live sources:
+ *   - useVenueBalances() — signed REST account snapshot when a vault is
+ *     unlocked. Today this surfaces Binance USDT free balance.
+ *   - useBotStore.trades — paper + live bot positions; open trades feed
+ *     unrealized PnL (priced against the active adapter's live ticker).
+ *
+ * If nothing is connected, the bar collapses to a single "connect" CTA
+ * pointing at /profile. The previous behavior was to render demo numbers
+ * via the long-removed `useIsDemo()` flag, which made the workstation
+ * feel fake even when the user had bots running.
  */
 
-import { useMemo, useRef, useEffect, useState } from 'react'
-import { useAccount } from 'wagmi'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useUsdcBalance } from '../hooks/useTokenBalance'
-import { usePositions } from '../hooks/usePositions'
-import { useIsDemo } from '../store/modeStore'
+import { Wallet, ExternalLink } from 'lucide-react'
+import { useBotStore } from '../store/botStore'
+import { useVenueBalances } from '../hooks/useVenueBalances'
+import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { FlashPrice } from './ui/FlashPrice'
-import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
+import type { VenueId } from '../adapters/types'
+
+const TICK_MS = 2_000
 
 export function AccountBar() {
   const { t } = useTranslation('perp')
-  const { isConnected } = useAccount()
-  const { dollars: usdcBalance, isFetched: balanceFetched } = useUsdcBalance()
-  const { positions } = usePositions()
-  const isDemo = useIsDemo()
+  const trades = useBotStore(s => s.trades)
+  const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
+  const { states: venueBalances } = useVenueBalances()
 
-  // Initial load = live mode, connected, but wagmi hasn't completed the first
-  // balanceOf read yet. Demo mode is synchronous so always "loaded".
-  const isInitialLoad = !isDemo && isConnected && !balanceFetched
-
-  // Aggregate position data
-  const { totalMargin, totalUnrealizedPnl } = useMemo(() => {
-    let margin = 0
-    let pnl = 0
-    for (const pos of positions) {
-      margin += pos.collateral
-      pnl += pos.pnl
-    }
-    return { totalMargin: margin, totalUnrealizedPnl: pnl }
-  }, [positions])
-
-  // Total equity = available USDC + margin locked in positions + unrealized PnL
-  const totalEquity = usdcBalance + totalMargin + totalUnrealizedPnl
-  const availableBalance = usdcBalance
-  const marginUsed = totalMargin
-  const marginUsedPercent = totalEquity > 0 ? (marginUsed / totalEquity) * 100 : 0
-
-  // Track daily PnL (accumulates within the session, resets on page reload)
-  const [dailyPnl, setDailyPnl] = useState(0)
-  const lastPnlRef = useRef(totalUnrealizedPnl)
-
+  // Heartbeat — re-render every 2s so unrealized PnL on open positions
+  // tracks the live ticker without each row needing its own subscription.
+  const [, force] = useState(0)
   useEffect(() => {
-    const delta = totalUnrealizedPnl - lastPnlRef.current
-    if (Math.abs(delta) > 0.01) {
-      setDailyPnl(prev => prev + delta * 0.1) // drift slowly for visual
-    }
-    lastPnlRef.current = totalUnrealizedPnl
-  }, [totalUnrealizedPnl])
+    const id = setInterval(() => force(t => t + 1), TICK_MS)
+    return () => clearInterval(id)
+  }, [])
 
-  if (!isConnected) return null
+  const venueSnapshot = useMemo(() => summariseVenues(venueBalances), [venueBalances])
+  const botSnapshot = useMemo(() => summariseBots(trades), [trades])
+
+  const totalEquity = venueSnapshot.usdtFree + botSnapshot.notionalOpen + botSnapshot.unrealized
+  const hasConnection = vaultUnlocked && venueSnapshot.usdtFree > 0
+  const hasBots = trades.length > 0
+
+  if (!hasConnection && !hasBots) {
+    return (
+      <div className="flex items-center h-8 bg-panel/80 border-b border-border px-3 md:px-4 gap-3 text-[11px] shrink-0">
+        <span className="flex items-center gap-1.5 text-text-secondary">
+          <Wallet className="w-3.5 h-3.5 text-accent" />
+          <span className="font-mono uppercase tracking-[0.16em] text-[10px]">No account connected</span>
+        </span>
+        <span className="text-text-muted hidden md:inline">
+          Run paper bots, or connect a Binance API key to track your real account.
+        </span>
+        <div className="flex-1" />
+        <Link
+          to="/profile"
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.14em] text-accent border border-accent/40 hover:bg-accent-dim/30 transition-colors"
+        >
+          Connect
+          <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center h-8 bg-panel/80 border-b border-border px-3 md:px-4 gap-3 md:gap-6 text-[11px] shrink-0 overflow-x-auto scrollbar-thin">
-      {/* Total Equity */}
       <div className="flex items-center gap-1.5">
         <Tooltip
           title="Equity"
-          content="Total account value: free USDC + collateral locked in open positions + unrealized PnL. This is what your account would be worth if you closed everything at the current mark price."
+          content="Free USDT on connected venues + notional of open paper-bot positions + unrealized PnL on those positions. Funds locked in venue limit orders are not yet counted."
           side="bottom"
         >
           <span className="text-text-muted cursor-help">{t('equity')}</span>
         </Tooltip>
-        {isInitialLoad ? (
-          <Skeleton className="h-3" width={70} subtle />
-        ) : (
-          <FlashPrice
-            value={totalEquity}
-            format={n => `$${formatUsd(n)}`}
-            size="sm"
-            className="font-medium"
-          />
-        )}
+        <FlashPrice
+          value={totalEquity}
+          format={n => `$${formatUsd(n)}`}
+          size="sm"
+          className="font-medium"
+        />
       </div>
 
-      <Divider hideOnMobile />
+      <Divider />
 
-      {/* Available — hidden on mobile, equity covers the headline number */}
       <div className="hidden md:flex items-center gap-1.5">
-        <span className="text-text-muted">{t('available')}</span>
-        {isInitialLoad ? (
-          <Skeleton className="h-3" width={60} subtle />
-        ) : (
-          <span className="font-mono text-text-primary">${formatUsd(availableBalance)}</span>
-        )}
-      </div>
-
-      <Divider />
-
-      {/* Margin Used */}
-      <div className="flex items-center gap-1.5">
-        <Tooltip
-          title="Margin used"
-          content="USDC locked as collateral across all your open positions. As the margin usage % approaches 100, your account is closer to liquidation."
-          side="bottom"
-        >
-          <span className="text-text-muted cursor-help">{t('margin')}</span>
+        <Tooltip title="Available" content="Free USDT across unlocked venues — what you could spend on a new live order right now." side="bottom">
+          <span className="text-text-muted cursor-help">{t('available')}</span>
         </Tooltip>
-        {isInitialLoad ? (
-          <Skeleton className="h-3" width={48} subtle />
-        ) : (
-          <>
-            <span className="font-mono text-text-primary">${formatUsd(marginUsed)}</span>
-            {marginUsedPercent > 0 && (
-              <span className={cn(
-                'text-[9px] px-1 rounded font-mono',
-                marginUsedPercent > 80 ? 'bg-short-dim text-short' :
-                marginUsedPercent > 50 ? 'bg-amber-400/10 text-amber-400' :
-                'bg-surface text-text-muted'
-              )}>
-                {marginUsedPercent.toFixed(0)}%
-              </span>
-            )}
-          </>
+        <span className="font-mono text-text-primary">${formatUsd(venueSnapshot.usdtFree)}</span>
+        {venueSnapshot.venues.length > 0 && (
+          <span className="text-[9px] uppercase tracking-wider text-text-muted">
+            · {venueSnapshot.venues.join(' / ')}
+          </span>
         )}
       </div>
 
       <Divider />
 
-      {/* Unrealized PnL */}
+      <div className="flex items-center gap-1.5">
+        <Tooltip title="Open positions" content="Notional of all open bot positions across paper and live mode." side="bottom">
+          <span className="text-text-muted cursor-help">Open</span>
+        </Tooltip>
+        <span className="font-mono text-text-primary">${formatUsd(botSnapshot.notionalOpen)}</span>
+        {botSnapshot.openCount > 0 && (
+          <span className="bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+            {botSnapshot.openCount}
+          </span>
+        )}
+      </div>
+
+      <Divider />
+
       <div className="flex items-center gap-1.5">
         <Tooltip
           title="Unrealized P&L"
-          content="Profit or loss on open positions if they were closed at the current mark price. Becomes 'realized' (and added to your balance) only when you actually close the position."
+          content="Mark-to-market PnL on currently open bot positions. Becomes 'realized' when the trade closes."
           side="bottom"
         >
           <span className="text-text-muted cursor-help">{t('unrealized')}</span>
         </Tooltip>
-        {isInitialLoad ? (
-          <Skeleton className="h-3" width={56} subtle />
-        ) : (
-          <FlashPrice
-            value={totalUnrealizedPnl}
-            format={n => `${n >= 0 ? '+' : ''}$${formatUsd(Math.abs(n))}`}
-            size="sm"
-            className={cn('font-medium', totalUnrealizedPnl >= 0 ? 'text-long' : 'text-short')}
-          />
-        )}
+        <FlashPrice
+          value={botSnapshot.unrealized}
+          format={n => `${n >= 0 ? '+' : ''}$${formatUsd(Math.abs(n))}`}
+          size="sm"
+          className={cn('font-medium', botSnapshot.unrealized >= 0 ? 'text-long' : 'text-short')}
+        />
       </div>
 
       <Divider hideOnMobile />
 
-      {/* Daily PnL — hidden on mobile (less critical for fast trading) */}
       <div className="hidden md:flex items-center gap-1.5">
-        <span className="text-text-muted">{t('daily_pnl')}</span>
-        {isInitialLoad ? (
-          <Skeleton className="h-3" width={56} subtle />
-        ) : (
-          <span className={cn('font-mono', dailyPnl >= 0 ? 'text-long' : 'text-short')}>
-            {dailyPnl >= 0 ? '+' : ''}${formatUsd(Math.abs(dailyPnl))}
-          </span>
-        )}
+        <Tooltip title="Realized (today)" content="Sum of bot PnL on trades closed within the last 24 hours." side="bottom">
+          <span className="text-text-muted cursor-help">{t('daily_pnl')}</span>
+        </Tooltip>
+        <span className={cn('font-mono', botSnapshot.realizedToday >= 0 ? 'text-long' : 'text-short')}>
+          {botSnapshot.realizedToday >= 0 ? '+' : ''}${formatUsd(Math.abs(botSnapshot.realizedToday))}
+        </span>
       </div>
 
       <div className="flex-1" />
 
-      {/* Positions count */}
-      {positions.length > 0 && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-text-muted">{t('positions')}</span>
-          <span className="bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-            {positions.length}
-          </span>
-        </div>
-      )}
-
-      {/* Account health bar */}
-      {marginUsed > 0 && (
-        <div className="flex items-center gap-1.5 w-24">
-          <div className="flex-1 h-1 bg-surface rounded-full overflow-hidden">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all duration-500',
-                marginUsedPercent > 80 ? 'bg-short' :
-                marginUsedPercent > 50 ? 'bg-amber-400' :
-                'bg-long'
-              )}
-              style={{ width: `${Math.min(marginUsedPercent, 100)}%` }}
-            />
-          </div>
-        </div>
+      {!hasConnection && hasBots && (
+        <Link
+          to="/profile"
+          className="hidden md:flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.14em] text-accent border border-accent/40 hover:bg-accent-dim/30 transition-colors"
+          title="Bots are running paper-only. Connect a Binance API key to enable live mode."
+        >
+          Connect for live
+          <ExternalLink className="w-3 h-3" />
+        </Link>
       )}
     </div>
   )
@@ -195,4 +164,55 @@ export function AccountBar() {
 
 function Divider({ hideOnMobile }: { hideOnMobile?: boolean } = {}) {
   return <div className={cn('w-px h-3 bg-border', hideOnMobile && 'hidden md:block')} />
+}
+
+interface VenueSnapshot {
+  usdtFree: number
+  venues: string[]
+}
+
+function summariseVenues(states: Record<VenueId, { balances: { asset: string; free: number }[] | null }>): VenueSnapshot {
+  let usdtFree = 0
+  const venues: string[] = []
+  for (const venueId of Object.keys(states) as VenueId[]) {
+    const balances = states[venueId]?.balances
+    if (!balances) continue
+    const usdt = balances.find(b => b.asset === 'USDT')
+    if (!usdt) continue
+    usdtFree += usdt.free
+    venues.push(venueId)
+  }
+  return { usdtFree, venues }
+}
+
+interface BotSnapshot {
+  openCount: number
+  notionalOpen: number
+  unrealized: number
+  realizedToday: number
+}
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
+
+function summariseBots(trades: { closedAt?: number; openedAt: number; pnlUsd?: number; entryPrice: number; size: number; positionUsd: number; direction: 'long' | 'short'; marketId: string }[]): BotSnapshot {
+  let openCount = 0
+  let notionalOpen = 0
+  let unrealized = 0
+  let realizedToday = 0
+  const cutoff = Date.now() - ONE_DAY_MS
+
+  for (const t of trades) {
+    if (t.closedAt === undefined) {
+      openCount += 1
+      notionalOpen += t.positionUsd
+      const ticker = getActiveAdapter().getTicker(t.marketId)
+      const mark = ticker?.price ?? t.entryPrice
+      const sign = t.direction === 'long' ? 1 : -1
+      unrealized += sign * (mark - t.entryPrice) * t.size
+    } else if (t.closedAt >= cutoff && t.pnlUsd != null) {
+      realizedToday += t.pnlUsd
+    }
+  }
+
+  return { openCount, notionalOpen, unrealized, realizedToday }
 }
