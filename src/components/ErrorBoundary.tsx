@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { report } from '../lib/errorReporter'
 
 interface Props {
   children: ReactNode
@@ -28,6 +29,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     console.error(`[ErrorBoundary:${this.props.name}]`, error, info.componentStack)
+    report(error, {
+      kind: 'react',
+      meta: {
+        boundary: this.props.name,
+        componentStack: info.componentStack?.slice(0, 2000),
+      },
+    })
   }
 
   render() {
