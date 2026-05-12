@@ -22,6 +22,7 @@ import { getActiveAdapter } from '../adapters/registry'
 import { runBacktest, type BacktestResult, type BacktestTrade } from '../bots/backtest'
 import { useThemeStore } from '../store/themeStore'
 import { getChartTheme } from '../lib/chartConfig'
+import { useDocumentMeta } from '../lib/documentMeta'
 import type { BotConfig } from '../bots/types'
 import type { TimeFrame } from '../adapters/types'
 import type { CandleData } from '../types/trading'
@@ -65,6 +66,17 @@ export function BacktestReplayPage() {
   const appTheme = useThemeStore(s => s.theme)
 
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
+
+  useDocumentMeta({
+    title: navState?.bot
+      ? `Backtest replay — ${navState.bot.name} · TradingDek`
+      : 'Backtest replay · TradingDek',
+    description:
+      `Watch a paper-trading bot's decisions play back bar-by-bar against historical candles. Entry arrows, exit arrows, and a running PnL HUD let you audit the strategy before enabling live mode.`,
+    canonical: '/replay',
+    ogImage: '/og.png',
+    ogType: 'article',
+  })
   const [replay, setReplay] = useState<ReplayState>({ candleIdx: 0, status: 'stopped' })
   const [speed, setSpeed] = useState<number>(5)
 

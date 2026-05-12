@@ -14,6 +14,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ShieldAlert, ShieldCheck, FileText } from 'lucide-react'
 import { Wordmark } from '../components/ui/Logo'
 import { cn } from '../lib/format'
+import { useDocumentMeta } from '../lib/documentMeta'
 
 const LAST_UPDATED = '2026-05-05'
 
@@ -37,6 +38,22 @@ export function LegalPage() {
   }
 
   const { title, Icon } = DOC_META[doc]
+
+  const META_DESC: Record<Doc, string> = {
+    disclaimer:
+      'TradingDek is a research tool, not a financial advisor. Trading involves substantial risk of loss; you assume full responsibility for any live-mode orders.',
+    privacy:
+      'How TradingDek handles data. We operate no servers that receive your personal data by default — encrypted API keys never leave your browser.',
+    terms:
+      'Service terms, acceptable use, and limitation of liability for TradingDek.',
+  }
+  useDocumentMeta({
+    title: `TradingDek — ${title}`,
+    description: META_DESC[doc],
+    canonical: `/legal/${doc}`,
+    ogImage: '/og.png',
+    ogType: 'article',
+  })
 
   return (
     <div className="min-h-screen bg-surface text-text-primary overflow-y-auto">
