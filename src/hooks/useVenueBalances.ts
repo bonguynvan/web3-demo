@@ -85,10 +85,10 @@ export function useVenueBalances(): UseVenueBalancesResult {
 
     const fetchAll = async () => {
       for (const adapter of listAdapters()) {
-        const isAuthed = typeof (adapter as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
-          && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
+        const isAuthed = typeof (adapter as unknown as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
+          && (adapter as unknown as { isAuthenticated: () => boolean }).isAuthenticated()
         if (!isAuthed) continue
-        const hasSnap = typeof (adapter as { getAccountSnapshot?: () => Promise<unknown> }).getAccountSnapshot === 'function'
+        const hasSnap = typeof (adapter as unknown as { getAccountSnapshot?: () => Promise<unknown> }).getAccountSnapshot === 'function'
         if (!hasSnap) {
           setState(prev => ({
             ...prev,
@@ -102,7 +102,7 @@ export function useVenueBalances(): UseVenueBalancesResult {
           [adapter.id]: { ...(prev[adapter.id] ?? {}), loading: true, error: null } as VenueBalanceState,
         }))
         try {
-          const raw = await (adapter as { getAccountSnapshot: () => Promise<unknown> }).getAccountSnapshot()
+          const raw = await (adapter as unknown as { getAccountSnapshot: () => Promise<unknown> }).getAccountSnapshot()
           if (cancelled) return
           // Normalise per-venue. Adding a new authed venue means adding
           // its parser here.

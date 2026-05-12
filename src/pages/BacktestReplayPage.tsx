@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Chart, type Drawing, type OHLCBar } from '@tradecanvas/chart'
+import { Chart, type OHLCBar } from '@tradecanvas/chart'
 import {
   Play, Pause, Square, ArrowLeft, ChevronsLeft,
 } from 'lucide-react'
@@ -193,40 +193,51 @@ export function BacktestReplayPage() {
     const chart = chartRef.current
     if (!chart || load.kind !== 'ready') return
 
-    const drawings: Drawing[] = []
+    // Match @tradecanvas/chart's DrawingState shape: type+anchors+style.
+    // Arrows need two anchors (tail → head); we offset the tail 1.5% in
+    // price so the arrow is visibly larger than a single bar.
+    const drawings: unknown[] = []
     const cur = replay.candleIdx
     for (const t of load.result.trades) {
       if (t.openedAtIdx > cur) continue
       const entryBar = load.candles[t.openedAtIdx]
       if (!entryBar) continue
+      const isLong = t.direction === 'long'
+      const entryColor = isLong ? '#26d984' : '#ff5d6d'
+      const entryOffset = t.entryPrice * 0.015
       drawings.push({
         id: `entry-${t.id}`,
         type: 'arrow',
-        points: [{ time: entryBar.time, price: t.entryPrice }],
-        style: {
-          color: t.direction === 'long' ? '#26d984' : '#ff5d6d',
-          lineWidth: 2,
-        },
-      } as Drawing)
+        anchors: [
+          { time: entryBar.time, price: isLong ? t.entryPrice - entryOffset : t.entryPrice + entryOffset },
+          { time: entryBar.time, price: t.entryPrice },
+        ],
+        style: { color: entryColor, lineWidth: 2, lineStyle: 'solid' },
+        visible: true,
+        locked: true,
+      })
 
       if (t.closedAtIdx <= cur) {
         const closeBar = load.candles[t.closedAtIdx]
         if (closeBar) {
+          const winColor = t.pnlUsd >= 0 ? '#26d984' : '#ff5d6d'
+          const closeOffset = t.closePrice * 0.015
           drawings.push({
             id: `exit-${t.id}`,
             type: 'arrow',
-            points: [{ time: closeBar.time, price: t.closePrice }],
-            style: {
-              color: t.pnlUsd >= 0 ? '#26d984' : '#ff5d6d',
-              lineWidth: 2,
-              dash: [4, 4],
-            },
-          } as Drawing)
+            anchors: [
+              { time: closeBar.time, price: t.closePrice },
+              { time: closeBar.time, price: isLong ? t.closePrice - closeOffset : t.closePrice + closeOffset },
+            ],
+            style: { color: winColor, lineWidth: 2, lineStyle: 'dashed' },
+            visible: true,
+            locked: true,
+          })
         }
       }
     }
 
-    try { chart.setDrawings(drawings) } catch { /* drawings disabled */ }
+    try { chart.setDrawings(drawings as Parameters<typeof chart.setDrawings>[0]) } catch { /* drawings disabled */ }
   }, [replay.candleIdx, load])
 
   const summary = useMemo(() => {

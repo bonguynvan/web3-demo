@@ -350,9 +350,10 @@ function VenueCard({
   const links = VENUE_DOCS[venueId] ?? {}
   const sessionUnlocked = useVaultSessionStore(s => s.unlocked)
   const adapter = getAdapter(venueId as never)
+  const adapterWithAuth = adapter as unknown as { isAuthenticated?: () => boolean } | undefined
   const isConnected = !isPerp && sessionUnlocked
-    && typeof (adapter as { isAuthenticated?: () => boolean })?.isAuthenticated === 'function'
-    && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
+    && typeof adapterWithAuth?.isAuthenticated === 'function'
+    && adapterWithAuth.isAuthenticated()
 
   return (
     <div className="bg-panel border border-border rounded-lg p-4">

@@ -10,6 +10,7 @@
 
 import type { BotConfig, BotMode } from './types'
 import type { SignalSource } from '../signals/types'
+import { getDeviceId } from '../store/deviceIdStore'
 
 const SCHEMA_VERSION = 1
 const VALID_SOURCES: SignalSource[] = [
@@ -26,6 +27,13 @@ export interface PortableBot {
   positionSizeUsd: number
   holdMinutes: number
   maxTradesPerDay: number
+  /** Anonymous device id at export time. Lets a future auth system
+   *  re-link historical publications to the account that exported
+   *  them. Optional for back-compat with pre-v1.1 exports. */
+  publisherClientId?: string
+  /** ms epoch — when this manifest was exported. Useful as "tracked
+   *  since" when no explicit performance block is attached. */
+  exportedAt?: number
 }
 
 export type ImportedBotConfig = Omit<BotConfig, 'id' | 'createdAt' | 'enabled'>
@@ -41,6 +49,8 @@ export function exportBot(b: BotConfig): string {
     positionSizeUsd: b.positionSizeUsd,
     holdMinutes: b.holdMinutes,
     maxTradesPerDay: b.maxTradesPerDay,
+    publisherClientId: getDeviceId(),
+    exportedAt: Date.now(),
   }
   return JSON.stringify(portable, null, 2)
 }

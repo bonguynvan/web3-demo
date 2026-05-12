@@ -69,7 +69,7 @@ async function deriveKey(passphrase: string, salt: Uint8Array, iterations: numbe
     ['deriveKey'],
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -119,7 +119,13 @@ export async function unseal(passphrase: string): Promise<VaultPayload> {
   const key = await deriveKey(passphrase, salt, env.kdf.iterations)
   let plain: ArrayBuffer
   try {
-    plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
+    // Cast iv/ct via BufferSource — TS 5.7 tightened Uint8Array<ArrayBufferLike>
+    // to no longer satisfy BufferSource because of SharedArrayBuffer interop.
+    plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv as BufferSource },
+      key,
+      ct as BufferSource,
+    )
   } catch {
     throw new WrongPassphraseError()
   }

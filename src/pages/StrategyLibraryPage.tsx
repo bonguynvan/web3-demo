@@ -481,10 +481,9 @@ function StrategyCard({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-text-primary truncate">{strategy.name}</h3>
             {!isCommunity && (
-              <BadgeCheck
-                title="Curated by the TradingDek team — vetted before publication."
-                className="shrink-0 w-3.5 h-3.5 text-accent"
-              />
+              <span title="Curated by the TradingDek team — vetted before publication." className="shrink-0 inline-flex">
+                <BadgeCheck className="w-3.5 h-3.5 text-accent" />
+              </span>
             )}
             {isCommunity && (
               <span

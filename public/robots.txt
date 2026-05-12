@@ -1,0 +1,19 @@
+# TradingDek robots policy
+# Index marketing + public proof + marketplace. Keep private workstation
+# surfaces (profile, in-app pages with user state) out of search.
+
+User-agent: *
+Allow: /
+Allow: /proof
+Allow: /library
+Allow: /author/
+Allow: /legal/
+
+Disallow: /profile
+Disallow: /portfolio
+Disallow: /trade
+Disallow: /bots
+Disallow: /replay
+
+# Sitemap location — update domain on launch.
+Sitemap: https://tradingdek.com/sitemap.xml

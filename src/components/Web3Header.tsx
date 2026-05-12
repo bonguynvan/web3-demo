@@ -215,6 +215,7 @@ function TopBar({
 
 function MarketBar() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { markets, selectedMarket, setSelectedMarket } = useTradingStore()
   const watchlist = useWatchlistStore(s => s.symbols)
   const toggleWatch = useWatchlistStore(s => s.toggle)

@@ -39,8 +39,8 @@ export function useVenueOpenOrders(): UseVenueOpenOrdersResult {
 
     const fetchAll = async () => {
       for (const adapter of listAdapters()) {
-        const isAuthed = typeof (adapter as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
-          && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
+        const isAuthed = typeof (adapter as unknown as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
+          && (adapter as unknown as { isAuthenticated: () => boolean }).isAuthenticated()
         if (!isAuthed) continue
 
         setState(prev => ({

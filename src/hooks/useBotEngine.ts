@@ -107,8 +107,8 @@ export function useBotEngine(): void {
           // until the operator fixes the underlying condition.
           if (!vaultUnlocked) continue
           const adapter = getAdapter('binance')
-          const isAuthed = adapter && typeof (adapter as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
-            && (adapter as { isAuthenticated: () => boolean }).isAuthenticated()
+          const isAuthed = adapter && typeof (adapter as unknown as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
+            && (adapter as unknown as { isAuthenticated: () => boolean }).isAuthenticated()
           if (!adapter || !isAuthed) continue
           if (!adapter.capabilities.trading) continue
 

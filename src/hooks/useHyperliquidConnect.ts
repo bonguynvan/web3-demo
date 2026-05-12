@@ -55,10 +55,10 @@ export function useHyperliquidConnect(): UseHyperliquidConnectResult {
       address,
       signTypedData: (params) => signTypedDataAsync({
         domain: params.domain,
-        types: params.types as never,
+        types: params.types,
         primaryType: params.primaryType,
-        message: params.message as never,
-      }),
+        message: params.message,
+      } as Parameters<typeof signTypedDataAsync>[0]),
     }
 
     try {

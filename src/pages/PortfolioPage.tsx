@@ -97,6 +97,7 @@ export function PortfolioPage() {
   // valuation.
   const STABLES = new Set(['USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'FDUSD'])
   let stableTotal = 0
+  const adapter = getActiveAdapter()
   let cryptoUsd = 0
   let unpricedCount = 0
   for (const v of Object.values(venueBalances)) {
@@ -126,7 +127,6 @@ export function PortfolioPage() {
     return () => clearInterval(id)
   }, [])
 
-  const adapter = getActiveAdapter()
   const stats = computeStats(trades, m => adapter.getTicker(m)?.price)
 
   const closedSorted = trades
@@ -260,9 +260,10 @@ export function PortfolioPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {adapters.map(a => {
             const isActive = a.id === activeVenueId
+            const adapterWithAuth = a as unknown as { isAuthenticated?: () => boolean }
             const isAuthed = sessionUnlocked
-              && typeof (a as { isAuthenticated?: () => boolean }).isAuthenticated === 'function'
-              && (a as { isAuthenticated: () => boolean }).isAuthenticated()
+              && typeof adapterWithAuth.isAuthenticated === 'function'
+              && adapterWithAuth.isAuthenticated()
             return (
               <div key={a.id} className="bg-panel/60 border border-border rounded-lg p-4">
                 <div className="flex items-start justify-between gap-3">
