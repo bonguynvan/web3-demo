@@ -60,6 +60,15 @@ const ROUTES = [
     ogType: 'website',
   },
   {
+    path: '/learn',
+    out: 'learn/index.html',
+    title: 'TradingDek — Learn the signal sources',
+    description:
+      "How each of TradingDek's eight signal sources works, when to trust it, and when to be skeptical. Bookmark for reference next time a signal fires.",
+    ogImage: '/og.png',
+    ogType: 'article',
+  },
+  {
     path: '/legal/disclaimer',
     out: 'legal/disclaimer/index.html',
     title: 'TradingDek — Risk disclaimer',

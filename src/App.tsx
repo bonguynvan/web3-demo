@@ -29,6 +29,7 @@ const ProofPage = lazy(() => import('./pages/ProofPage').then(m => ({ default: m
 const BacktestReplayPage = lazy(() => import('./pages/BacktestReplayPage').then(m => ({ default: m.BacktestReplayPage })))
 const AuthorProfilePage = lazy(() => import('./pages/AuthorProfilePage').then(m => ({ default: m.AuthorProfilePage })))
 const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m.LegalPage })))
+const LearnPage = lazy(() => import('./pages/LearnPage').then(m => ({ default: m.LearnPage })))
 
 function RouteFallback() {
   return (
@@ -51,6 +52,7 @@ function App() {
             <Route path="/author/:handle" element={<AuthorProfilePage />} />
             <Route path="/legal" element={<Navigate to="/legal/disclaimer" replace />} />
             <Route path="/legal/:doc" element={<LegalPage />} />
+            <Route path="/learn" element={<LearnPage />} />
             <Route element={<AppShell />}>
               <Route path="/trade" element={<TradePage />} />
               <Route path="/portfolio" element={<PortfolioPage />} />

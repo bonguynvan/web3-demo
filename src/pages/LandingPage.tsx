@@ -55,6 +55,9 @@ export function LandingPage() {
           <a href="/proof" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
             Track record
           </a>
+          <a href="/learn" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
+            Learn
+          </a>
           <a href="#features" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
             Features
           </a>
