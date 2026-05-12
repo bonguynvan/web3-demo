@@ -13,7 +13,7 @@
 
 import { useState } from 'react'
 import { Modal } from './ui/Modal'
-import { AlertTriangle, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import {
   seal, unseal, vaultExists, WrongPassphraseError,
   type VaultPayload,
@@ -28,6 +28,13 @@ interface Props {
   open: boolean
   onClose: () => void
   venueId: VenueId
+}
+
+// Direct links to each venue's API-management page. Saves users from
+// digging through the venue's UI to find where to generate a key.
+const API_KEY_LINKS: Partial<Record<VenueId, string>> = {
+  binance: 'https://www.binance.com/en/my/settings/api-management',
+  hyperliquid: 'https://app.hyperliquid.xyz/API',
 }
 
 export function ConnectVenueModal({ open, onClose, venueId }: Props) {
@@ -133,14 +140,31 @@ export function ConnectVenueModal({ open, onClose, venueId }: Props) {
   return (
     <Modal open={open} onClose={handleClose} title={`Connect ${venueId}`}>
       <div className="p-4 space-y-4">
-        <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-400/10 border border-amber-400/30 text-[11px] text-amber-400 leading-relaxed">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-md bg-accent-dim/30 border border-accent/30 text-[11px] text-text-secondary leading-relaxed">
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent" />
           <div>
-            Self-host mode: your secret never leaves this browser. It is encrypted with your
-            passphrase using AES-GCM before storage. Without the passphrase the data is
-            unrecoverable. Do not deploy this build for multi-user use.
+            <div className="text-text-primary font-semibold mb-0.5">Your secret never leaves this browser.</div>
+            Encrypted at rest with your passphrase via AES-GCM + PBKDF2-SHA256 (600k iterations).
+            We can't read it; without the passphrase the data is unrecoverable. Use a unique
+            passphrase you'll remember — there is no reset.
           </div>
         </div>
+
+        {API_KEY_LINKS[venueId] && (
+          <a
+            href={API_KEY_LINKS[venueId]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-border bg-surface text-xs text-text-secondary hover:text-text-primary hover:border-accent/40 transition-colors"
+          >
+            <span>
+              Don't have an API key yet?{' '}
+              <span className="text-accent font-medium capitalize">Generate one on {venueId}</span>
+              {' '}— enable Spot &amp; Margin trading, disable withdrawals.
+            </span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0 text-text-muted" />
+          </a>
+        )}
 
         <Field label="API key">
           <input
