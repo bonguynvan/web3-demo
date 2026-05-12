@@ -107,12 +107,18 @@ export function ProfilePage() {
             subtitle="Connect API keys (CEX) or a wallet (DEX) to enable authenticated trading. Public market data works without any connection — these are only needed to place orders."
           />
 
-          <div className="mt-3 mb-4 flex items-start gap-2 px-3 py-2.5 rounded-md bg-amber-400/10 border border-amber-400/30 text-[11px] text-amber-400 leading-relaxed">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <div className="mt-3 mb-4 flex items-start gap-2 px-3 py-2.5 rounded-md bg-accent-dim/30 border border-accent/30 text-[11px] text-text-secondary leading-relaxed">
+            <KeyRound className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent" />
             <div>
-              Authenticated trading is not yet wired. Connection forms below are placeholders.
-              When implemented, API secrets will be encrypted with a passphrase before any storage
-              and never sent to a TradingDek server in self-host mode.
+              <div className="text-text-primary font-semibold mb-0.5">Live trading is ready — three steps:</div>
+              <ol className="list-decimal ml-4 space-y-0.5">
+                <li>Generate a Binance API key on the venue dashboard. Enable <span className="font-mono text-text-primary">Spot &amp; Margin Trading</span>. Disable withdrawals. IP-whitelist your IP if possible.</li>
+                <li>Click <span className="font-mono text-text-primary">Connect</span> on the Binance card below. Paste the key + secret + a passphrase you'll remember.</li>
+                <li>Open any bot's mode badge and flip to <span className="font-mono text-text-primary">LIVE</span>. The bot will route signed limit orders directly to your account on signal hits.</li>
+              </ol>
+              <div className="mt-1.5 text-text-muted">
+                Keys are encrypted with your passphrase (AES-GCM, PBKDF2-SHA256 600k iters) before any storage. They never leave your browser — we can't read them.
+              </div>
             </div>
           </div>
 

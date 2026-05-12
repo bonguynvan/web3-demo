@@ -98,8 +98,17 @@ export function LandingPage() {
             See the track record
           </a>
         </div>
-        <div className="mt-4 text-[11px] text-text-muted">
-          Free · No signup · Bots run paper-only until you connect a venue
+        <div className="mt-4 text-[11px] text-text-muted flex flex-col sm:flex-row items-center justify-center gap-x-2 gap-y-1">
+          <span>Free · No signup</span>
+          <span className="hidden sm:inline">·</span>
+          <span>
+            Run paper bots out of the box
+            <span className="text-text-secondary"> · </span>
+            <a href="/profile" className="text-accent hover:underline">
+              Connect a Binance API key
+            </a>{' '}
+            to go live (encrypted in your browser, never on our server).
+          </span>
         </div>
       </section>
 
