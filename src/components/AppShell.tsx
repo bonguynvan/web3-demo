@@ -15,6 +15,7 @@ import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
+import { FeedbackWidget } from './FeedbackWidget'
 import { MarketPalette } from './MarketPalette'
 import { HotkeysModal } from './HotkeysModal'
 import { GlobalPlaceOrder } from './GlobalPlaceOrder'
@@ -76,6 +77,7 @@ export function AppShell() {
 
         <ToastContainer />
         <OnboardingCard />
+        <FeedbackWidget />
         <MarketPalette />
         <HotkeysModal />
         <GlobalPlaceOrder />
