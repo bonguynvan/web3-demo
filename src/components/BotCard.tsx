@@ -84,6 +84,7 @@ export function BotCard({
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
+              <HealthDot bot={bot} trades={trades} />
               <BotNameEditor name={bot.name} onRename={onRename} />
               <button
                 disabled={!onModeChange}
@@ -381,5 +382,45 @@ function DetailLine({ label, value, valueClass }: { label: string; value: string
       <span className="text-text-muted">{label}</span>
       <span className={cn('font-mono tabular-nums truncate', valueClass ?? 'text-text-secondary')}>{value}</span>
     </div>
+  )
+}
+
+/**
+ * HealthDot — at-a-glance status pill for a bot.
+ *
+ *   paused      → bot.enabled === false (user-disabled)
+ *   running     → at least one open trade right now
+ *   active 24h  → has closed at least one trade in the last day
+ *   idle        → has trades but nothing in the last 24h
+ *   fresh       → no trades ever (just configured)
+ */
+function HealthDot({ bot, trades }: { bot: BotConfig; trades: BotTrade[] }) {
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const open = trades.filter(t => t.closedAt === undefined)
+  const recentClosed = trades.filter(t =>
+    t.closedAt !== undefined && (t.closedAt ?? 0) >= now - ONE_DAY_MS,
+  )
+
+  let status: 'paused' | 'running' | 'active' | 'idle' | 'fresh'
+  if (!bot.enabled) status = 'paused'
+  else if (open.length > 0) status = 'running'
+  else if (recentClosed.length > 0) status = 'active'
+  else if (trades.length > 0) status = 'idle'
+  else status = 'fresh'
+
+  const TONE: Record<typeof status, { dot: string; label: string }> = {
+    paused:  { dot: 'bg-text-muted',     label: 'Paused — toggle enable to resume.' },
+    running: { dot: 'bg-long animate-pulse', label: `Running — ${open.length} open position${open.length === 1 ? '' : 's'}.` },
+    active:  { dot: 'bg-long',           label: `Active — ${recentClosed.length} trade${recentClosed.length === 1 ? '' : 's'} closed in last 24h.` },
+    idle:    { dot: 'bg-amber-400',      label: 'Idle — enabled but no signals matched in the last 24h.' },
+    fresh:   { dot: 'bg-accent-dim',     label: 'Fresh — waiting for the first matching signal.' },
+  }
+  const t = TONE[status]
+
+  return (
+    <span title={t.label} className="shrink-0 inline-flex items-center" aria-label={t.label}>
+      <span className={cn('w-2 h-2 rounded-full', t.dot)} />
+    </span>
   )
 }
