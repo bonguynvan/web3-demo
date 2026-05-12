@@ -454,8 +454,18 @@ export function PortfolioPage() {
             Bot positions ({openTrades.length})
           </h2>
           {openTrades.length === 0 ? (
-            <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted">
-              No open paper positions. Bots open positions when matching signals fire on /trade.
+            <div className="bg-panel/40 border border-border rounded-lg p-6 text-center text-xs text-text-muted flex flex-col items-center gap-3">
+              <img
+                src="/portfolio-empty.png"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                className="w-28 h-28 opacity-60 object-contain"
+              />
+              <span>
+                No open paper positions. Bots open positions when matching signals fire on /trade.
+              </span>
             </div>
           ) : (
             <div className="bg-panel border border-border rounded-lg overflow-hidden">

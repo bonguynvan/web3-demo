@@ -230,8 +230,16 @@ export function StrategyLibraryPage() {
         })()}
 
         {visible.length === 0 ? (
-          <div className="bg-panel/40 border border-border rounded-lg p-8 text-center">
-            <div className="text-sm text-text-secondary mb-1">
+          <div className="bg-panel/40 border border-border rounded-lg p-8 text-center flex flex-col items-center gap-4">
+            <img
+              src="/library-empty.png"
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              className="w-32 h-32 opacity-60 object-contain"
+            />
+            <div className="text-sm text-text-secondary">
               No strategies match{query && <> "<span className="font-mono">{query}</span>"</>}
               {query && filterTag && ' in '}
               {filterTag && <> tag "<span className="font-mono">{filterTag}</span>"</>}

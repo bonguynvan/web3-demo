@@ -346,8 +346,15 @@ function SourceStatsStrip({
 
 function EmptyState() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2">
-      <Zap className="w-6 h-6 text-text-muted" />
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
+      <img
+        src="/signals-empty.png"
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        className="w-24 h-24 opacity-60 object-contain"
+      />
       <span className="text-xs text-text-secondary">No signals firing right now</span>
       <span className="text-[10px] text-text-muted leading-relaxed max-w-[220px]">
         Signals appear as funding rates spike or moving averages cross.
