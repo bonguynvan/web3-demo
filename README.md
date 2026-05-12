@@ -1,28 +1,45 @@
 # TradingDek
 
-**Your trading deck. One screen.**
+**Research and bots, execute where you already trade.**
 
-Live signal scanner and paper-trading bots across Binance and Hyperliquid.
-Multi-venue chart, orderbook, signals, and execution in one workstation.
+Live signal scanner, paper-trading bots with backtest replay, public hit-rate
+track record, and a strategy marketplace — all in your browser. Deep-links to
+Binance and Hyperliquid for execution so you keep your liquidity, your risk
+tools, and your funds.
 
 ![React 19](https://img.shields.io/badge/React_19-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-blue)
 ![Vite 8](https://img.shields.io/badge/Vite_8-purple)
 ![Tailwind v4](https://img.shields.io/badge/Tailwind_v4-cyan)
-![wagmi/viem](https://img.shields.io/badge/wagmi_viem-orange)
 
 ---
 
 ## What it is
 
-TradingDek combines four tools active traders pay for separately:
+TradingDek is a **research deck**, not an exchange. We don't try to out-Binance
+Binance — their order entry is better than anything we could build. Instead:
 
-- **Multi-venue terminal** — chart, orderbook, ticker streams across Binance and Hyperliquid, swap with one click
-- **Live signal scanner** — funding extremes, EMA crossovers, RSI, volatility spikes, whale flow, and a confluence layer that surfaces the highest-confidence trades
-- **Browser + in-app alerts** — high-confidence signals ping you while you do other things
-- **Paper-trading bots** — auto-execute on matching signals, full portfolio dashboard with live P&L, win rate, equity-curve sparkline
+- **Multi-venue terminal** — chart, orderbook, ticker streams across Binance
+  and Hyperliquid, switch with one click
+- **Eight signal sources + confluence** — funding extremes, EMA crossovers,
+  RSI, volatility spikes, liquidation cascades, whale flow, news, on-chain
+  whale wallets; a confluence layer fires when ≥2 sources agree on direction
+- **Public hit-rate track record (`/proof`)** — every signal is timestamped at
+  trigger, resolved 30 minutes later against the live mark. Falsifiable per
+  source, sample sizes shown. The same client-side ledger drives both the
+  workstation panel and the standalone public page
+- **Paper-trading bots with backtest replay (`/replay`)** — auto-execute on
+  matching signals; replay any bot against historical candles bar-by-bar
+- **Risk caps** — daily loss / max drawdown / max exposure with engine
+  pre-check, so trades that would breach the cap never open
+- **Strategy marketplace (`/library`)** — curated + community bots, install
+  in one click; follow authors; per-author profile pages
+- **Deep-link execution** — "Trade on Binance →" or "Trade on Hyperliquid →"
+  from every signal card; bots can route real signed orders if you connect a
+  Binance API key (encrypted in your browser via AES-GCM + PBKDF2)
 
-All free during the first wave. Wallet-signed live trading via Hyperliquid is the next milestone.
+The free tier does everything except live execution, and live mode is
+BYO-API-key (your funds, your venue, our research).
 
 ---
 
@@ -74,20 +91,44 @@ Adding a new venue is one file: implement the `VenueAdapter` interface in
 src/
 ├── adapters/        Venue adapter layer (Binance, Hyperliquid)
 ├── signals/         Signal compute (funding, crossover, RSI, volatility, whale, confluence)
-├── bots/            Bot framework types
-├── components/      React UI (TradingChart, SignalsPanel, BotsPanel, ...)
-├── hooks/           useSignals, useBotEngine, useTopMarketsCandles, ...
-├── pages/           LandingPage, TradePage, PortfolioPage
-├── store/           Zustand stores (trading, theme, mode, bots, notifications)
-└── lib/             Shared helpers (formatting, binanceTicker singleton)
+├── bots/            Bot framework + backtest engine + portable JSON
+├── components/      React UI (TradingChart, SignalsPanel, BotsPanel, ErrorBoundary, ...)
+├── hooks/           useSignals, useBotEngine, useRiskMonitor, useDocumentMeta, ...
+├── pages/           LandingPage, TradePage, ProofPage, BacktestReplayPage,
+│                    StrategyLibraryPage, AuthorProfilePage, LegalPage, ...
+├── store/           Zustand stores (bots, watchlist, follow, risk, device-id, ...)
+├── strategies/      Curated + seeded community strategies (PortableBot v:1)
+└── lib/             Shared helpers (errorReporter, documentMeta, venueLinks,
+                     credentialsVault, signalChartMarkers, ...)
 
 public/
 ├── favicon.svg      Brand mark
-└── og-template.html Screenshot at 1200×630 → public/og.png
+├── robots.txt       SEO crawler policy
+├── sitemap.xml      Indexable routes
+├── og.png           Default OG card (1200×630)
+├── proof-og.png     Dedicated OG card for /proof shares
+├── hero-bg.png      Atmospheric hero background
+└── *-empty.png      Empty-state illustrations (library, portfolio, signals)
+
+scripts/
+├── generate-assets.mjs    Regenerate brand assets via fal.ai Flux Pro
+└── check-bundle-size.mjs  Post-build budget enforcement (CI + local)
 
 docs/
-└── DEPLOYMENT.md    Step-by-step deploy guide (Vercel, Netlify, Cloudflare)
+├── DEPLOYMENT.md           Step-by-step deploy guide (Vercel, Netlify, CF Pages)
+└── BACKEND_MIGRATION_PLAN.md  When/why/how to add a server later
 ```
+
+### Scripts
+
+| Command | What |
+|---|---|
+| `pnpm dev` | Vite dev server on http://localhost:5173 |
+| `pnpm build` | TypeScript check + Vite production build (requires Node ≥20.19) |
+| `pnpm size` | Check `dist/` against bundle-size budgets |
+| `pnpm gen:assets` | Regenerate `public/*.png` via fal.ai (requires `FAL_KEY` env) |
+| `pnpm test` | Unit tests (Vitest) |
+| `pnpm test:e2e` | E2E tests (Playwright) |
 
 ---
 
