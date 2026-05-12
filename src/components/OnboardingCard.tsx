@@ -57,7 +57,7 @@ export function OnboardingCard() {
   const allDone = stepsCompleted === 2
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] bg-panel border border-accent/40 rounded-lg shadow-lg shadow-accent/10 p-4">
+    <div className="fixed bottom-20 md:bottom-4 right-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] bg-panel border border-accent/40 rounded-lg shadow-lg shadow-accent/10 p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="text-sm font-semibold text-text-primary flex items-center gap-1.5">

@@ -30,7 +30,7 @@ export function FeedbackWidget() {
         onClick={() => setOpen(true)}
         title="Send feedback"
         aria-label="Send feedback"
-        className="fixed bottom-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-accent text-surface shadow-lg shadow-accent/30 hover:opacity-90 transition-opacity cursor-pointer"
+        className="fixed bottom-20 md:bottom-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-accent text-surface shadow-lg shadow-accent/30 hover:opacity-90 transition-opacity cursor-pointer"
       >
         <MessageCircle className="w-4 h-4" />
       </button>
