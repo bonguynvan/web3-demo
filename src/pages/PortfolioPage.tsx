@@ -30,6 +30,7 @@ import { ActivityFeed } from '../components/ActivityFeed'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
 import type { VenueId } from '../adapters/types'
 import { EquityCurve } from '../components/EquityCurve'
+import { PerformanceDashboard } from '../components/PerformanceDashboard'
 import { cn, formatUsd } from '../lib/format'
 import type { BotTrade } from '../bots/types'
 
@@ -255,6 +256,8 @@ export function PortfolioPage() {
             </div>
           )}
         </div>
+
+        <PerformanceDashboard trades={closedSorted} />
 
         {/* Venue connection callout (real balances) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

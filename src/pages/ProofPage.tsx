@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Copy, ExternalLink, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Check, Copy, ExternalLink, ShieldCheck, Users, User as UserIcon, Lock } from 'lucide-react'
 import { Wordmark } from '../components/ui/Logo'
 import { useSignalPerformanceStore, type ResolvedEntry } from '../store/signalPerformanceStore'
 import type { SignalSource } from '../signals/types'
@@ -50,6 +50,7 @@ export function ProofPage() {
   const resolved = useSignalPerformanceStore(s => s.resolved)
   const pendingCount = useSignalPerformanceStore(s => s.pending.length)
   const [copied, setCopied] = useState(false)
+  const [view, setView] = useState<'mine' | 'community'>('mine')
 
   const summary = useMemo(() => computeSummary(resolved), [resolved])
 
@@ -106,6 +107,22 @@ export function ProofPage() {
           </p>
         </section>
 
+        <section className="flex items-center gap-2 -mb-4">
+          <TabButton active={view === 'mine'} onClick={() => setView('mine')} Icon={UserIcon}>
+            Your ledger
+          </TabButton>
+          <TabButton active={view === 'community'} onClick={() => setView('community')} Icon={Users}>
+            Community
+            <span className="ml-1.5 text-[9px] font-mono uppercase tracking-[0.14em] text-text-muted">
+              soon
+            </span>
+          </TabButton>
+        </section>
+
+        {view === 'community' ? (
+          <ComingSoonCommunity />
+        ) : (
+          <>
         <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Resolved signals" value={summary.totalResolved.toString()} />
           <Stat
@@ -194,6 +211,8 @@ export function ProofPage() {
           A "hit" means price moved in the predicted direction. Sources with fewer than
           3 resolved trades are flagged as <span className="text-text-secondary">unqualified</span>.
         </section>
+          </>
+        )}
 
         <section className="border-t border-border pt-6 flex items-center justify-between gap-4 flex-wrap">
           <Link
@@ -212,6 +231,73 @@ export function ProofPage() {
         </section>
       </main>
     </div>
+  )
+}
+
+function TabButton({
+  active, onClick, Icon, children,
+}: {
+  active: boolean
+  onClick: () => void
+  Icon: typeof UserIcon
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer border',
+        active
+          ? 'bg-accent text-surface border-accent'
+          : 'bg-panel border-border text-text-secondary hover:text-text-primary',
+      )}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {children}
+    </button>
+  )
+}
+
+function ComingSoonCommunity() {
+  return (
+    <section className="rounded-lg border border-dashed border-border bg-panel/30 px-6 py-10 text-center space-y-4">
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-surface text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
+        <Lock className="w-3 h-3" />
+        Aggregate proof — coming soon
+      </div>
+      <h2 className="text-xl md:text-2xl font-semibold text-text-primary max-w-xl mx-auto leading-snug">
+        We're building a community-wide hit rate that anyone can verify.
+      </h2>
+      <p className="text-sm text-text-secondary leading-relaxed max-w-2xl mx-auto">
+        Every TradingDek user currently resolves signals in their own browser, which is
+        why the page above shows <em>your</em> ledger only. The next milestone is an
+        <strong className="text-text-primary"> opt-in </strong> aggregate that uploads
+        the same anonymised <code className="text-text-primary text-[11px]">{`{source, marketId, hit}`}</code>
+        rows so the network-wide hit rate becomes shareable without anyone seeing your
+        positions, balances, or PnL.
+      </p>
+      <p className="text-[11px] text-text-muted leading-relaxed max-w-xl mx-auto">
+        No backend exists yet. When it ships, opting in will be a single switch in
+        Settings, and the contributed rows will be public, falsifiable, and tied to an
+        anonymous device id — never to a wallet or email.
+      </p>
+      <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+        <button
+          disabled
+          aria-disabled="true"
+          className="px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-[0.14em] bg-surface border border-border text-text-muted cursor-not-allowed"
+        >
+          Opt in (not yet available)
+        </button>
+        <Link
+          to="/legal/privacy"
+          className="text-[11px] font-mono uppercase tracking-[0.14em] text-accent hover:underline"
+        >
+          Privacy policy →
+        </Link>
+      </div>
+    </section>
   )
 }
 
