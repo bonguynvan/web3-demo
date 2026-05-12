@@ -13,27 +13,79 @@
  * channel that doesn't require us to operate an inbox-on-our-side.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MessageCircle, X, ExternalLink } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { getShortDeviceId } from '../store/deviceIdStore'
+
+const SEEN_KEY = 'tc-feedback-seen-v1'
+
+function loadSeen(): boolean {
+  try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return false }
+}
+function markSeen() {
+  try { localStorage.setItem(SEEN_KEY, '1') } catch { /* full */ }
+}
 
 const FEEDBACK_EMAIL =
   (import.meta.env.VITE_FEEDBACK_EMAIL as string | undefined) ?? 'feedback@tradingdek.com'
 
 export function FeedbackWidget() {
   const [open, setOpen] = useState(false)
+  // Discoverability hint for first-time visitors: a small tooltip + a
+  // single pulse ring fade. Dismissed permanently the moment the user
+  // either clicks the button or auto after 8s — whichever comes first.
+  const [hintVisible, setHintVisible] = useState<boolean>(() => !loadSeen())
+
+  useEffect(() => {
+    if (!hintVisible) return
+    const t = setTimeout(() => {
+      setHintVisible(false)
+      markSeen()
+    }, 8000)
+    return () => clearTimeout(t)
+  }, [hintVisible])
+
+  const handleClick = () => {
+    setOpen(true)
+    if (hintVisible) {
+      setHintVisible(false)
+      markSeen()
+    }
+  }
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        title="Send feedback"
-        aria-label="Send feedback"
-        className="fixed bottom-20 md:bottom-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-accent text-surface shadow-lg shadow-accent/30 hover:opacity-90 transition-opacity cursor-pointer"
-      >
-        <MessageCircle className="w-4 h-4" />
-      </button>
+      <div className="fixed bottom-20 md:bottom-4 left-4 z-40 flex items-center gap-2">
+        <div className="relative">
+          {hintVisible && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full bg-accent/40 animate-ping pointer-events-none"
+            />
+          )}
+          <button
+            onClick={handleClick}
+            title="Send feedback"
+            aria-label="Send feedback"
+            className="relative flex items-center justify-center w-10 h-10 rounded-full bg-accent text-surface shadow-lg shadow-accent/30 hover:opacity-90 transition-opacity cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        </div>
+        {hintVisible && (
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-panel border border-accent/40 shadow-lg text-xs text-text-primary">
+            <span>Hit a bug or have an idea? Tell us.</span>
+            <button
+              onClick={() => { setHintVisible(false); markSeen() }}
+              aria-label="Dismiss hint"
+              className="text-text-muted hover:text-text-primary cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
 
       <FeedbackModal open={open} onClose={() => setOpen(false)} />
     </>

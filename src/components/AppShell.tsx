@@ -57,6 +57,15 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen bg-surface">
+      {/* Skip link — visible on keyboard focus only. Lets users bypass
+          sidebar + header + banners and land directly on the page. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:px-3 focus:py-1.5 focus:rounded-md focus:bg-accent focus:text-surface focus:text-xs focus:font-semibold focus:shadow-lg"
+      >
+        Skip to content
+      </a>
+
       {/* Left sidebar — desktop only (hidden below md:) */}
       <Sidebar />
 
@@ -68,9 +77,9 @@ export function AppShell() {
         <LiveStatusBanner />
 
         {/* Page content */}
-        <div className="flex-1 min-h-0">
+        <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 focus:outline-none">
           <Outlet />
-        </div>
+        </main>
 
         {/* Mobile-only bottom-tab nav (Sidebar handles md+) */}
         <MobileBottomNav />
