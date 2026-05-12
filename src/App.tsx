@@ -15,6 +15,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { AppShell } from './components/AppShell'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ScrollToTop } from './components/ScrollToTop'
 import { LandingPage } from './pages/LandingPage'
 
 // Lazy-loaded routes — heavy pages (chart, replay, marketplace, profile)
@@ -41,6 +42,7 @@ function App() {
   return (
     <ErrorBoundary name="App">
       <BrowserRouter>
+        <ScrollToTop />
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
