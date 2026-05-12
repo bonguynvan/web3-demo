@@ -459,10 +459,17 @@ function SignalCard({
             <span>·</span>
             <span>conf {Math.round(signal.confidence * 100)}%</span>
             <span>·</span>
-            <span className="flex items-center gap-1">
+            <a
+              href={`/learn#${signal.source}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Learn how the ${signal.source} signal works`}
+              className="flex items-center gap-1 hover:text-text-primary transition-colors"
+            >
               <span className={cn('w-1.5 h-1.5 rounded-full', dot)} />
               <span className="capitalize">{signal.source}</span>
-            </span>
+            </a>
             <span>·</span>
             <span className="tabular-nums">{formatAge(ageMs)}</span>
           </div>
