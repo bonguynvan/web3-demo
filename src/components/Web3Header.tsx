@@ -234,7 +234,11 @@ function MarketBar() {
   const tradeDisabled = activeVenue === 'hyperliquid'
 
   return (
-    <div className="flex items-center h-12 bg-panel/60 border-b border-border px-3 md:px-4 gap-3 md:gap-5 shrink-0 overflow-x-auto">
+    // NOTE: this outer row used to have overflow-x-auto, which clipped the
+    // absolutely-positioned dropdown menu inside the 48px bar (CSS promotes
+    // overflow-y to auto when either axis is set to auto/hidden). Keeping
+    // this row overflow-visible; the stats strip gets its own scroll wrapper.
+    <div className="flex items-center h-12 bg-panel/60 border-b border-border px-3 md:px-4 gap-3 md:gap-5 shrink-0">
       {/* Market selector */}
       <Dropdown
         trigger={
@@ -283,6 +287,9 @@ function MarketBar() {
         <Star className={cn('w-3.5 h-3.5', isPinned && 'fill-accent')} />
       </button>
 
+      {/* Right-hand scrolling strip — stats + trade button. Lives in its
+          own overflow-x-auto so the dropdown above never gets clipped. */}
+      <div className="flex items-center gap-3 md:gap-5 flex-1 min-w-0 overflow-x-auto">
       {/* Price + 24h change */}
       <div className="flex items-center gap-3 shrink-0">
         <div>
@@ -408,6 +415,7 @@ function MarketBar() {
           Connect
         </button>
       ) : null}
+      </div>
 
       <PlaceOrderModal
         open={placeOrderOpen}
