@@ -138,20 +138,42 @@ Cheapest for high traffic. Same shape:
 **Phase 1–2c (current):** none required. The app talks to public Binance
 and Hyperliquid endpoints directly.
 
-**Phase 2d (when you wire wallet trading):** add these in your hosting
-dashboard.
+All vars are **optional**. Add them in your hosting dashboard
+(Vercel → Environment Variables, Netlify → Site settings → Build &
+deploy → Environment, CF Pages → Variables and Secrets) as needed.
+
+### Runtime — shipped in the JS bundle (VITE_*)
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `VITE_HYPERLIQUID_BUILDER_CODE` | Your wallet address; receives ~0.01% rebate per trade routed through your UI | `0x0000000000000000000000000000000000000000` |
-| `VITE_HYPERLIQUID_NETWORK` | `mainnet` or `testnet`; controls REST/WS host | `mainnet` |
-| `VITE_WAITLIST_ENDPOINT` | URL that accepts `POST { email }` for the landing-page email capture. Works with Formspree, Buttondown, Loops, or your own backend. If unset, emails fall back to localStorage. | `https://formspree.io/f/abcdwxyz` |
-| `VITE_CRYPTOPANIC_TOKEN` | Free CryptoPanic auth token for the news-signal source (sign up at `cryptopanic.com/developers/api/`). When set, sentiment-leaning headlines for tracked markets fire as news signals. Unset = news source stays dormant; the rest of the signal feed is unaffected. | `abcdef1234567890abcdef1234567890abcdef12` |
-| `VITE_HL_WHALE_WALLETS` | Comma-separated Hyperliquid wallet addresses. When any tracked wallet opens a perp position ≥ $50k notional, a whale-wallet signal fires (Hyperliquid only). Public on-chain data — no API key. | `0x1111…aaaa,0x2222…bbbb` |
+| `VITE_FEEDBACK_EMAIL` | Target address for the floating Send Feedback button's `mailto:`. Defaults to `feedback@tradingdek.com` if unset. | `feedback@yourdomain.com` |
+| `VITE_ERROR_REPORT_ENDPOINT` | Optional HTTP collector for runtime errors and React boundary catches. Browser POSTs JSON `{ kind, message, stack, route, ua, deviceId, at }`. Works with Sentry, Logflare, Cloudflare Workers, custom Lambda. When unset, errors go to `console.warn` and stay in the browser. | `https://collector.yourdomain.com/errors` |
+| `VITE_HYPERLIQUID_BUILDER_CODE` | Your wallet address; receives ~0.01% rebate per trade routed through your UI. | `0x0000000000000000000000000000000000000000` |
+| `VITE_HYPERLIQUID_NETWORK` | `mainnet` or `testnet`; controls REST/WS host. Default `mainnet`. | `mainnet` |
+| `VITE_CRYPTOPANIC_TOKEN` | Free CryptoPanic auth token for the news-signal source. When set, sentiment-leaning headlines for tracked markets fire as news signals. Unset = news source stays dormant. | `abcdef1234567890abcdef1234567890abcdef12` |
+| `VITE_HL_WHALE_WALLETS` | Comma-separated Hyperliquid wallet addresses. When any tracked wallet opens a perp position ≥ $50k notional, a whale-wallet signal fires. Public on-chain data — no API key. | `0x1111…aaaa,0x2222…bbbb` |
 
 `VITE_*` is the Vite convention — anything else is not exposed to the
 client. Never put secrets here; **everything prefixed with `VITE_` is
 visible in the shipped JS bundle.**
+
+### Build-script only (NOT in the bundle)
+
+| Variable | Purpose |
+|----------|---------|
+| `FAL_KEY` | fal.ai API key. Used only by `pnpm gen:assets` to regenerate brand assets via Flux Pro 1.1 Ultra. Never embed in the bundle — pass on the command line when running the script. |
+
+### Bundle-size budgets
+
+CI runs `node scripts/check-bundle-size.mjs` after `pnpm build` and
+fails the run if a chunk exceeds its hard budget. Run locally with
+`pnpm size` after `pnpm build` to preflight.
+
+Default buckets (see `scripts/check-bundle-size.mjs` to tune):
+- Entry chunk: **200 KB** hard
+- All CSS: **100 KB** hard
+- Chart route (TradePage + TradingChart): **700 KB** hard
+- All JS combined: **1500 KB** hard
 
 ---
 
