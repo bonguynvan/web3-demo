@@ -20,6 +20,7 @@ import { Wallet, ExternalLink } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useVenueBalances } from '../hooks/useVenueBalances'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
+import { useRiskStore } from '../store/riskStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn, formatUsd } from '../lib/format'
 import { FlashPrice } from './ui/FlashPrice'
@@ -42,8 +43,11 @@ export function AccountBar() {
     return () => clearInterval(id)
   }, [])
 
+  const maxExposureUsd = useRiskStore(s => s.maxExposureUsd)
   const venueSnapshot = useMemo(() => summariseVenues(venueBalances), [venueBalances])
   const botSnapshot = useMemo(() => summariseBots(trades), [trades])
+  const exposurePct = maxExposureUsd > 0 ? Math.min(100, (botSnapshot.notionalOpen / maxExposureUsd) * 100) : 0
+  const exposureTone = exposurePct >= 90 ? 'short' : exposurePct >= 70 ? 'amber' : 'long'
 
   const totalEquity = venueSnapshot.usdtFree + botSnapshot.notionalOpen + botSnapshot.unrealized
   const hasConnection = vaultUnlocked && venueSnapshot.usdtFree > 0
@@ -114,6 +118,35 @@ export function AccountBar() {
           <span className="bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded-full font-medium">
             {botSnapshot.openCount}
           </span>
+        )}
+        {maxExposureUsd > 0 && (
+          <Tooltip
+            title="Exposure cap"
+            content={`Open notional vs the cap configured in Settings → Risk caps. Bots are blocked from opening trades that would push past 100%.`}
+            side="bottom"
+          >
+            <span className="hidden md:flex items-center gap-1.5 cursor-help">
+              <span className="w-12 h-1 rounded-full bg-surface overflow-hidden">
+                <span
+                  className={cn(
+                    'h-full block transition-[width] duration-300',
+                    exposureTone === 'short' ? 'bg-short'
+                      : exposureTone === 'amber' ? 'bg-amber-400'
+                      : 'bg-long',
+                  )}
+                  style={{ width: `${exposurePct.toFixed(1)}%` }}
+                />
+              </span>
+              <span className={cn(
+                'text-[9px] font-mono tabular-nums',
+                exposureTone === 'short' ? 'text-short'
+                  : exposureTone === 'amber' ? 'text-amber-400'
+                  : 'text-text-muted',
+              )}>
+                {exposurePct.toFixed(0)}%
+              </span>
+            </span>
+          </Tooltip>
         )}
       </div>
 
