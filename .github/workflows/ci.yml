@@ -39,9 +39,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Bundle size budget
+        run: node scripts/check-bundle-size.mjs
+
       - name: Bundle size report
+        if: always()
         run: |
           echo "## Bundle output" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           du -sh dist/* 2>/dev/null | sort -hr | head -20 >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          node scripts/check-bundle-size.mjs >> $GITHUB_STEP_SUMMARY 2>&1 || true
