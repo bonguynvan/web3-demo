@@ -1,0 +1,36 @@
+# TradingDek backend — single-container PocketBase + custom Go handlers.
+#
+# Usage on the Hetzner VPS:
+#
+#   cp .env.example .env && nano .env       # set NOWPAY_IPN_SECRET + admin creds
+#   docker compose up -d --build
+#   docker compose logs -f pocketbase
+#
+# Reverse-proxy with Caddy (see Caddyfile.example) — Caddy listens on
+# :443 with auto-TLS, terminates HTTPS, and proxies to pocketbase:8090
+# over the host loopback.
+
+services:
+  pocketbase:
+    build: ./backend/pocketbase
+    container_name: tradingdek-pb
+    restart: unless-stopped
+    environment:
+      NOWPAY_IPN_SECRET: ${NOWPAY_IPN_SECRET}
+      PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
+      PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
+      PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
+    volumes:
+      - pb_data:/pb_data
+    ports:
+      # Bind to host loopback only — public traffic flows through Caddy on :443.
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pb_data:
+    driver: local

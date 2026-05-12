@@ -1,0 +1,32 @@
+# Caddyfile — example reverse-proxy config for TradingDek API.
+#
+# Copy to /etc/caddy/Caddyfile on the Hetzner VPS, swap the domain for
+# the one you own, then `sudo systemctl reload caddy`. Caddy obtains
+# and renews a Let's Encrypt cert automatically.
+
+api.tradingdek.com {
+    reverse_proxy 127.0.0.1:8090
+
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+
+    log {
+        output file /var/log/caddy/api.tradingdek.com.log
+    }
+}
+
+# If you serve the SPA from the same VPS (instead of Vercel/Netlify),
+# add a second site block:
+#
+# tradingdek.com {
+#     root * /var/www/tradingdek
+#     try_files {path} /index.html
+#     file_server
+#     encode gzip zstd
+# }

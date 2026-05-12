@@ -1,0 +1,7 @@
+# PocketBase runtime data — keep schema migrations, never commit the DB.
+pb_data/
+go.sum
+*.db
+*.db-shm
+*.db-wal
+.env
