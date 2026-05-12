@@ -20,6 +20,7 @@ import { useFollowStore } from '../store/followStore'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
+import { useDocumentMeta } from '../lib/documentMeta'
 
 export function AuthorProfilePage() {
   const { handle: rawHandle } = useParams<{ handle: string }>()
@@ -46,6 +47,18 @@ export function AuthorProfilePage() {
 
   const author = strategies[0]?.author
   const isFollowed = followsAuthor(candidateHandle)
+
+  useDocumentMeta({
+    title: author
+      ? `${author.name} (${candidateHandle}) — TradingDek author`
+      : `${candidateHandle} — TradingDek author`,
+    description: author
+      ? `${strategies.length} strategy${strategies.length === 1 ? '' : 'ies'} published by ${author.name} on TradingDek. Browse, follow, install — all auditable in your browser.`
+      : `Author profile on TradingDek.`,
+    canonical: `/author/${candidateHandle.replace(/^@/, '')}`,
+    ogImage: '/og.png',
+    ogType: 'article',
+  })
 
   const stats = useMemo(() => computeStats(strategies), [strategies])
 

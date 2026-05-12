@@ -13,6 +13,7 @@ import { Wordmark } from '../components/ui/Logo'
 import { useSignalPerformanceStore, type ResolvedEntry } from '../store/signalPerformanceStore'
 import type { SignalSource } from '../signals/types'
 import { cn } from '../lib/format'
+import { useDocumentMeta } from '../lib/documentMeta'
 
 const SOURCE_LABELS: Record<SignalSource, string> = {
   funding: 'Funding extremes',
@@ -40,6 +41,12 @@ interface MarketRow {
 }
 
 export function ProofPage() {
+  useDocumentMeta({
+    title: 'TradingDek — Public signal track record',
+    description: 'Every signal we fire is timestamped and resolved 30 minutes later against actual price. No back-tested cherry-picking — falsifiable hit rates per source, generated from a client-side ledger.',
+    canonical: '/proof',
+    ogImage: '/proof-og.png',
+  })
   const resolved = useSignalPerformanceStore(s => s.resolved)
   const pendingCount = useSignalPerformanceStore(s => s.pending.length)
   const [copied, setCopied] = useState(false)

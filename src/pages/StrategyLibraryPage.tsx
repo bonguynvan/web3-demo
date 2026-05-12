@@ -17,8 +17,15 @@ import { setActiveVenue } from '../adapters/registry'
 import { STRATEGY_LIBRARY, type PublishedStrategy } from '../strategies/library'
 import { cn } from '../lib/format'
 import { Modal } from '../components/ui/Modal'
+import { useDocumentMeta } from '../lib/documentMeta'
 
 export function StrategyLibraryPage() {
+  useDocumentMeta({
+    title: 'TradingDek — Strategy marketplace',
+    description: 'Curated and community bots, installable in one click. Every entry runs in paper mode by default — backtest, replay, audit, then enable live.',
+    canonical: '/library',
+    ogImage: '/og.png',
+  })
   const addBot = useBotStore(s => s.addBot)
   const bots = useBotStore(s => s.bots)
   const existingBotNames = new Set(bots.map(b => b.name))

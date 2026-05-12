@@ -17,9 +17,16 @@ import {
 import { Wordmark as BrandWordmark } from '../components/ui/Logo'
 import { STRATEGY_LIBRARY } from '../strategies/library'
 import { cn } from '../lib/format'
+import { useDocumentMeta } from '../lib/documentMeta'
 
 export function LandingPage() {
   const navigate = useNavigate()
+  useDocumentMeta({
+    title: 'TradingDek — Research and bots, executed where you already trade',
+    description: 'Eight signal sources, paper-trading bots, and a live, auditable track record for every fired signal. Deep-links into Binance and Hyperliquid for execution — your liquidity, your risk tools, your funds.',
+    canonical: '/',
+    ogImage: '/og.png',
+  })
 
   // Pull three teaser strategies — prefer ones with performance data so
   // the social proof shows real numbers.
