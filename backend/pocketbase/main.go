@@ -81,6 +81,10 @@ func main() {
 		// in-memory at 30 calls/user/hour.
 		e.Router.POST("/api/ai/explain", aiExplainHandler(app))
 
+		// Opt-in 14-day trial. Replaces the auto-grant that used to
+		// fire on first sign-in.
+		e.Router.POST("/api/trial/start", trialStartHandler(app))
+
 		return e.Next()
 	})
 

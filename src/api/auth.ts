@@ -68,3 +68,14 @@ export interface Me {
 export async function fetchMe(signal?: AbortSignal): Promise<Me> {
   return api<Me>('/api/me', { signal })
 }
+
+export interface TrialStartResponse {
+  trial_expires_at: string
+  pro_days_remaining: number
+  pro_active: boolean
+}
+
+/** One-shot — backend returns 409 on second call. Caller refreshes Me. */
+export async function startTrial(): Promise<TrialStartResponse> {
+  return api<TrialStartResponse>('/api/trial/start', { method: 'POST', body: {} })
+}

@@ -16,11 +16,12 @@
  */
 
 import { useState } from 'react'
-import { CheckCircle2, ExternalLink, Loader2, Zap } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Loader2, Zap, Sparkles } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useAuthStore } from '../store/authStore'
 import { useEntitlementStore } from '../store/entitlementStore'
 import { createInvoice, nowpayAvailable, type InvoiceKind } from '../api/nowpay'
+import { fetchMe, startTrial } from '../api/auth'
 import { deriveProState, labelForSource } from '../lib/pro'
 import { cn } from '../lib/format'
 
@@ -49,6 +50,24 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
   const proState = deriveProState(me)
   const [busy, setBusy] = useState<InvoiceKind | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [trialBusy, setTrialBusy] = useState(false)
+  const setEnt = useEntitlementStore(s => s.set)
+  const trialAvailable = !!user && me !== null && me.trial_expires_at === null
+
+  const handleStartTrial = async () => {
+    if (trialBusy) return
+    setTrialBusy(true)
+    setErr(null)
+    try {
+      await startTrial()
+      const fresh = await fetchMe()
+      setEnt(fresh)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrialBusy(false)
+    }
+  }
 
   const handlePick = async (plan: Plan) => {
     if (!user) { setErr('sign in first'); return }
@@ -78,6 +97,28 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
           daysLeft={proState.daysLeft}
           balanceUsd={proState.balanceUsd}
         />
+
+        {trialAvailable && (
+          <button
+            onClick={handleStartTrial}
+            disabled={trialBusy}
+            className={cn(
+              'w-full flex items-center justify-between gap-3 rounded-md border border-accent/60 bg-accent-dim/40 px-4 py-3 cursor-pointer transition-colors hover:bg-accent-dim/60',
+              trialBusy && 'opacity-60 cursor-wait',
+            )}
+          >
+            <div className="text-left">
+              <div className="text-sm font-semibold text-text-primary flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-accent" />
+                Start free 14-day Pro trial
+              </div>
+              <div className="text-[11px] text-text-muted mt-0.5">
+                No payment required. Activates everything below; you can buy time after.
+              </div>
+            </div>
+            {trialBusy ? <Loader2 className="w-4 h-4 animate-spin text-accent" /> : <Zap className="w-4 h-4 text-accent" />}
+          </button>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {PLANS.map(p => (

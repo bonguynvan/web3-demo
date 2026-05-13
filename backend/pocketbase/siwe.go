@@ -251,16 +251,23 @@ func findOrCreateUser(app *pocketbase.PocketBase, address, referrer string) (*co
 		}
 	}
 
+	// Initial entitlement is INACTIVE — trial activation is opt-in via
+	// POST /api/trial/start (see trial.go). The funnel philosophy in
+	// memory/project_outcome_gated_funnel.md mandates this: a calendar
+	// trial that runs while the user is still figuring the product out
+	// wastes their entitlement.
+	//
+	// Referral bonus pre-credited as pro_days_remaining; gets added on
+	// top of the 14-day window when /api/trial/start fires.
 	entCol, err := app.FindCollectionByNameOrId("entitlements")
 	if err != nil {
 		return nil, err
 	}
 	ent := core.NewRecord(entCol)
 	ent.Set("user", user.Id)
-	ent.Set("pro_days_remaining", 0)
+	ent.Set("pro_days_remaining", bonus)
 	ent.Set("paygo_balance_usd", 0)
-	ent.Set("pro_active", true)
-	ent.Set("trial_expires_at", types.NowDateTime().Add(time.Duration(trialDays+bonus)*24*time.Hour))
+	ent.Set("pro_active", false)
 	ent.Set("last_decrement_at", types.NowDateTime())
 	if err := app.Save(ent); err != nil {
 		return nil, err
@@ -268,10 +275,10 @@ func findOrCreateUser(app *pocketbase.PocketBase, address, referrer string) (*co
 	return user, nil
 }
 
-// extendReferrerTrial pushes the referrer's trial_expires_at forward by
-// `days`. If the referrer's existing trial has already lapsed (or was
-// never set) we set it to now + days so they get a fresh window. Errors
-// are non-fatal — referral credit is best-effort.
+// extendReferrerTrial credits the referrer with `days` extra
+// Pro-days. Stacks on whatever pro_days_remaining they already have.
+// Best-effort — errors are non-fatal so a flaky DB write can't break
+// the new user's sign-in.
 func extendReferrerTrial(app *pocketbase.PocketBase, referrerUserID string, days int) {
 	ent, _ := app.FindFirstRecordByFilter(
 		"entitlements", "user = {:u}",
@@ -280,17 +287,13 @@ func extendReferrerTrial(app *pocketbase.PocketBase, referrerUserID string, days
 	if ent == nil {
 		return
 	}
-	add := time.Duration(days) * 24 * time.Hour
-	now := time.Now()
-	current := ent.GetDateTime("trial_expires_at").Time()
-	var next time.Time
-	if current.After(now) {
-		next = current.Add(add)
-	} else {
-		next = now.Add(add)
+	ent.Set("pro_days_remaining", ent.GetInt("pro_days_remaining")+days)
+	// Reactivate the referrer if they were already in their grant window
+	// or have stacked days. Otherwise leave inactive until they start
+	// their own trial / spend the bonus days deliberately.
+	if ent.GetInt("pro_days_remaining") > 0 {
+		ent.Set("pro_active", true)
 	}
-	ent.Set("trial_expires_at", next.UTC().Format(time.RFC3339))
-	ent.Set("pro_active", true)
 	_ = app.Save(ent)
 }
 
