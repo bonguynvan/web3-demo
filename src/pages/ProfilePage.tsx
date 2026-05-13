@@ -18,6 +18,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
+import { ReferralLinkCard } from '../components/ReferralLinkCard'
 import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
 import { useBotStore } from '../store/botStore'
@@ -77,6 +78,8 @@ export function ProfilePage() {
   return (
     <div className="h-full overflow-y-auto bg-surface text-text-primary">
       <section className="max-w-4xl mx-auto px-6 md:px-10 py-8 space-y-8">
+        <ReferralLinkCard />
+
         {/* Identity */}
         <div className="bg-panel border border-border rounded-lg p-6">
           <div className="flex items-start gap-4">

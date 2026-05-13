@@ -150,6 +150,17 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
           . You'll be redirected to a hosted checkout. Days <strong>stack</strong> —
           pay whenever, no auto-renew.
         </div>
+
+        {user && (
+          <div className="text-[10px] text-text-muted leading-relaxed border-t border-border pt-3">
+            Prefer free days? Each friend who signs in via your referral link
+            adds <strong className="text-text-primary">+7 days</strong> to your
+            Pro entitlement (and theirs). Grab your link on{' '}
+            <a href="/profile" className="text-accent hover:underline">
+              /profile
+            </a>.
+          </div>
+        )}
       </div>
     </Modal>
   )
