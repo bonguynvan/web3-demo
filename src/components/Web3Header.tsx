@@ -20,6 +20,7 @@ import { Logo } from './ui/Logo'
 import { useWatchlistStore } from '../store/watchlistStore'
 import { FlashPrice } from './ui/FlashPrice'
 import { useTradingStore } from '../store/tradingStore'
+import { useToastStore } from '../store/toastStore'
 import { useUsdcBalance } from '../hooks/useTokenBalance'
 import { usePrices } from '../hooks/usePrices'
 import { useMarketStats } from '../hooks/useMarketStats'
@@ -91,7 +92,19 @@ function TopBar({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { isConnected, address, connector } = useAccount()
-  const { connect, connectors } = useConnect()
+  const { connect, connectors, isPending: connecting } = useConnect({
+    mutation: {
+      onError: (err) => {
+        // "User rejected" / "denied" is fine to swallow — that's UX
+        // not a bug. Everything else (no provider, network failure,
+        // project-id mismatch) surfaces as a toast so the user
+        // doesn't see a silent no-op.
+        const msg = err.message || 'connection failed'
+        if (/rejected|denied|cancel/i.test(msg)) return
+        useToastStore.getState().add('error', 'Wallet connect failed', msg.slice(0, 180))
+      },
+    },
+  })
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
   const { dollars: usdcBalance } = useUsdcBalance()
@@ -189,18 +202,40 @@ function TopBar({
             {t('real_wallets')}
           </div>
           {connectors.filter(c => c.type !== 'demo').map(c => (
-            <DropdownItem key={c.uid} onClick={() => connect({ connector: c })}>
+            <DropdownItem key={c.uid} disabled={connecting} onClick={() => connect({ connector: c })}>
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-accent" />
                 {c.name}
+                {connecting && <span className="ml-auto text-[10px] text-text-muted">…</span>}
               </div>
             </DropdownItem>
           ))}
-          {connectors.filter(c => c.type !== 'demo').length === 0 && (
-            <div className="text-[10px] text-text-muted px-3 py-2" onClick={e => e.stopPropagation()}>
-              {t('no_wallet_detected')}
+          {/* The injected() connector is ALWAYS in the list, but it has
+              no actual provider until a wallet extension is present.
+              If we end up with zero usable wallets (rare — Coinbase
+              Smart Wallet works without an extension) fall back to
+              install links for the major options. */}
+          <div className="border-t border-border mt-1 pt-1.5 px-3 pb-2" onClick={e => e.stopPropagation()}>
+            <div className="text-[9px] text-text-muted uppercase tracking-wider mb-1">
+              {t('no_wallet') ?? 'No wallet?'}
             </div>
-          )}
+            <div className="flex flex-col gap-1 text-[11px]">
+              <a
+                href="https://metamask.io/download/"
+                target="_blank" rel="noopener noreferrer"
+                className="text-text-secondary hover:text-accent transition-colors"
+              >
+                Install MetaMask →
+              </a>
+              <a
+                href="https://rabby.io/"
+                target="_blank" rel="noopener noreferrer"
+                className="text-text-secondary hover:text-accent transition-colors"
+              >
+                Install Rabby →
+              </a>
+            </div>
+          </div>
         </Dropdown>
       )}
 
