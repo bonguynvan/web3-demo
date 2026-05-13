@@ -12,12 +12,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2, Lock } from 'lucide-react'
+import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2 } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
-import { apiAvailable } from '../api/client'
-import { useEntitlementStore } from '../store/entitlementStore'
-import { deriveProState } from '../lib/pro'
-import { UpgradeModal } from '../components/UpgradeModal'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn } from '../lib/format'
 import { BotConfigForm } from '../components/BotConfigForm'
@@ -88,22 +84,12 @@ export function BotManagerPage() {
 
   const [, force] = useState(0)
   const [showForm, setShowForm] = useState(false)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-
-  // Free tier: 1 bot. Pro: unlimited. Gate is only enforced when the
-  // backend is configured — local-only dev keeps the experience open.
-  const me = useEntitlementStore(s => s.data)
-  const isPro = deriveProState(me).active
-  const gateActive = apiAvailable()
-  const atCap = gateActive && !isPro && useBotStore.getState().bots.length >= 1
-  const handleNew = () => {
-    if (atCap) { setUpgradeOpen(true); return }
-    setShowForm(s => !s)
-  }
-  const handleNewFromEmpty = () => {
-    if (atCap) { setUpgradeOpen(true); return }
-    setShowForm(true)
-  }
+  // Paper-trading bots are free, forever, unlimited. The Pro gate kicks
+  // in on live mode + premium signals + Telegram delivery — not on the
+  // "can I see if my idea works at all" surface. Users need to watch a
+  // paper bot run for weeks before they have any reason to upgrade.
+  const handleNew = () => setShowForm(s => !s)
+  const handleNewFromEmpty = () => setShowForm(true)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -200,10 +186,10 @@ export function BotManagerPage() {
             </button>
             <button
               onClick={handleNew}
-              title={atCap ? 'Free plan is capped at 1 bot — upgrade for unlimited' : showForm ? 'Cancel' : 'Create new bot'}
+              title={showForm ? 'Cancel' : 'Create new bot'}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
             >
-              {atCap ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+              <Plus className="w-3.5 h-3.5" />
               {showForm ? 'Cancel' : 'New bot'}
             </button>
           </div>
@@ -273,7 +259,6 @@ export function BotManagerPage() {
       )}
       <StrategyComparisonModal open={compareOpen} onClose={() => setCompareOpen(false)} />
       <BotImportModal open={importOpen} onClose={() => setImportOpen(false)} />
-      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   )
 }

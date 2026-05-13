@@ -12,6 +12,7 @@ import { AccountBar } from './AccountBar'
 import { VaultLockBanner } from './VaultLockBanner'
 import { LiveStatusBanner } from './LiveStatusBanner'
 import { EntitlementBanner } from './EntitlementBanner'
+import { ShipResultsBanner } from './ShipResultsBanner'
 import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
@@ -80,6 +81,7 @@ export function AppShell() {
         <VaultLockBanner />
         <LiveStatusBanner />
         <EntitlementBanner />
+        <ShipResultsBanner />
 
         {/* Page content */}
         <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 focus:outline-none">

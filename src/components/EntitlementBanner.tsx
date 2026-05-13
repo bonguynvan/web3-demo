@@ -1,14 +1,16 @@
 /**
- * EntitlementBanner — slim header banner that nudges the user when
- * Pro is about to lapse.
+ * EntitlementBanner — slim header banner for *current Pro users* whose
+ * remaining time is running low.
  *
- * Fires when daysLeft <= 3 (trial or paid) or when Pro just expired.
- * Dismiss persists for 24h so it doesn't follow the user across every
- * page reload. Mounted globally in AppShell below LiveStatusBanner.
+ * Intentionally does NOT fire when Pro has lapsed — for free users we
+ * lean on ShipResultsBanner (positive, outcome-driven) so the SPA
+ * doesn't nag people who haven't yet seen their bot make money.
+ *
+ * Dismiss persists 24h so it doesn't follow the user across reloads.
  */
 
 import { useState } from 'react'
-import { Clock, Sparkles, X } from 'lucide-react'
+import { Clock, X } from 'lucide-react'
 import { apiAvailable } from '../api/client'
 import { useEntitlementStore } from '../store/entitlementStore'
 import { useAuthStore } from '../store/authStore'
@@ -41,34 +43,25 @@ export function EntitlementBanner() {
   const proState = deriveProState(me)
   const recentlyDismissed = Date.now() - dismissedAt < DISMISS_WINDOW_MS
 
+  // Only fires for paying users running low — never for free/lapsed.
+  // Lapsed-user nudges are handled by the positive ShipResultsBanner so
+  // we don't pressure people who haven't seen their bot make money yet.
   const lowDays = proState.active && proState.daysLeft >= 0 && proState.daysLeft <= 3
-  const lapsed = !proState.active && me !== null
-
-  if (!lowDays && !lapsed) return null
+  if (!lowDays) return null
   if (recentlyDismissed) return null
 
-  const tone = lapsed ? 'short' : 'accent'
-  const message = lapsed
-    ? 'Pro has lapsed — Telegram alerts, premium signals, and extra bots are off.'
-    : `Pro ${proState.source === 'trial' ? 'trial' : 'time'} ends in ${proState.daysLeft} day${proState.daysLeft === 1 ? '' : 's'}.`
+  const message = `Pro ${proState.source === 'trial' ? 'trial' : 'time'} ends in ${proState.daysLeft} day${proState.daysLeft === 1 ? '' : 's'}.`
 
   return (
     <>
-      <div
-        className={cn(
-          'flex items-center gap-3 px-3 md:px-4 py-1.5 border-b text-xs',
-          tone === 'short'
-            ? 'bg-short/15 border-short/40 text-short'
-            : 'bg-accent-dim/40 border-accent/40 text-accent',
-        )}
-      >
-        {lapsed ? <Sparkles className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
+      <div className={cn('flex items-center gap-3 px-3 md:px-4 py-1.5 border-b text-xs bg-accent-dim/40 border-accent/40 text-accent')}>
+        <Clock className="w-3.5 h-3.5 shrink-0" />
         <span className="flex-1 leading-tight">{message}</span>
         <button
           onClick={() => setUpgradeOpen(true)}
           className="px-2 py-0.5 rounded font-semibold uppercase tracking-[0.14em] text-[10px] bg-accent text-surface hover:opacity-90 transition-opacity cursor-pointer"
         >
-          {lapsed ? 'Reactivate' : 'Top up'}
+          Top up
         </button>
         <button
           onClick={() => { markDismissed(); setDismissedAt(Date.now()) }}
