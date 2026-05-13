@@ -22,7 +22,7 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff, ExternalLink, Lock, Sparkles } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff, ExternalLink, Lock, Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { ensureAudio, playSignalTone } from '../lib/signalSound'
 import { venueTradeLink } from '../lib/venueLinks'
 import { apiAvailable } from '../api/client'
@@ -30,6 +30,7 @@ import { useEntitlementStore } from '../store/entitlementStore'
 import { deriveProState, isProSource } from '../lib/pro'
 import { UpgradeModal } from './UpgradeModal'
 import { Tooltip } from './ui/Tooltip'
+import { explainSignal } from '../api/ai'
 
 // Per-source teasers shown on hover over a locked signal card.
 // Specific enough to make the upgrade feel concrete, vague enough to
@@ -286,8 +287,10 @@ export function SignalsPanel() {
               now={now}
               isPinned={pinned.has(s.id)}
               locked={isLocked(s.source)}
+              isPro={!proGateActive}
               onClick={() => handleClick(s)}
               onLockedClick={() => setUpgradeOpen(true)}
+              onExplainGated={() => setUpgradeOpen(true)}
               onDismiss={() => dismiss(s.id)}
               onTogglePin={() => togglePin(s.id)}
             />
@@ -399,14 +402,16 @@ function formatAge(ms: number): string {
 }
 
 function SignalCard({
-  signal, now, isPinned, locked, onClick, onLockedClick, onDismiss, onTogglePin,
+  signal, now, isPinned, locked, isPro, onClick, onLockedClick, onExplainGated, onDismiss, onTogglePin,
 }: {
   signal: Signal
   now: number
   isPinned: boolean
   locked: boolean
+  isPro: boolean
   onClick: () => void
   onLockedClick: () => void
+  onExplainGated: () => void
   onDismiss: () => void
   onTogglePin: () => void
 }) {
@@ -415,6 +420,32 @@ function SignalCard({
   const Arrow = isLong ? TrendingUp : TrendingDown
   const dirColor = isLong ? 'text-long' : 'text-short'
   const dirBg = isLong ? 'bg-long/10' : 'bg-short/10'
+  const [explainState, setExplainState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'ok'; explanation: string; risk: string }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' })
+
+  const handleExplain = async (ev: React.MouseEvent) => {
+    ev.stopPropagation()
+    if (!isPro) { onExplainGated(); return }
+    if (explainState.kind === 'loading') return
+    setExplainState({ kind: 'loading' })
+    try {
+      const res = await explainSignal({
+        source: signal.source,
+        market_id: signal.marketId,
+        direction: signal.direction,
+        confidence: signal.confidence,
+        title: signal.title,
+        detail: signal.detail ?? '',
+      })
+      setExplainState({ kind: 'ok', explanation: res.explanation, risk: res.risk })
+    } catch (e) {
+      setExplainState({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
+    }
+  }
   const isConfluence = signal.source === 'confluence'
   const ageMs = Math.max(0, now - signal.triggeredAt)
   const isNew = ageMs < 60_000
@@ -442,6 +473,21 @@ function SignalCard({
       )}
     >
       <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
+        <button
+          onClick={handleExplain}
+          title={isPro ? 'Explain this signal with AI' : 'Pro: AI explainer — upgrade to enable'}
+          aria-label="Explain signal"
+          className={cn(
+            'flex items-center justify-center w-5 h-5 rounded transition-opacity cursor-pointer',
+            explainState.kind === 'ok'
+              ? 'text-accent opacity-100'
+              : 'text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-accent hover:bg-surface',
+          )}
+        >
+          {explainState.kind === 'loading'
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <Sparkles className="w-3 h-3" />}
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); onTogglePin() }}
           title={isPinned ? 'Unpin' : 'Pin to top'}
@@ -518,6 +564,23 @@ function SignalCard({
               </a>
             )
           })()}
+          {explainState.kind === 'ok' && (
+            <div className="mt-2 rounded-md border border-accent/30 bg-accent-dim/20 px-2.5 py-2 space-y-1.5 text-[11px] leading-snug">
+              <div className="flex items-start gap-1.5">
+                <Sparkles className="w-3 h-3 text-accent shrink-0 mt-0.5" />
+                <span className="text-text-primary">{explainState.explanation}</span>
+              </div>
+              <div className="flex items-start gap-1.5 text-text-secondary">
+                <AlertCircle className="w-3 h-3 text-short shrink-0 mt-0.5" />
+                <span><span className="text-short font-semibold">Risk:</span> {explainState.risk}</span>
+              </div>
+            </div>
+          )}
+          {explainState.kind === 'error' && (
+            <div className="mt-2 text-[11px] text-short">
+              Explainer failed: {explainState.message}
+            </div>
+          )}
         </div>
       </div>
     </div>

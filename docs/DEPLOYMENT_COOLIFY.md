@@ -144,6 +144,13 @@ PB_ENCRYPTION_KEY=<paste 32 random chars here>
 # tradingdek.com → api.tradingdek.com with "CORS preflight failed".
 CORS_ORIGIN=https://tradingdek.com
 
+# Optional: AI signal explainer (Pro feature). Get an API key from
+# https://console.anthropic.com. Leaving these empty disables the
+# explainer endpoint; nothing else breaks. Default model is
+# claude-haiku-4-5 (~$0.001/call). Rate-limited to 30 calls/user/hour.
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=
+
 # ─── SPA build-time vars ──────────────────────────────────────────────
 # Baked into the bundle by the SPA Dockerfile. Empty = feature off.
 VITE_API_BASE=https://api.tradingdek.com

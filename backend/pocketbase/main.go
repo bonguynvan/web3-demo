@@ -77,6 +77,10 @@ func main() {
 		e.Router.POST("/api/proof/contribute", proofContributeHandler(app))
 		e.Router.GET("/api/proof/aggregate", proofAggregateHandler(app))
 
+		// AI signal explainer — Pro-gated Claude call. Rate-limited
+		// in-memory at 30 calls/user/hour.
+		e.Router.POST("/api/ai/explain", aiExplainHandler(app))
+
 		return e.Next()
 	})
 

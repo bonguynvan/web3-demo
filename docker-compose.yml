@@ -51,6 +51,10 @@ services:
       PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
       PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # AI signal explainer (Pro feature). Leave empty to disable
+      # the feature entirely — the endpoint returns 503.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
     volumes:
       - pb_data:/pb_data
     expose:
