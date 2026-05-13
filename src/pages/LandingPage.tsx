@@ -58,6 +58,9 @@ export function LandingPage() {
           <a href="/learn" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
             Learn
           </a>
+          <a href="/pricing" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
+            Pricing
+          </a>
           <a href="#features" className="hidden md:inline text-sm text-text-secondary hover:text-text-primary transition-colors">
             Features
           </a>

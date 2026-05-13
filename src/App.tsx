@@ -30,6 +30,7 @@ const AuthorProfilePage = lazy(() => import('./pages/AuthorProfilePage').then(m 
 const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m.LegalPage })))
 const LearnPage = lazy(() => import('./pages/LearnPage').then(m => ({ default: m.LearnPage })))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
+const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })))
 
 function RouteFallback() {
   // Layout-aware shimmer: a thin top bar + offset content blocks so the
@@ -71,6 +72,7 @@ function App() {
             <Route path="/legal" element={<Navigate to="/legal/disclaimer" replace />} />
             <Route path="/legal/:doc" element={<LegalPage />} />
             <Route path="/learn" element={<LearnPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route element={<AppShell />}>
               <Route path="/trade" element={<TradePage />} />
               <Route path="/portfolio" element={<PortfolioPage />} />

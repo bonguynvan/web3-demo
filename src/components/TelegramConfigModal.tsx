@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { X, Send, Check, AlertCircle } from 'lucide-react'
+import { X, Send, Check, AlertCircle, Lock, Sparkles } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import {
   loadTelegramConfig,
@@ -15,6 +15,11 @@ import {
   sendTelegramMessage,
 } from '../lib/telegram'
 import { cn } from '../lib/format'
+import { apiAvailable } from '../api/client'
+import { useAuthStore } from '../store/authStore'
+import { useEntitlementStore } from '../store/entitlementStore'
+import { deriveProState } from '../lib/pro'
+import { UpgradeModal } from './UpgradeModal'
 
 interface Props {
   open: boolean
@@ -32,6 +37,17 @@ export function TelegramConfigModal({ open, onClose }: Props) {
   const [chatId, setChatId] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [testState, setTestState] = useState<TestState>({ kind: 'idle' })
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+
+  // Pro gate: when the backend is configured, Telegram alerts require an
+  // active Pro entitlement. In offline/dev mode (VITE_API_BASE unset) the
+  // modal stays fully open — local-only product remains unrestricted.
+  const authed = useAuthStore(s => !!s.token)
+  const me = useEntitlementStore(s => s.data)
+  const proState = deriveProState(me)
+  const gateActive = apiAvailable()
+  const isPro = proState.active
+  const locked = gateActive && !isPro
 
   useEffect(() => {
     if (!open) return
@@ -67,6 +83,29 @@ export function TelegramConfigModal({ open, onClose }: Props) {
   return (
     <Modal open={open} onClose={onClose} title="Telegram alerts">
       <div className="p-4 space-y-4">
+        {locked && (
+          <div className="rounded-md border border-accent/40 bg-accent-dim/40 px-3 py-3 flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="text-xs font-semibold text-text-primary mb-0.5">
+                {authed ? 'Telegram alerts are a Pro feature' : 'Sign in + Pro required'}
+              </div>
+              <div className="text-[11px] text-text-secondary leading-relaxed">
+                {authed
+                  ? 'Configure freely below, but signals only deliver while your Pro entitlement is active.'
+                  : 'Sign in with your wallet, then upgrade. You can still enter values below to test.'}
+              </div>
+              <button
+                onClick={() => setUpgradeOpen(true)}
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent hover:underline cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3" />
+                {authed ? 'See plans' : 'See plans'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-surface/60 rounded-md p-3 text-xs text-text-secondary leading-relaxed">
           <div className="font-medium text-text-primary mb-1.5">Quick setup</div>
           <ol className="space-y-1 list-decimal list-inside">
@@ -99,16 +138,27 @@ export function TelegramConfigModal({ open, onClose }: Props) {
           />
         </Field>
 
-        <label className="flex items-center justify-between bg-surface/60 rounded-md px-3 py-2.5 cursor-pointer">
+        <label
+          className={cn(
+            'flex items-center justify-between rounded-md px-3 py-2.5',
+            locked
+              ? 'bg-surface/40 cursor-not-allowed'
+              : 'bg-surface/60 cursor-pointer',
+          )}
+          title={locked ? 'Upgrade to Pro to enable Telegram delivery' : undefined}
+        >
           <div>
             <div className="text-xs font-medium text-text-primary">Enable Telegram alerts</div>
-            <div className="text-[10px] text-text-muted mt-0.5">Send signals at ≥60% confidence</div>
+            <div className="text-[10px] text-text-muted mt-0.5">
+              {locked ? 'Pro required to deliver signals to Telegram' : 'Send signals at ≥60% confidence'}
+            </div>
           </div>
           <input
             type="checkbox"
-            checked={enabled}
+            checked={enabled && !locked}
+            disabled={locked}
             onChange={e => setEnabled(e.target.checked)}
-            className="w-4 h-4 accent-accent cursor-pointer"
+            className="w-4 h-4 accent-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           />
         </label>
 
@@ -156,6 +206,7 @@ export function TelegramConfigModal({ open, onClose }: Props) {
           </button>
         </div>
       </div>
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </Modal>
   )
 }

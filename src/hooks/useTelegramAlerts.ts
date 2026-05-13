@@ -21,6 +21,9 @@ import {
   type TelegramConfig,
 } from '../lib/telegram'
 import type { Signal } from '../signals/types'
+import { apiAvailable } from '../api/client'
+import { useEntitlementStore } from '../store/entitlementStore'
+import { deriveProState } from '../lib/pro'
 
 const MIN_CONFIDENCE = 0.6
 
@@ -28,6 +31,11 @@ export function useTelegramAlerts(): void {
   const signals = useSignals()
   const sentRef = useRef<Set<string>>(new Set())
   const configRef = useRef<TelegramConfig>(loadTelegramConfig())
+  // Pro gate — Telegram delivery is paid when a backend is configured.
+  // Offline/dev mode (VITE_API_BASE unset) bypasses the gate.
+  const me = useEntitlementStore(s => s.data)
+  const gateActive = apiAvailable()
+  const isPro = deriveProState(me).active
 
   // Keep the config ref fresh on toggle/save.
   useEffect(() => {
@@ -43,6 +51,7 @@ export function useTelegramAlerts(): void {
   useEffect(() => {
     const cfg = configRef.current
     if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return
+    if (gateActive && !isPro) return
 
     for (const s of signals) {
       if (s.confidence < MIN_CONFIDENCE) continue
@@ -60,7 +69,7 @@ export function useTelegramAlerts(): void {
       const liveIds = new Set(signals.map(s => s.id))
       sentRef.current = new Set(Array.from(sentRef.current).filter(id => liveIds.has(id)))
     }
-  }, [signals])
+  }, [signals, gateActive, isPro])
 }
 
 function formatSignal(s: Signal): string {
