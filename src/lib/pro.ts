@@ -8,6 +8,24 @@
  */
 
 import type { Me } from '../api/auth'
+import type { SignalSource } from '../signals/types'
+
+/**
+ * Signal sources that require an active Pro entitlement to read in
+ * detail. The signal still fires + posts to the in-app bell so paper
+ * bots configured against them continue working; the UI just renders
+ * them as locked teasers for free users. This is the "shadow mode"
+ * Pro upsell — users SEE what they're missing every day, without
+ * being nagged.
+ */
+export const PRO_SOURCES: ReadonlySet<SignalSource> = new Set([
+  'whale',  // wallet-flow data, hardest to replicate
+  'news',   // CryptoPanic-backed sentiment feed
+])
+
+export function isProSource(s: SignalSource): boolean {
+  return PRO_SOURCES.has(s)
+}
 
 export type ProSource = 'trial' | 'days' | 'paygo' | 'none'
 

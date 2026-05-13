@@ -22,9 +22,13 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { SignalSourcesModal } from './SignalSourcesModal'
 import { cn } from '../lib/format'
 import type { Signal } from '../signals/types'
-import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff, ExternalLink } from 'lucide-react'
+import { TrendingUp, TrendingDown, Zap, Bell, BellOff, Send, SlidersHorizontal, X, Volume2, VolumeX, Pin, PinOff, ExternalLink, Lock, Sparkles } from 'lucide-react'
 import { ensureAudio, playSignalTone } from '../lib/signalSound'
 import { venueTradeLink } from '../lib/venueLinks'
+import { apiAvailable } from '../api/client'
+import { useEntitlementStore } from '../store/entitlementStore'
+import { deriveProState, isProSource } from '../lib/pro'
+import { UpgradeModal } from './UpgradeModal'
 
 // Dismissals are session-scoped — refreshing the page clears them so
 // genuinely new fires of the same id can resurface. Stored in a Set
@@ -76,6 +80,15 @@ export function SignalsPanel() {
   const [alertsEnabled, setAlertsEnabled] = useState(() => getSignalAlertsEnabled())
   const [telegramOpen, setTelegramOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+
+  // Shadow-mode Pro gate: when the backend is configured AND the user
+  // is not Pro, signals from whale/news sources render locked instead
+  // of revealing detail/direction. The gate is invisible in dev mode.
+  const me = useEntitlementStore(s => s.data)
+  const proGateActive = apiAvailable() && !deriveProState(me).active
+  const isLocked = (src: import('../signals/types').SignalSource) =>
+    proGateActive && isProSource(src)
   const [now, setNow] = useState(() => Date.now())
   const [, forceRender] = useState(0)
   useEffect(() => {
@@ -262,7 +275,9 @@ export function SignalsPanel() {
               signal={s}
               now={now}
               isPinned={pinned.has(s.id)}
+              locked={isLocked(s.source)}
               onClick={() => handleClick(s)}
+              onLockedClick={() => setUpgradeOpen(true)}
               onDismiss={() => dismiss(s.id)}
               onTogglePin={() => togglePin(s.id)}
             />
@@ -271,6 +286,7 @@ export function SignalsPanel() {
       )}
 
       <SourceStatsStrip soloSource={soloSource} onSolo={updateSolo} />
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   )
 }
@@ -373,15 +389,18 @@ function formatAge(ms: number): string {
 }
 
 function SignalCard({
-  signal, now, isPinned, onClick, onDismiss, onTogglePin,
+  signal, now, isPinned, locked, onClick, onLockedClick, onDismiss, onTogglePin,
 }: {
   signal: Signal
   now: number
   isPinned: boolean
+  locked: boolean
   onClick: () => void
+  onLockedClick: () => void
   onDismiss: () => void
   onTogglePin: () => void
 }) {
+  if (locked) return <LockedSignalCard signal={signal} now={now} onClick={onLockedClick} />
   const isLong = signal.direction === 'long'
   const Arrow = isLong ? TrendingUp : TrendingDown
   const dirColor = isLong ? 'text-long' : 'text-short'
@@ -492,5 +511,56 @@ function SignalCard({
         </div>
       </div>
     </div>
+  )
+}
+
+// Shadow-mode card for premium-source signals when the user isn't Pro.
+// We deliberately show the market, source, and age so the user can SEE
+// signals are firing in real time — only the actionable parts
+// (direction + detail + confidence) are obscured. Click opens the
+// upgrade modal in the parent panel.
+function LockedSignalCard({
+  signal, now, onClick,
+}: {
+  signal: Signal
+  now: number
+  onClick: () => void
+}) {
+  const ageMs = Math.max(0, now - signal.triggeredAt)
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer group"
+    >
+      <div className="flex items-start gap-2">
+        <div className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center bg-accent-dim text-accent group-hover:bg-accent group-hover:text-surface transition-colors">
+          <Lock className="w-3.5 h-3.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-xs font-semibold text-text-primary">
+              Pro signal
+            </span>
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-text-muted">
+              {signal.source}
+            </span>
+            <span className="ml-auto inline-flex items-center gap-0.5 text-[9px] font-mono uppercase tracking-[0.14em] text-accent">
+              <Sparkles className="w-2.5 h-2.5" />
+              Unlock
+            </span>
+          </div>
+          <div className="text-[11px] text-text-muted leading-snug select-none filter blur-[3px]">
+            {signal.detail || 'Signal detail hidden — upgrade to see direction, target, and confidence.'}
+          </div>
+          <div className="flex items-center gap-3 mt-1.5 text-[10px] text-text-muted">
+            <span className="font-mono">{signal.marketId}</span>
+            <span>·</span>
+            <span>conf <span className="filter blur-[2px]">**%</span></span>
+            <span>·</span>
+            <span className="tabular-nums">{formatAge(ageMs)}</span>
+          </div>
+        </div>
+      </div>
+    </button>
   )
 }
