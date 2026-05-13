@@ -115,9 +115,16 @@ scripts/
 └── check-bundle-size.mjs  Post-build budget enforcement (CI + local)
 
 docs/
-├── DEPLOYMENT.md           Step-by-step deploy guide (Vercel, Netlify, CF Pages)
+├── DEPLOYMENT.md             Step-by-step deploy guide (Vercel, Netlify, CF Pages)
+├── DEPLOYMENT_COOLIFY.md     Point-and-click Coolify-on-Hetzner deploy (recommended)
+├── DEPLOYMENT_BACKEND.md     Bare `docker compose` + Caddy path
 └── BACKEND_MIGRATION_PLAN.md  When/why/how to add a server later
 ```
+
+> **Deploying for the first time?** Read `docs/DEPLOYMENT_COOLIFY.md` —
+> it walks you through a complete one-domain, one-VPS, two-container
+> deploy via the Coolify web UI with no terminal beyond a single
+> installer command.
 
 ### Scripts
 

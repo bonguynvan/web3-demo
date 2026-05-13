@@ -139,6 +139,11 @@ PB_ADMIN_EMAIL=you@example.com
 PB_ADMIN_PASSWORD=<paste a long random string here>
 PB_ENCRYPTION_KEY=<paste 32 random chars here>
 
+# REQUIRED in production: allowed SPA origin for cross-origin auth.
+# Without this, the browser will block sign-in calls from
+# tradingdek.com → api.tradingdek.com with "CORS preflight failed".
+CORS_ORIGIN=https://tradingdek.com
+
 # ─── SPA build-time vars ──────────────────────────────────────────────
 # Baked into the bundle by the SPA Dockerfile. Empty = feature off.
 VITE_API_BASE=https://api.tradingdek.com

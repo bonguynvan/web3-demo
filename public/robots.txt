@@ -6,6 +6,8 @@ User-agent: *
 Allow: /
 Allow: /proof
 Allow: /library
+Allow: /learn
+Allow: /pricing
 Allow: /author/
 Allow: /legal/
 

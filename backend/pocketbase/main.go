@@ -19,16 +19,49 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"os"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/cron"
 )
 
+// corsOrigin returns the SPA origin that's allowed to cross-origin call
+// this backend. Production sets it to https://tradingdek.com; dev
+// leaves it empty and we fall back to "*" so localhost works.
+func corsOrigin() string {
+	v := strings.TrimSpace(os.Getenv("CORS_ORIGIN"))
+	if v == "" {
+		return "*"
+	}
+	return v
+}
+
 func main() {
 	app := pocketbase.New()
 
+	origin := corsOrigin()
+
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		// Global CORS — stamps every response and short-circuits
+		// preflight OPTIONS requests so the browser doesn't reject
+		// cross-origin POSTs from the SPA. Without this, /api/siwe/*
+		// and /api/me silently fail in production with no console
+		// signal beyond "CORS preflight failed".
+		e.Router.BindFunc(func(re *core.RequestEvent) error {
+			re.Response.Header().Set("Access-Control-Allow-Origin", origin)
+			re.Response.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			re.Response.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+			re.Response.Header().Set("Access-Control-Max-Age", "86400")
+			if re.Request.Method == http.MethodOptions {
+				re.Response.WriteHeader(http.StatusNoContent)
+				return nil
+			}
+			return re.Next()
+		})
+
 		e.Router.GET("/api/siwe/nonce", siweNonceHandler(app))
 		e.Router.POST("/api/siwe/verify", siweVerifyHandler(app))
 		e.Router.POST("/api/webhooks/nowpay", nowpayWebhookHandler(app))

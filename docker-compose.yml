@@ -50,6 +50,7 @@ services:
       PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
       PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
       PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     volumes:
       - pb_data:/pb_data
     expose:
