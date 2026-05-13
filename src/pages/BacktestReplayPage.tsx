@@ -40,7 +40,7 @@ const SPEEDS = [1, 2, 5, 10, 20, 50] as const
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; candles: CandleData[]; result: BacktestResult }
+  | { kind: 'ready'; candles: CandleData[]; result: BacktestResult; compareResult?: BacktestResult }
 
 interface ReplayState {
   candleIdx: number
@@ -54,6 +54,10 @@ interface NavState {
   days: number
   result?: BacktestResult
   candles?: CandleData[]
+  /** Optional comparison bot. Runs in parallel over the same candle
+   *  window so users can shareable-link a side-by-side ("look how
+   *  Confluence Classic beats Funding Fade on March 12"). */
+  compareBot?: BotConfig
 }
 
 /**
@@ -68,11 +72,22 @@ function decodeShareState(search: string): NavState | null {
   try {
     const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<NavState>
     if (!parsed.bot || !parsed.marketId || !parsed.timeframe) return null
+
+    let compareBot: BotConfig | undefined
+    const cmpRaw = params.get('cmp')
+    if (cmpRaw) {
+      try {
+        const cmp = JSON.parse(decodeURIComponent(cmpRaw)) as { bot?: BotConfig }
+        if (cmp?.bot) compareBot = cmp.bot
+      } catch { /* ignore malformed cmp; primary bot still works */ }
+    }
+
     return {
       bot: parsed.bot as BotConfig,
       marketId: String(parsed.marketId),
       timeframe: parsed.timeframe as TimeFrame,
       days: typeof parsed.days === 'number' ? parsed.days : 30,
+      compareBot,
     }
   } catch { return null }
 }
@@ -132,7 +147,17 @@ export function BacktestReplayPage() {
                      ?? runBacktest(navState.bot, navState.marketId, candles)
         if (cancelled) return
 
-        setLoad({ kind: 'ready', candles, result })
+        // Optional second bot — runs on identical candles, no chart
+        // overlay (kept simple v1; the existing markers still belong
+        // to navState.bot). The compare result feeds a side-by-side
+        // stats panel below the HUD.
+        let compareResult: BacktestResult | undefined
+        if (navState.compareBot) {
+          compareResult = runBacktest(navState.compareBot, navState.marketId, candles)
+        }
+        if (cancelled) return
+
+        setLoad({ kind: 'ready', candles, result, compareResult })
       } catch (err) {
         if (cancelled) return
         setLoad({
@@ -385,6 +410,16 @@ export function BacktestReplayPage() {
                   </div>
                 </div>
               )}
+              {load.compareResult && navState.compareBot && (
+                <CompareSummary
+                  primaryName={navState.bot.name}
+                  primaryFinalPnL={load.result.trades.reduce((s, t) => s + (t.pnlUsd ?? 0), 0)}
+                  primaryClosed={load.result.trades.filter(t => t.pnlUsd !== undefined).length}
+                  comparisonName={navState.compareBot.name}
+                  comparisonFinalPnL={load.compareResult.trades.reduce((s, t) => s + (t.pnlUsd ?? 0), 0)}
+                  comparisonClosed={load.compareResult.trades.filter(t => t.pnlUsd !== undefined).length}
+                />
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -583,6 +618,72 @@ function computeRunningSummary(trades: BacktestTrade[], cur: number): RunningSum
 }
 
 /**
+ * CompareSummary — side-by-side stats for the optional second bot
+ * encoded into the URL via `&cmp=`. Renders the FINAL (full-window)
+ * realized PnL for both bots so the user can tweet "Confluence
+ * Classic (+$143) vs Funding Fade (-$22) on BTC, last 30 days".
+ *
+ * We deliberately show full-window totals (not playhead-bound) so
+ * the comparison is stable as the replay scrubs. The primary bot's
+ * playhead-bound stats already live in the HUD above.
+ */
+function CompareSummary({
+  primaryName, primaryFinalPnL, primaryClosed,
+  comparisonName, comparisonFinalPnL, comparisonClosed,
+}: {
+  primaryName: string
+  primaryFinalPnL: number
+  primaryClosed: number
+  comparisonName: string
+  comparisonFinalPnL: number
+  comparisonClosed: number
+}) {
+  const winner = primaryFinalPnL >= comparisonFinalPnL ? 'primary' : 'comparison'
+  return (
+    <div className="mt-3 px-2 py-2 rounded border border-accent/30 bg-accent-dim/10 text-[10px] leading-relaxed">
+      <div className="text-accent uppercase tracking-[0.16em] font-mono mb-1.5">
+        Compare · full window
+      </div>
+      <CompareRow
+        name={primaryName}
+        pnl={primaryFinalPnL}
+        closed={primaryClosed}
+        isWinner={winner === 'primary'}
+      />
+      <CompareRow
+        name={comparisonName}
+        pnl={comparisonFinalPnL}
+        closed={comparisonClosed}
+        isWinner={winner === 'comparison'}
+      />
+    </div>
+  )
+}
+
+function CompareRow({
+  name, pnl, closed, isWinner,
+}: {
+  name: string
+  pnl: number
+  closed: number
+  isWinner: boolean
+}) {
+  const tone = pnl >= 0 ? 'text-long' : 'text-short'
+  return (
+    <div className="flex items-center justify-between gap-2 py-0.5">
+      <span className={cn('flex-1 truncate', isWinner && 'font-semibold text-text-primary')}>
+        {isWinner && '▶ '}
+        {name}
+      </span>
+      <span className="text-text-muted font-mono">{closed}t</span>
+      <span className={cn('font-mono tabular-nums w-16 text-right', tone)}>
+        {pnl >= 0 ? '+' : ''}${formatUsd(pnl)}
+      </span>
+    </div>
+  )
+}
+
+/**
  * ShareReplayButton — copies a shareable URL of the current replay.
  * Encodes the slim NavState ({bot, marketId, timeframe, days}) into
  * the `?s=` query param. Recipient hits the same /replay route, the
@@ -597,13 +698,15 @@ function ShareReplayButton({ navState }: { navState: NavState }) {
       timeframe: navState.timeframe,
       days: navState.days,
     }
-    const url = `${window.location.origin}/replay?s=${encodeURIComponent(JSON.stringify(slim))}`
+    let url = `${window.location.origin}/replay?s=${encodeURIComponent(JSON.stringify(slim))}`
+    if (navState.compareBot) {
+      url += `&cmp=${encodeURIComponent(JSON.stringify({ bot: navState.compareBot }))}`
+    }
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {
-      // Fallback: select+show in prompt so the user can copy manually.
       window.prompt('Copy this URL:', url)
     }
   }
