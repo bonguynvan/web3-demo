@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Chart, type OHLCBar } from '@tradecanvas/chart'
 import {
-  Play, Pause, Square, ArrowLeft, ChevronsLeft,
+  Play, Pause, Square, ArrowLeft, ChevronsLeft, Share2, Check,
 } from 'lucide-react'
 import { Wordmark } from '../components/ui/Logo'
 import { getActiveAdapter } from '../adapters/registry'
@@ -56,10 +56,35 @@ interface NavState {
   candles?: CandleData[]
 }
 
+/**
+ * Decode `?s=<urlEncodedJSON>` into NavState. The encoded shape only
+ * carries {bot, marketId, timeframe, days} — `result` and `candles`
+ * are recomputed on the receiving end so links stay short.
+ */
+function decodeShareState(search: string): NavState | null {
+  const params = new URLSearchParams(search)
+  const raw = params.get('s')
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<NavState>
+    if (!parsed.bot || !parsed.marketId || !parsed.timeframe) return null
+    return {
+      bot: parsed.bot as BotConfig,
+      marketId: String(parsed.marketId),
+      timeframe: parsed.timeframe as TimeFrame,
+      days: typeof parsed.days === 'number' ? parsed.days : 30,
+    }
+  } catch { return null }
+}
+
 export function BacktestReplayPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const navState = location.state as NavState | null
+  // Prefer router-state (in-app handoff from BacktestModal); fall back
+  // to ?s=<encoded JSON> so links shared on Twitter rehydrate the
+  // replay from a cold tab.
+  const navState: NavState | null =
+    (location.state as NavState | null) ?? decodeShareState(location.search)
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -281,13 +306,16 @@ export function BacktestReplayPage() {
             Backtest replay
           </span>
         </div>
-        <Link
-          to="/bots"
-          className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          Back to bots
-        </Link>
+        <div className="flex items-center gap-3">
+          <ShareReplayButton navState={navState} />
+          <Link
+            to="/bots"
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            Back to bots
+          </Link>
+        </div>
       </header>
 
       <div className="border-b border-border bg-panel/40 px-4 py-2 flex items-center justify-between gap-4 flex-wrap shrink-0 text-xs">
@@ -552,4 +580,41 @@ function computeRunningSummary(trades: BacktestTrade[], cur: number): RunningSum
     }
   }
   return { realizedPnl, wins, losses, closed, openTrade }
+}
+
+/**
+ * ShareReplayButton — copies a shareable URL of the current replay.
+ * Encodes the slim NavState ({bot, marketId, timeframe, days}) into
+ * the `?s=` query param. Recipient hits the same /replay route, the
+ * page decodes the param and re-runs the backtest from scratch.
+ */
+function ShareReplayButton({ navState }: { navState: NavState }) {
+  const [copied, setCopied] = useState(false)
+  const handleClick = async () => {
+    const slim = {
+      bot: navState.bot,
+      marketId: navState.marketId,
+      timeframe: navState.timeframe,
+      days: navState.days,
+    }
+    const url = `${window.location.origin}/replay?s=${encodeURIComponent(JSON.stringify(slim))}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      // Fallback: select+show in prompt so the user can copy manually.
+      window.prompt('Copy this URL:', url)
+    }
+  }
+  return (
+    <button
+      onClick={handleClick}
+      title="Copy a shareable URL of this replay"
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-panel-light transition-colors cursor-pointer"
+    >
+      {copied ? <Check className="w-3 h-3 text-long" /> : <Share2 className="w-3 h-3" />}
+      {copied ? 'Copied' : 'Share replay'}
+    </button>
+  )
 }

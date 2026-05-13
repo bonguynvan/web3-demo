@@ -17,6 +17,7 @@ import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
+import { OnboardingWizard } from './OnboardingWizard'
 import { FeedbackWidget } from './FeedbackWidget'
 import { PWAInstallPrompt } from './PWAInstallPrompt'
 import { MarketPalette } from './MarketPalette'
@@ -37,6 +38,7 @@ import { usePriceAlertWatcher } from '../hooks/usePriceAlertWatcher'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEntitlement } from '../hooks/useEntitlement'
 import { useProofContribute } from '../hooks/useProofContribute'
+import { useProfitableBotDetector } from '../hooks/useProfitableBotDetector'
 import { useTradingStore } from '../store/tradingStore'
 
 export function AppShell() {
@@ -61,6 +63,7 @@ export function AppShell() {
   useDocumentTitle()
   useEntitlement()
   useProofContribute()
+  useProfitableBotDetector()
 
   return (
     <div className="flex h-screen bg-surface">
@@ -95,6 +98,7 @@ export function AppShell() {
 
         <ToastContainer />
         <OnboardingCard />
+        <OnboardingWizard />
         <FeedbackWidget />
         <PWAInstallPrompt />
         <MarketPalette />
