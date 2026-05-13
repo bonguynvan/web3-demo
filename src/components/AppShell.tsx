@@ -36,6 +36,7 @@ import { useLiquidationAlerts } from '../hooks/useLiquidationAlerts'
 import { usePriceAlertWatcher } from '../hooks/usePriceAlertWatcher'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEntitlement } from '../hooks/useEntitlement'
+import { useProofContribute } from '../hooks/useProofContribute'
 import { useTradingStore } from '../store/tradingStore'
 
 export function AppShell() {
@@ -59,6 +60,7 @@ export function AppShell() {
   usePriceAlertWatcher()
   useDocumentTitle()
   useEntitlement()
+  useProofContribute()
 
   return (
     <div className="flex h-screen bg-surface">

@@ -6,9 +6,12 @@
  * asks "does this actually work?". Read-only by design.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Check, Copy, ExternalLink, ShieldCheck, Users, User as UserIcon, Lock } from 'lucide-react'
+import { ArrowLeft, Check, Copy, ExternalLink, ShieldCheck, Users, User as UserIcon, Lock, Loader2 } from 'lucide-react'
+import { apiAvailable } from '../api/client'
+import { fetchProofAggregate, type ProofAggregate } from '../api/proof'
+import { useProofContributeStore } from '../store/proofContributeStore'
 import { Wordmark } from '../components/ui/Logo'
 import { useSignalPerformanceStore, type ResolvedEntry } from '../store/signalPerformanceStore'
 import type { SignalSource } from '../signals/types'
@@ -120,7 +123,7 @@ export function ProofPage() {
         </section>
 
         {view === 'community' ? (
-          <ComingSoonCommunity />
+          <CommunityProof />
         ) : (
           <>
         <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -259,45 +262,148 @@ function TabButton({
   )
 }
 
-function ComingSoonCommunity() {
+/**
+ * CommunityProof — live aggregate from /api/proof/aggregate plus the
+ * opt-in toggle that controls whether this device contributes its own
+ * resolved rows. When the backend isn't configured the panel falls
+ * back to a "self-hosted only" explainer so local-dev still renders.
+ */
+function CommunityProof() {
+  const enabled = useProofContributeStore(s => s.enabled)
+  const setEnabled = useProofContributeStore(s => s.setEnabled)
+  const lastUploadedAt = useProofContributeStore(s => s.lastUploadedAt)
+  const [agg, setAgg] = useState<ProofAggregate | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!apiAvailable()) { setLoading(false); return }
+    const ctrl = new AbortController()
+    setLoading(true)
+    fetchProofAggregate(ctrl.signal)
+      .then(setAgg)
+      .catch(e => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+    return () => ctrl.abort()
+  }, [])
+
+  if (!apiAvailable()) {
+    return (
+      <section className="rounded-lg border border-dashed border-border bg-panel/30 px-6 py-10 text-center space-y-3">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-surface text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
+          <Lock className="w-3 h-3" />
+          Self-hosted only
+        </div>
+        <p className="text-sm text-text-secondary max-w-xl mx-auto leading-relaxed">
+          Community aggregate needs a backend (VITE_API_BASE). Your local
+          ledger above is still authoritative.
+        </p>
+      </section>
+    )
+  }
+
+  const totalRows = agg?.by_source.reduce((s, r) => s + r.total, 0) ?? 0
+  const totalHits = agg?.by_source.reduce((s, r) => s + r.hits, 0) ?? 0
+  const overall = totalRows > 0 ? totalHits / totalRows : 0
+
   return (
-    <section className="rounded-lg border border-dashed border-border bg-panel/30 px-6 py-10 text-center space-y-4">
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-surface text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
-        <Lock className="w-3 h-3" />
-        Aggregate proof — coming soon
-      </div>
-      <h2 className="text-xl md:text-2xl font-semibold text-text-primary max-w-xl mx-auto leading-snug">
-        We're building a community-wide hit rate that anyone can verify.
-      </h2>
-      <p className="text-sm text-text-secondary leading-relaxed max-w-2xl mx-auto">
-        Every TradingDek user currently resolves signals in their own browser, which is
-        why the page above shows <em>your</em> ledger only. The next milestone is an
-        <strong className="text-text-primary"> opt-in </strong> aggregate that uploads
-        the same anonymised <code className="text-text-primary text-[11px]">{`{source, marketId, hit}`}</code>
-        rows so the network-wide hit rate becomes shareable without anyone seeing your
-        positions, balances, or PnL.
+    <div className="space-y-6">
+      <section className="rounded-lg border border-border bg-panel/40 p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-text-primary">Community-wide hit rate</div>
+            <div className="text-[11px] text-text-muted mt-0.5 leading-relaxed max-w-md">
+              Aggregate of resolved signals contributed by opted-in users over the
+              last {agg?.window_days ?? 30} days. Anonymous — only{' '}
+              <code className="text-text-primary">{`{source, marketId, hit}`}</code>{' '}
+              rows tied to a device id. No positions, balances, or PnL.
+            </div>
+          </div>
+          <ContributeToggle enabled={enabled} onChange={setEnabled} lastUploadedAt={lastUploadedAt} />
+        </div>
+      </section>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-text-muted">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : err ? (
+        <div className="rounded-lg border border-short/40 bg-short/10 text-short text-sm px-4 py-3">
+          Failed to load aggregate: {err}
+        </div>
+      ) : totalRows < 25 ? (
+        <EmptyHint>
+          Aggregate is still warming up — only {totalRows} resolved rows from{' '}
+          {agg?.contributors ?? 0} contributors so far. We hide the readout
+          until 25+ rows so a single contributor can't skew the picture.
+        </EmptyHint>
+      ) : (
+        <>
+          <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Stat label="Resolved" value={totalRows.toLocaleString()} />
+            <Stat
+              label="Overall hit rate"
+              value={`${(overall * 100).toFixed(0)}%`}
+              tone={overall >= 0.5 ? 'long' : 'short'}
+            />
+            <Stat label="Contributors" value={String(agg?.contributors ?? 0)} />
+            <Stat label="Window" value={`${agg?.window_days ?? 30} days`} />
+          </section>
+
+          <section>
+            <SectionHeader title="By source" />
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table
+                cols={['Source', 'Resolved', 'Hits', 'Hit rate']}
+                rightAlignFrom={1}
+                rows={agg!.by_source
+                  .slice()
+                  .sort((a, b) => b.total - a.total)
+                  .map(r => [
+                    SOURCE_LABELS[r.source as keyof typeof SOURCE_LABELS] ?? r.source,
+                    r.total.toLocaleString(),
+                    r.hits.toLocaleString(),
+                    <HitRateCell key={r.source} hitRate={r.hit_rate} qualified={r.total >= 3} />,
+                  ])}
+              />
+            </div>
+          </section>
+        </>
+      )}
+
+      <p className="text-[10px] text-text-muted leading-relaxed border-t border-border pt-3">
+        Contributed data is client-reported and opt-in.{' '}
+        <Link to="/legal/privacy" className="text-accent hover:underline">
+          Privacy policy
+        </Link>.
       </p>
-      <p className="text-[11px] text-text-muted leading-relaxed max-w-xl mx-auto">
-        No backend exists yet. When it ships, opting in will be a single switch in
-        Settings, and the contributed rows will be public, falsifiable, and tied to an
-        anonymous device id — never to a wallet or email.
-      </p>
-      <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-        <button
-          disabled
-          aria-disabled="true"
-          className="px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-[0.14em] bg-surface border border-border text-text-muted cursor-not-allowed"
-        >
-          Opt in (not yet available)
-        </button>
-        <Link
-          to="/legal/privacy"
-          className="text-[11px] font-mono uppercase tracking-[0.14em] text-accent hover:underline"
-        >
-          Privacy policy →
-        </Link>
+    </div>
+  )
+}
+
+function ContributeToggle({
+  enabled, onChange, lastUploadedAt,
+}: {
+  enabled: boolean
+  onChange: (v: boolean) => void
+  lastUploadedAt: number
+}) {
+  const lastLabel = lastUploadedAt > 0
+    ? `last upload ${new Date(lastUploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`
+    : 'no uploads yet'
+  return (
+    <label className="flex items-start gap-2.5 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={e => onChange(e.target.checked)}
+        className="w-4 h-4 accent-accent cursor-pointer mt-0.5"
+      />
+      <div>
+        <div className="text-xs font-semibold text-text-primary">Contribute my resolved signals</div>
+        <div className="text-[10px] text-text-muted mt-0.5">{enabled ? lastLabel : 'opt-in, anonymous, reversible'}</div>
       </div>
-    </section>
+    </label>
   )
 }
 

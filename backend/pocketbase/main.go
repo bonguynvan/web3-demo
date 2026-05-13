@@ -72,6 +72,11 @@ func main() {
 		e.Router.GET("/api/proxy/binance/{path...}", binanceProxyHandler(app))
 		e.Router.OPTIONS("/api/proxy/binance/{path...}", binanceProxyHandler(app))
 
+		// Community proof — opt-in aggregate. contribute is anonymous
+		// (deviceId only); aggregate is fully public + cacheable.
+		e.Router.POST("/api/proof/contribute", proofContributeHandler(app))
+		e.Router.GET("/api/proof/aggregate", proofAggregateHandler(app))
+
 		return e.Next()
 	})
 
