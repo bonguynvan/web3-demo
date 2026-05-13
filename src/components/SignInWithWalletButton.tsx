@@ -19,6 +19,7 @@ import { LogIn, LogOut, Loader2 } from 'lucide-react'
 import { apiAvailable } from '../api/client'
 import { requestNonce, verifySignature, buildSiweMessage } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
+import { useReferralStore } from '../store/referralStore'
 import { cn } from '../lib/format'
 
 export function SignInWithWalletButton({ className }: { className?: string }) {
@@ -28,6 +29,8 @@ export function SignInWithWalletButton({ className }: { className?: string }) {
   const user = useAuthStore(s => s.user)
   const setSession = useAuthStore(s => s.setSession)
   const signOut = useAuthStore(s => s.signOut)
+  const referrer = useReferralStore(s => s.ref?.by)
+  const clearReferrer = useReferralStore(s => s.clear)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -41,8 +44,10 @@ export function SignInWithWalletButton({ className }: { className?: string }) {
       const { nonce } = await requestNonce(address)
       const message = buildSiweMessage(address, nonce)
       const signature = await signMessageAsync({ message })
-      const out = await verifySignature({ address, message, signature })
+      const out = await verifySignature({ address, message, signature, referrer })
       setSession(out.token, out.user)
+      // Referral fulfilled — clear so a future sign-out + sign-in doesn't replay it.
+      if (referrer) clearReferrer()
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {

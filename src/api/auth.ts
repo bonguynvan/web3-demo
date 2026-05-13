@@ -35,6 +35,8 @@ export async function verifySignature(input: {
   address: string
   message: string
   signature: string
+  /** Optional referrer userId — backend may grant trial extension. */
+  referrer?: string
 }): Promise<VerifyResponse> {
   return api<VerifyResponse>('/api/siwe/verify', { body: input, auth: false })
 }

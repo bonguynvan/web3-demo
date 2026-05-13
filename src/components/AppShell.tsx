@@ -11,11 +11,13 @@ import { Web3Header } from './Web3Header'
 import { AccountBar } from './AccountBar'
 import { VaultLockBanner } from './VaultLockBanner'
 import { LiveStatusBanner } from './LiveStatusBanner'
+import { EntitlementBanner } from './EntitlementBanner'
 import { Sidebar } from './Sidebar'
 import { MobileBottomNav } from './MobileBottomNav'
 import { ToastContainer } from './ToastContainer'
 import { OnboardingCard } from './OnboardingCard'
 import { FeedbackWidget } from './FeedbackWidget'
+import { PWAInstallPrompt } from './PWAInstallPrompt'
 import { MarketPalette } from './MarketPalette'
 import { HotkeysModal } from './HotkeysModal'
 import { GlobalPlaceOrder } from './GlobalPlaceOrder'
@@ -77,6 +79,7 @@ export function AppShell() {
         <AccountBar />
         <VaultLockBanner />
         <LiveStatusBanner />
+        <EntitlementBanner />
 
         {/* Page content */}
         <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 focus:outline-none">
@@ -89,6 +92,7 @@ export function AppShell() {
         <ToastContainer />
         <OnboardingCard />
         <FeedbackWidget />
+        <PWAInstallPrompt />
         <MarketPalette />
         <HotkeysModal />
         <GlobalPlaceOrder />

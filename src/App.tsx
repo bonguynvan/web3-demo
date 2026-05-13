@@ -16,6 +16,7 @@ import { AppShell } from './components/AppShell'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ScrollToTop } from './components/ScrollToTop'
 import { LandingPage } from './pages/LandingPage'
+import { useReferralCapture } from './hooks/useReferralCapture'
 
 // Lazy-loaded routes — heavy pages (chart, replay, marketplace, profile)
 // don't need to ship in the initial bundle.
@@ -63,6 +64,7 @@ function App() {
     <ErrorBoundary name="App">
       <BrowserRouter>
         <ScrollToTop />
+        <ReferralCapture />
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -86,6 +88,12 @@ function App() {
       </BrowserRouter>
     </ErrorBoundary>
   )
+}
+
+// Tiny wrapper so the capture hook gets a Router context to read from.
+function ReferralCapture() {
+  useReferralCapture()
+  return null
 }
 
 export default App
