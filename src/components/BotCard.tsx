@@ -12,7 +12,8 @@
  */
 
 import { useState } from 'react'
-import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle } from 'lucide-react'
+import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle, TrendingDown } from 'lucide-react'
+import { computeBotHealth } from '../lib/botHealth'
 import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
 import { useBotStore } from '../store/botStore'
@@ -85,6 +86,7 @@ export function BotCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <HealthDot bot={bot} trades={trades} />
+              <DriftBadge bot={bot} trades={trades} />
               <BotNameEditor name={bot.name} onRename={onRename} />
               <button
                 disabled={!onModeChange}
@@ -421,6 +423,29 @@ function HealthDot({ bot, trades }: { bot: BotConfig; trades: BotTrade[] }) {
   return (
     <span title={t.label} className="shrink-0 inline-flex items-center" aria-label={t.label}>
       <span className={cn('w-2 h-2 rounded-full', t.dot)} />
+    </span>
+  )
+}
+
+/**
+ * DriftBadge — visible only when the bot's recent win rate has
+ * dropped meaningfully below its all-time baseline (see lib/botHealth).
+ * The badge title carries the numbers; the visual is a small red
+ * "trending down" pill so it doesn't compete with HealthDot.
+ */
+function DriftBadge({ bot, trades }: { bot: BotConfig; trades: BotTrade[] }) {
+  const h = computeBotHealth(bot, trades)
+  if (h.state !== 'drift') return null
+  const allTime = Math.round(h.allTimeWR * 100)
+  const recent = Math.round(h.recentWR * 100)
+  const drop = allTime - recent
+  return (
+    <span
+      title={`Drift: recent win rate ${recent}% across last ${h.windowSize} trades vs ${allTime}% all-time (${h.sample} resolved). Down ${drop} pp.`}
+      className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-[0.14em] text-short bg-short/10 border border-short/30"
+    >
+      <TrendingDown className="w-2.5 h-2.5" />
+      Drift
     </span>
   )
 }

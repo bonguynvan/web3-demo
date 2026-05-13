@@ -39,6 +39,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEntitlement } from '../hooks/useEntitlement'
 import { useProofContribute } from '../hooks/useProofContribute'
 import { useProfitableBotDetector } from '../hooks/useProfitableBotDetector'
+import { useBotDriftDetector } from '../hooks/useBotDriftDetector'
 import { useTradingStore } from '../store/tradingStore'
 
 export function AppShell() {
@@ -64,6 +65,7 @@ export function AppShell() {
   useEntitlement()
   useProofContribute()
   useProfitableBotDetector()
+  useBotDriftDetector()
 
   return (
     <div className="flex h-screen bg-surface">
