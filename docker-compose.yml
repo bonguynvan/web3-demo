@@ -1,16 +1,46 @@
-# TradingDek backend — single-container PocketBase + custom Go handlers.
+# TradingDek — two-service stack for Coolify-on-Hetzner deploy.
 #
-# Usage on the Hetzner VPS:
+#   spa         → static SPA bundle behind nginx, port 80
+#   pocketbase  → custom Go binary + PocketBase admin + SIWE + NOWPay
+#                 webhook + Binance proxy, port 8090
 #
-#   cp .env.example .env && nano .env       # set NOWPAY_IPN_SECRET + admin creds
-#   docker compose up -d --build
-#   docker compose logs -f pocketbase
+# Coolify (recommended): "New Resource → Docker Compose" → point at
+# this repo. Assign domain + TLS to each service through the Coolify
+# UI — no Caddy file required. See docs/DEPLOYMENT_COOLIFY.md for the
+# step-by-step click guide.
 #
-# Reverse-proxy with Caddy (see Caddyfile.example) — Caddy listens on
-# :443 with auto-TLS, terminates HTTPS, and proxies to pocketbase:8090
-# over the host loopback.
+# Bare Docker (advanced): cp .env.example .env, fill values,
+# `docker compose up -d --build`. Front it with Caddy from
+# Caddyfile.example.
 
 services:
+  spa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Vite envs are baked at build time, NOT runtime. Coolify
+      # forwards UI-set env vars into these build args. Empty → feature off.
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-}
+        VITE_NOWPAY_PUBLIC_KEY: ${VITE_NOWPAY_PUBLIC_KEY:-}
+        VITE_PLAUSIBLE_DOMAIN: ${VITE_PLAUSIBLE_DOMAIN:-}
+        VITE_FEEDBACK_EMAIL: ${VITE_FEEDBACK_EMAIL:-}
+        VITE_BINANCE_REST_BASE: ${VITE_BINANCE_REST_BASE:-}
+        VITE_ERROR_REPORT_ENDPOINT: ${VITE_ERROR_REPORT_ENDPOINT:-}
+        VITE_HYPERLIQUID_BUILDER_CODE: ${VITE_HYPERLIQUID_BUILDER_CODE:-}
+        VITE_HYPERLIQUID_NETWORK: ${VITE_HYPERLIQUID_NETWORK:-mainnet}
+        VITE_CRYPTOPANIC_TOKEN: ${VITE_CRYPTOPANIC_TOKEN:-}
+        VITE_HL_WHALE_WALLETS: ${VITE_HL_WHALE_WALLETS:-}
+    container_name: tradingdek-spa
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   pocketbase:
     build: ./backend/pocketbase
     container_name: tradingdek-pb
@@ -22,9 +52,8 @@ services:
       PB_ENCRYPTION_KEY: ${PB_ENCRYPTION_KEY:-}
     volumes:
       - pb_data:/pb_data
-    ports:
-      # Bind to host loopback only — public traffic flows through Caddy on :443.
-      - "127.0.0.1:8090:8090"
+    expose:
+      - "8090"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
       interval: 30s

@@ -1,0 +1,36 @@
+# Speeds up docker build by keeping the build context small.
+# Without this, every `docker build` would upload node_modules, .git,
+# and test artifacts on every push — minutes instead of seconds.
+
+node_modules
+.pnpm-store
+.git
+.github
+.vscode
+.idea
+*.log
+
+# Build outputs — image rebuilds from source.
+dist
+build
+out
+
+# Test + report artifacts.
+test-results
+playwright-report
+coverage
+
+# Backend lives in its own image. Excluding pb_data keeps the
+# SPA build context lean; the backend Dockerfile copies what it needs.
+backend/pocketbase/pb_data
+
+# Local-only secrets.
+.env
+.env.local
+.env.*.local
+
+# OS / editor cruft.
+.DS_Store
+Thumbs.db
+
+*.heapsnapshot
