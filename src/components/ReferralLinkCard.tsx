@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { Link2, Check, Twitter } from 'lucide-react'
+import { Link2, Check, Share2 } from 'lucide-react'
 import { apiAvailable } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { cn } from '../lib/format'
@@ -73,7 +73,7 @@ export function ReferralLinkCard({ className }: { className?: string }) {
         target="_blank" rel="noopener noreferrer"
         className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-accent hover:underline"
       >
-        <Twitter className="w-3 h-3" />
+        <Share2 className="w-3 h-3" />
         Share on X
       </a>
     </div>
