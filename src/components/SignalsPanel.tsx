@@ -30,7 +30,7 @@ import { useEntitlementStore } from '../store/entitlementStore'
 import { deriveProState, isProSource } from '../lib/pro'
 import { UpgradeModal } from './UpgradeModal'
 import { Tooltip } from './ui/Tooltip'
-import { explainSignal } from '../api/ai'
+import { explainSignalStreaming, parseExplanation } from '../api/ai'
 
 // Per-source teasers shown on hover over a locked signal card.
 // Specific enough to make the upgrade feel concrete, vague enough to
@@ -422,29 +422,34 @@ function SignalCard({
   const dirBg = isLong ? 'bg-long/10' : 'bg-short/10'
   const [explainState, setExplainState] = useState<
     | { kind: 'idle' }
-    | { kind: 'loading' }
-    | { kind: 'ok'; explanation: string; risk: string }
+    | { kind: 'streaming'; text: string }
+    | { kind: 'ok'; text: string }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' })
 
-  const handleExplain = async (ev: React.MouseEvent) => {
+  const handleExplain = (ev: React.MouseEvent) => {
     ev.stopPropagation()
     if (!isPro) { onExplainGated(); return }
-    if (explainState.kind === 'loading') return
-    setExplainState({ kind: 'loading' })
-    try {
-      const res = await explainSignal({
+    if (explainState.kind === 'streaming') return
+    setExplainState({ kind: 'streaming', text: '' })
+    explainSignalStreaming(
+      {
+        signal_id: signal.id,
         source: signal.source,
         market_id: signal.marketId,
         direction: signal.direction,
         confidence: signal.confidence,
         title: signal.title,
         detail: signal.detail ?? '',
-      })
-      setExplainState({ kind: 'ok', explanation: res.explanation, risk: res.risk })
-    } catch (e) {
-      setExplainState({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
-    }
+      },
+      {
+        onChunk: chunk => setExplainState(prev =>
+          prev.kind === 'streaming' ? { kind: 'streaming', text: prev.text + chunk } : prev,
+        ),
+        onDone: full => setExplainState({ kind: 'ok', text: full }),
+        onError: message => setExplainState({ kind: 'error', message }),
+      },
+    )
   }
   const isConfluence = signal.source === 'confluence'
   const ageMs = Math.max(0, now - signal.triggeredAt)
@@ -484,7 +489,7 @@ function SignalCard({
               : 'text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-accent hover:bg-surface',
           )}
         >
-          {explainState.kind === 'loading'
+          {explainState.kind === 'streaming'
             ? <Loader2 className="w-3 h-3 animate-spin" />
             : <Sparkles className="w-3 h-3" />}
         </button>
@@ -564,18 +569,32 @@ function SignalCard({
               </a>
             )
           })()}
-          {explainState.kind === 'ok' && (
-            <div className="mt-2 rounded-md border border-accent/30 bg-accent-dim/20 px-2.5 py-2 space-y-1.5 text-[11px] leading-snug">
-              <div className="flex items-start gap-1.5">
-                <Sparkles className="w-3 h-3 text-accent shrink-0 mt-0.5" />
-                <span className="text-text-primary">{explainState.explanation}</span>
+          {(explainState.kind === 'streaming' || explainState.kind === 'ok') && (() => {
+            const parsed = parseExplanation(explainState.text)
+            const isStreaming = explainState.kind === 'streaming'
+            return (
+              <div className="mt-2 rounded-md border border-accent/30 bg-accent-dim/20 px-2.5 py-2 space-y-1.5 text-[11px] leading-snug">
+                <div className="flex items-start gap-1.5">
+                  <Sparkles className={cn(
+                    'w-3 h-3 text-accent shrink-0 mt-0.5',
+                    isStreaming && 'animate-pulse',
+                  )} />
+                  <span className="text-text-primary">
+                    {parsed.explanation || (isStreaming ? <em className="text-text-muted">Generating…</em> : null)}
+                    {isStreaming && parsed.explanation && (
+                      <span className="inline-block w-1.5 h-3 ml-0.5 align-text-bottom bg-accent animate-pulse" />
+                    )}
+                  </span>
+                </div>
+                {parsed.risk && (
+                  <div className="flex items-start gap-1.5 text-text-secondary">
+                    <AlertCircle className="w-3 h-3 text-short shrink-0 mt-0.5" />
+                    <span><span className="text-short font-semibold">Risk:</span> {parsed.risk}</span>
+                  </div>
+                )}
               </div>
-              <div className="flex items-start gap-1.5 text-text-secondary">
-                <AlertCircle className="w-3 h-3 text-short shrink-0 mt-0.5" />
-                <span><span className="text-short font-semibold">Risk:</span> {explainState.risk}</span>
-              </div>
-            </div>
-          )}
+            )
+          })()}
           {explainState.kind === 'error' && (
             <div className="mt-2 text-[11px] text-short">
               Explainer failed: {explainState.message}
