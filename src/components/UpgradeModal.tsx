@@ -30,12 +30,16 @@ interface Plan {
   label: string
   detail: string
   featured?: boolean
+  /** Shoulder badge — e.g. "Save $10" on sub_365 vs 12× sub_30. */
+  badge?: string
 }
 
+// Savings: sub_30 × 12 = $60 → sub_365 = $50 saves $10.
+//          sub_30 ×  6 = $30 → sub_180 = $25 saves $5.
 const PLANS: Plan[] = [
   { kind: 'sub_30',     amountUsd: 5,  label: '30 days',  detail: '~$0.17/day' },
-  { kind: 'sub_180',    amountUsd: 25, label: '180 days', detail: '~$0.14/day', featured: true },
-  { kind: 'sub_365',    amountUsd: 50, label: '365 days', detail: '~$0.14/day · best value' },
+  { kind: 'sub_180',    amountUsd: 25, label: '180 days', detail: '~$0.14/day', featured: true, badge: 'Save $5' },
+  { kind: 'sub_365',    amountUsd: 50, label: '365 days', detail: '~$0.14/day · best value', badge: 'Save $10' },
   { kind: 'paygo_topup',amountUsd: 5,  label: '$5 balance', detail: '$0.10/day pay-as-you-go' },
 ]
 
@@ -161,11 +165,18 @@ function PlanCard({
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-semibold text-text-primary">{plan.label}</span>
-        {plan.featured && (
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-accent flex items-center gap-0.5">
-            <Zap className="w-2.5 h-2.5" /> Best
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {plan.badge && (
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-long bg-long/15 border border-long/30 rounded px-1.5 py-0.5">
+              {plan.badge}
+            </span>
+          )}
+          {plan.featured && (
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-accent flex items-center gap-0.5">
+              <Zap className="w-2.5 h-2.5" /> Best
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-[11px] text-text-muted mb-2">{plan.detail}</div>
       <div className="flex items-center justify-between">

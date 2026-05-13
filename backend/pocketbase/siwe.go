@@ -77,7 +77,13 @@ type verifyBody struct {
 	Address   string `json:"address"`
 	Message   string `json:"message"`
 	Signature string `json:"signature"`
+	// Optional userId of the referrer captured by the SPA from ?ref=…
+	// First-sign-in only — extends the trial by referralBonusDays for
+	// both the new user and the referrer.
+	Referrer string `json:"referrer,omitempty"`
 }
+
+const referralBonusDays = 7
 
 func siweVerifyHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
@@ -120,7 +126,7 @@ func siweVerifyHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) erro
 			return e.JSON(http.StatusUnauthorized, map[string]string{"error": "signature mismatch"})
 		}
 
-		user, err := findOrCreateUser(app, address)
+		user, err := findOrCreateUser(app, address, body.Referrer)
 		if err != nil {
 			return e.JSON(http.StatusInternalServerError, map[string]string{"error": "user upsert failed: " + err.Error()})
 		}
@@ -201,7 +207,11 @@ func recoverSigner(message, sigHex string) (string, error) {
 
 // findOrCreateUser returns the users record for the given wallet_address,
 // minting a fresh row + a 14-day trial entitlement on first sign-in.
-func findOrCreateUser(app *pocketbase.PocketBase, address string) (*core.Record, error) {
+//
+// When `referrer` is a valid user id (and the new user is genuinely
+// fresh), both parties get +referralBonusDays added to their trial
+// window. Self-referrals are silently ignored.
+func findOrCreateUser(app *pocketbase.PocketBase, address, referrer string) (*core.Record, error) {
 	user, err := app.FindFirstRecordByFilter(
 		"users", "wallet_address = {:addr}",
 		map[string]any{"addr": address},
@@ -227,6 +237,20 @@ func findOrCreateUser(app *pocketbase.PocketBase, address string) (*core.Record,
 		return nil, err
 	}
 
+	// Compute trial length — base 14 days + referral bonus when applicable.
+	bonus := 0
+	validReferrer := referrer != "" && referrer != user.Id
+	if validReferrer {
+		// Confirm referrer exists before crediting — silently no-op on
+		// invalid/forged ids rather than 500-ing the sign-in.
+		if r, _ := app.FindRecordById("users", referrer); r != nil {
+			bonus = referralBonusDays
+			extendReferrerTrial(app, referrer, referralBonusDays)
+		} else {
+			validReferrer = false
+		}
+	}
+
 	entCol, err := app.FindCollectionByNameOrId("entitlements")
 	if err != nil {
 		return nil, err
@@ -236,12 +260,38 @@ func findOrCreateUser(app *pocketbase.PocketBase, address string) (*core.Record,
 	ent.Set("pro_days_remaining", 0)
 	ent.Set("paygo_balance_usd", 0)
 	ent.Set("pro_active", true)
-	ent.Set("trial_expires_at", types.NowDateTime().Add(time.Duration(trialDays)*24*time.Hour))
+	ent.Set("trial_expires_at", types.NowDateTime().Add(time.Duration(trialDays+bonus)*24*time.Hour))
 	ent.Set("last_decrement_at", types.NowDateTime())
 	if err := app.Save(ent); err != nil {
 		return nil, err
 	}
 	return user, nil
+}
+
+// extendReferrerTrial pushes the referrer's trial_expires_at forward by
+// `days`. If the referrer's existing trial has already lapsed (or was
+// never set) we set it to now + days so they get a fresh window. Errors
+// are non-fatal — referral credit is best-effort.
+func extendReferrerTrial(app *pocketbase.PocketBase, referrerUserID string, days int) {
+	ent, _ := app.FindFirstRecordByFilter(
+		"entitlements", "user = {:u}",
+		map[string]any{"u": referrerUserID},
+	)
+	if ent == nil {
+		return
+	}
+	add := time.Duration(days) * 24 * time.Hour
+	now := time.Now()
+	current := ent.GetDateTime("trial_expires_at").Time()
+	var next time.Time
+	if current.After(now) {
+		next = current.Add(add)
+	} else {
+		next = now.Add(add)
+	}
+	ent.Set("trial_expires_at", next.UTC().Format(time.RFC3339))
+	ent.Set("pro_active", true)
+	_ = app.Save(ent)
 }
 
 func short(a string) string {
