@@ -35,6 +35,8 @@ import { Skeleton } from './ui/Skeleton'
 import { Tooltip } from './ui/Tooltip'
 import { VenueSwitcher } from './VenueSwitcher'
 import { NotificationBell } from './NotificationBell'
+import { ProBadge } from './ProBadge'
+import { SignInWithWalletButton } from './SignInWithWalletButton'
 import { PriceAlertModal } from './PriceAlertModal'
 import { MobileMenuDrawer } from './MobileMenuDrawer'
 
@@ -117,6 +119,10 @@ function TopBar({
       </div>
 
       {/* Alerts + bell — connected only */}
+      {/* Pro badge + SIWE sign-in — both render nothing when VITE_API_BASE is unset. */}
+      <ProBadge />
+      <SignInWithWalletButton />
+
       {isConnected && (
         <div className="flex items-center gap-1">
           <button
