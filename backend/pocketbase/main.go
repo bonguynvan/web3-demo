@@ -33,6 +33,12 @@ func main() {
 		e.Router.POST("/api/siwe/verify", siweVerifyHandler(app))
 		e.Router.POST("/api/webhooks/nowpay", nowpayWebhookHandler(app))
 		e.Router.GET("/api/me", meHandler(app))
+
+		// Public-data proxy — Binance REST endpoints. PB's router uses
+		// `{path...}` wildcards to forward anything below this prefix.
+		e.Router.GET("/api/proxy/binance/{path...}", binanceProxyHandler(app))
+		e.Router.OPTIONS("/api/proxy/binance/{path...}", binanceProxyHandler(app))
+
 		return e.Next()
 	})
 

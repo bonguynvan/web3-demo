@@ -1,49 +1,28 @@
 /**
- * wagmi + viem configuration for the DeFi Trading Platform.
+ * wagmi + viem configuration for TradingDek.
  *
- * Supports two chains:
- * - Foundry (Anvil) — local dev with demo accounts
- * - Arbitrum One — production (spot trading via 0x, perps via GMX-style contracts)
+ * Post-pivot the product is venue-agnostic research + bots; wallet
+ * connectivity is only needed for Hyperliquid signing. We register
+ * Arbitrum so wagmi has a sane default chain for nonce/UX. Hyperliquid
+ * itself runs on chainId 1337 with a custom RPC; signing is handled
+ * outside wagmi.
  *
- * Supports two connection modes:
- * 1. MetaMask/Rabby (injected) — for real wallet users
- * 2. Demo accounts — pre-funded Anvil accounts with built-in signing
+ * Foundry + demo accounts were pre-pivot artefacts that fired a stream
+ * of ERR_CONNECTION_REFUSED against 127.0.0.1:8545 in DEV. Removed.
  */
 
 import { http, createConfig } from 'wagmi'
-import { foundry, arbitrum } from 'wagmi/chains'
+import { arbitrum } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
-// Demo connector import — Vite tree-shakes unused exports in production builds.
-// The private keys only enter the bundle when import.meta.env.DEV is true.
-import { demoConnector, DEMO_ACCOUNTS } from './demoConnector'
-
-const demoConnectors = import.meta.env.DEV
-  ? DEMO_ACCOUNTS.map(account => demoConnector({ account }))
-  : []
 
 export const wagmiConfig = createConfig({
-  chains: import.meta.env.DEV ? [foundry, arbitrum] : [arbitrum],
-  connectors: [
-    ...demoConnectors,
-    // Real wallets
-    injected(),
-  ],
+  chains: [arbitrum],
+  connectors: [injected()],
   transports: {
-    // Long polling interval — we don't need wagmi's block tracker.
-    // Hooks that need data have their own refetchInterval.
-    [foundry.id]: http('http://127.0.0.1:8545', {
-      retryCount: 0,
-      timeout: 5_000,
-    }),
     [arbitrum.id]: http(
       import.meta.env.VITE_ARBITRUM_RPC_URL || undefined,
       { retryCount: 2, timeout: 10_000 },
     ),
   },
-  // Disable wagmi's auto block-number polling (was 4s by default)
-  // Components that need fresh data poll independently.
-  pollingInterval: 60_000, // 1 minute
+  pollingInterval: 60_000,
 })
-
-// Re-export for convenience
-export { DEMO_ACCOUNTS } from './demoConnector'

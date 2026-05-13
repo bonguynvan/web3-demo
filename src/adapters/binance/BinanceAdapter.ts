@@ -31,7 +31,13 @@ import type {
   VenueId,
 } from '../types'
 
-const REST_BASE = 'https://api.binance.com'
+// Default to api.binance.com directly. Set VITE_BINANCE_REST_BASE to a
+// proxy URL (e.g. https://api.tradingdek.com/api/proxy/binance) to route
+// public requests through the TradingDek backend — useful when Binance
+// rate-limits a shared IP or rejects browser CORS.
+const REST_BASE = (
+  (import.meta.env.VITE_BINANCE_REST_BASE as string | undefined) ?? 'https://api.binance.com'
+).replace(/\/+$/, '')
 const WS_BASE = 'wss://stream.binance.com:9443/ws'
 
 const TF_TO_BINANCE: Record<TimeFrame, string> = {

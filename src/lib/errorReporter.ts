@@ -36,6 +36,20 @@ let bucketStart = 0
 let bucketCount = 0
 let installed = false
 
+// Patterns we intentionally swallow — browser/library noise that's
+// neither actionable nor a real bug. Tightly scoped so a genuine error
+// with a similar substring still reports.
+const IGNORE_PATTERNS: RegExp[] = [
+  // Benign Chrome/Recharts/React 19 chatter on resize loops.
+  // https://github.com/WICG/resize-observer/issues/38
+  /ResizeObserver loop completed with undelivered notifications/i,
+  /ResizeObserver loop limit exceeded/i,
+]
+
+function isIgnorable(message: string): boolean {
+  return IGNORE_PATTERNS.some(re => re.test(message))
+}
+
 function shouldEmit(): boolean {
   const now = Date.now()
   if (now - bucketStart > WINDOW_MS) {
@@ -91,8 +105,9 @@ export function report(
   err: unknown,
   context?: { kind?: ErrorPayload['kind']; meta?: Record<string, unknown> },
 ): void {
-  if (!shouldEmit()) return
   const message = err instanceof Error ? err.message : String(err)
+  if (isIgnorable(message)) return
+  if (!shouldEmit()) return
   const stack = err instanceof Error ? err.stack : undefined
   void send(buildPayload(context?.kind ?? 'runtime', message, stack, context?.meta))
 }
@@ -106,8 +121,9 @@ export function installErrorReporter(): void {
   installed = true
 
   window.addEventListener('error', (ev) => {
-    if (!shouldEmit()) return
     const message = ev.message || (ev.error instanceof Error ? ev.error.message : 'window.error')
+    if (isIgnorable(message)) return
+    if (!shouldEmit()) return
     const stack = ev.error instanceof Error ? ev.error.stack : undefined
     void send(buildPayload('runtime', message, stack, {
       filename: ev.filename,
@@ -117,9 +133,10 @@ export function installErrorReporter(): void {
   })
 
   window.addEventListener('unhandledrejection', (ev) => {
-    if (!shouldEmit()) return
     const reason = ev.reason
     const message = reason instanceof Error ? reason.message : String(reason ?? 'unhandled rejection')
+    if (isIgnorable(message)) return
+    if (!shouldEmit()) return
     const stack = reason instanceof Error ? reason.stack : undefined
     void send(buildPayload('unhandled-rejection', message, stack))
   })
