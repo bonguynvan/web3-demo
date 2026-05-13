@@ -376,3 +376,171 @@ func formatAIFloat(f float64, decimals int) string {
 // (Streaming version above replaces the old one-shot callAnthropic.
 // The anthropicRequest/anthropicResponse/anthropicMessage types remain
 // in case we want a non-streaming fallback later.)
+
+// ─── Follow-up Q&A ─────────────────────────────────────────────────────
+//
+// POST /api/ai/followup — same auth/Pro/rate-limit gates as
+// /api/ai/explain, but accepts a conversation history. Lets a Pro
+// user ask "how is this different from yesterday's funding signal?"
+// after the initial streamed explanation. Same rate-limit pool —
+// a follow-up still counts as one Claude call.
+
+const followupSystemPrompt = `You are TradingDek's signal analyst. The user has already received an initial explanation of a market signal and is asking a follow-up question.
+
+Answer in plain English, 2-3 sentences max. Be specific and direct.
+
+Rules:
+- Never invent numbers, percentages, or outcomes you weren't given.
+- Never give financial advice or recommend buying/selling.
+- If the question is off-topic or unanswerable from context, say so briefly.
+- No JSON, no markdown headers, just prose.`
+
+type followupBody struct {
+	SignalContext explainBody `json:"signal_context"`
+	History       []struct {
+		Role    string `json:"role"`    // user | assistant
+		Content string `json:"content"`
+	} `json:"history"`
+	Question string `json:"question"`
+}
+
+func aiFollowupHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = defaultAIModel
+	}
+	return func(e *core.RequestEvent) error {
+		if apiKey == "" {
+			return e.JSON(http.StatusServiceUnavailable, map[string]string{
+				"error": "AI explainer not configured",
+			})
+		}
+		user := e.Auth
+		if user == nil {
+			return e.JSON(http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+		}
+		ent, _ := app.FindFirstRecordByFilter(
+			"entitlements", "user = {:u}",
+			map[string]any{"u": user.Id},
+		)
+		if ent == nil || !ent.GetBool("pro_active") {
+			return e.JSON(http.StatusPaymentRequired, map[string]string{"error": "Pro required"})
+		}
+		if !checkAIRate(user.Id) {
+			return e.JSON(http.StatusTooManyRequests, map[string]string{
+				"error": "rate limit (30/hour)",
+			})
+		}
+
+		var body followupBody
+		if err := e.BindBody(&body); err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		}
+		body.Question = strings.TrimSpace(body.Question)
+		if body.Question == "" {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "empty question"})
+		}
+		if len(body.Question) > 500 {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "question too long"})
+		}
+		if len(body.History) > 8 {
+			// Cap history depth so the prompt stays cheap and the convo
+			// doesn't snowball. Recent turns matter more.
+			body.History = body.History[len(body.History)-8:]
+		}
+
+		// Build the message list: original signal context as the first
+		// user turn, then the previous history, then the new question.
+		messages := []anthropicMessage{
+			{Role: "user", Content: "Signal under discussion:\n" + buildAIUserPrompt(&body.SignalContext)},
+		}
+		for _, h := range body.History {
+			role := h.Role
+			if role != "user" && role != "assistant" {
+				continue
+			}
+			messages = append(messages, anthropicMessage{Role: role, Content: h.Content})
+		}
+		messages = append(messages, anthropicMessage{Role: "user", Content: body.Question})
+
+		return streamAnthropicMessages(e, apiKey, model, followupSystemPrompt, messages)
+	}
+}
+
+// streamAnthropicMessages is the multi-turn counterpart to
+// streamAnthropic. Same SSE forwarding logic, different message list.
+func streamAnthropicMessages(e *core.RequestEvent, apiKey, model, system string, messages []anthropicMessage) error {
+	w := e.Response
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher, _ := w.(http.Flusher)
+
+	reqBody := map[string]any{
+		"model":      model,
+		"max_tokens": aiMaxTokens,
+		"system":     system,
+		"messages":   messages,
+		"stream":     true,
+	}
+	buf, _ := json.Marshal(reqBody)
+	req, err := http.NewRequest("POST", anthropicURL, bytes.NewReader(buf))
+	if err != nil {
+		return writeSSEError(w, flusher, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", anthropicVersion)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return writeSSEError(w, flusher, err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		raw, _ := io.ReadAll(res.Body)
+		return writeSSEError(w, flusher, errors.New("anthropic "+res.Status+": "+string(raw)))
+	}
+
+	w.WriteHeader(http.StatusOK)
+	scanner := newSSEScanner(res.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		payload := line[6:]
+		if payload == "[DONE]" {
+			break
+		}
+		var ev struct {
+			Type  string `json:"type"`
+			Delta struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"delta"`
+		}
+		if err := json.Unmarshal([]byte(payload), &ev); err != nil {
+			continue
+		}
+		if ev.Type != "content_block_delta" || ev.Delta.Type != "text_delta" {
+			continue
+		}
+		chunk, _ := json.Marshal(map[string]string{"text": ev.Delta.Text})
+		if _, err := w.Write([]byte("data: " + string(chunk) + "\n\n")); err != nil {
+			return err
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	if _, err := w.Write([]byte("data: [DONE]\n\n")); err != nil {
+		return err
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+	return nil
+}

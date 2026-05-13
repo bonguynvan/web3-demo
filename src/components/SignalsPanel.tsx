@@ -30,7 +30,7 @@ import { useEntitlementStore } from '../store/entitlementStore'
 import { deriveProState, isProSource } from '../lib/pro'
 import { UpgradeModal } from './UpgradeModal'
 import { Tooltip } from './ui/Tooltip'
-import { explainSignalStreaming, parseExplanation } from '../api/ai'
+import { explainSignalStreaming, followupStreaming, parseExplanation, type FollowupTurn } from '../api/ai'
 
 // Per-source teasers shown on hover over a locked signal card.
 // Specific enough to make the upgrade feel concrete, vague enough to
@@ -426,6 +426,59 @@ function SignalCard({
     | { kind: 'ok'; text: string }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' })
+  // Follow-up Q&A — array of completed turns plus a draft input. The
+  // most recent assistant turn is rendered partial while it streams.
+  const [conversation, setConversation] = useState<FollowupTurn[]>([])
+  const [draftQ, setDraftQ] = useState('')
+  const [streamingAnswer, setStreamingAnswer] = useState<string | null>(null)
+  const followingUp = streamingAnswer !== null
+
+  const handleFollowup = (ev: React.FormEvent) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    const q = draftQ.trim()
+    if (!q || followingUp || explainState.kind !== 'ok') return
+    setDraftQ('')
+    setStreamingAnswer('')
+    const prevConvo = conversation
+    followupStreaming(
+      {
+        signal_context: {
+          signal_id: signal.id,
+          source: signal.source,
+          market_id: signal.marketId,
+          direction: signal.direction,
+          confidence: signal.confidence,
+          title: signal.title,
+          detail: signal.detail ?? '',
+        },
+        history: [
+          { role: 'assistant', content: explainState.text },
+          ...prevConvo,
+        ],
+        question: q,
+      },
+      {
+        onChunk: chunk => setStreamingAnswer(curr => (curr ?? '') + chunk),
+        onDone: full => {
+          setConversation([
+            ...prevConvo,
+            { role: 'user', content: q },
+            { role: 'assistant', content: full },
+          ])
+          setStreamingAnswer(null)
+        },
+        onError: message => {
+          setConversation([
+            ...prevConvo,
+            { role: 'user', content: q },
+            { role: 'assistant', content: `(error: ${message})` },
+          ])
+          setStreamingAnswer(null)
+        },
+      },
+    )
+  }
 
   const handleExplain = (ev: React.MouseEvent) => {
     ev.stopPropagation()
@@ -598,6 +651,54 @@ function SignalCard({
           {explainState.kind === 'error' && (
             <div className="mt-2 text-[11px] text-short">
               Explainer failed: {explainState.message}
+            </div>
+          )}
+          {explainState.kind === 'ok' && (
+            <div className="mt-2 space-y-2" onClick={e => e.stopPropagation()}>
+              {conversation.map((turn, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'text-[11px] leading-snug rounded px-2 py-1.5',
+                    turn.role === 'user'
+                      ? 'bg-surface/60 text-text-secondary'
+                      : 'bg-accent-dim/15 text-text-primary',
+                  )}
+                >
+                  <span className="text-[9px] uppercase tracking-[0.14em] font-mono text-text-muted mr-1.5">
+                    {turn.role === 'user' ? 'you' : 'ai'}
+                  </span>
+                  {turn.content}
+                </div>
+              ))}
+              {streamingAnswer !== null && (
+                <div className="text-[11px] leading-snug rounded px-2 py-1.5 bg-accent-dim/15 text-text-primary">
+                  <span className="text-[9px] uppercase tracking-[0.14em] font-mono text-text-muted mr-1.5">ai</span>
+                  {streamingAnswer || <em className="text-text-muted">…</em>}
+                  {streamingAnswer && (
+                    <span className="inline-block w-1.5 h-3 ml-0.5 align-text-bottom bg-accent animate-pulse" />
+                  )}
+                </div>
+              )}
+              <form onSubmit={handleFollowup} className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={draftQ}
+                  onChange={e => setDraftQ(e.target.value)}
+                  placeholder="Ask a follow-up…"
+                  disabled={followingUp}
+                  className="flex-1 bg-surface border border-border rounded px-2 py-1 text-[11px] text-text-primary outline-none focus:border-accent placeholder:text-text-muted disabled:opacity-60"
+                  onClick={e => e.stopPropagation()}
+                  maxLength={500}
+                />
+                <button
+                  type="submit"
+                  disabled={followingUp || !draftQ.trim()}
+                  className="px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.14em] bg-accent text-surface hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Ask
+                </button>
+              </form>
             </div>
           )}
         </div>

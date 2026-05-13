@@ -38,11 +38,32 @@ export function explainSignalStreaming(
   cb: StreamCallbacks,
 ): AbortController {
   const controller = new AbortController()
-  void run(req, cb, controller.signal)
+  void runStream('/api/ai/explain', req, cb, controller.signal)
   return controller
 }
 
-async function run(req: ExplainRequest, cb: StreamCallbacks, signal: AbortSignal) {
+export interface FollowupTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface FollowupRequest {
+  signal_context: ExplainRequest
+  history: FollowupTurn[]
+  question: string
+}
+
+/** Multi-turn version. Same auth/Pro/rate-limit gates as explain. */
+export function followupStreaming(
+  req: FollowupRequest,
+  cb: StreamCallbacks,
+): AbortController {
+  const controller = new AbortController()
+  void runStream('/api/ai/followup', req, cb, controller.signal)
+  return controller
+}
+
+async function runStream(path: string, req: object, cb: StreamCallbacks, signal: AbortSignal) {
   if (!apiAvailable()) {
     cb.onError('backend not configured')
     return
@@ -54,7 +75,7 @@ async function run(req: ExplainRequest, cb: StreamCallbacks, signal: AbortSignal
   }
   let res: Response
   try {
-    res = await fetch(`${apiBase()}/api/ai/explain`, {
+    res = await fetch(`${apiBase()}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

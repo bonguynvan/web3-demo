@@ -80,6 +80,7 @@ func main() {
 		// AI signal explainer — Pro-gated Claude call. Rate-limited
 		// in-memory at 30 calls/user/hour.
 		e.Router.POST("/api/ai/explain", aiExplainHandler(app))
+		e.Router.POST("/api/ai/followup", aiFollowupHandler(app))
 
 		// Opt-in 14-day trial. Replaces the auto-grant that used to
 		// fire on first sign-in.
