@@ -29,6 +29,16 @@ import { apiAvailable } from '../api/client'
 import { useEntitlementStore } from '../store/entitlementStore'
 import { deriveProState, isProSource } from '../lib/pro'
 import { UpgradeModal } from './UpgradeModal'
+import { Tooltip } from './ui/Tooltip'
+
+// Per-source teasers shown on hover over a locked signal card.
+// Specific enough to make the upgrade feel concrete, vague enough to
+// not give away the actual reading. Keep under ~120 chars so the
+// tooltip stays compact.
+const LOCKED_TEASER: Record<string, string> = {
+  whale: 'A tracked wallet just opened or closed a $50k+ position on this market. Direction + size visible to Pro.',
+  news:  'A market-moving headline just dropped tagged for this asset. Sentiment + source visible to Pro.',
+}
 
 // Dismissals are session-scoped — refreshing the page clears them so
 // genuinely new fires of the same id can resurface. Stored in a Set
@@ -527,7 +537,10 @@ function LockedSignalCard({
   onClick: () => void
 }) {
   const ageMs = Math.max(0, now - signal.triggeredAt)
+  const teaser = LOCKED_TEASER[signal.source]
+    ?? 'A premium-source signal fired here. Upgrade to see the direction, target, and confidence.'
   return (
+    <Tooltip title="Pro signal — locked" content={teaser} side="bottom">
     <button
       onClick={onClick}
       className="w-full text-left px-3 py-2.5 border-b border-border hover:bg-panel-light transition-colors cursor-pointer group"
@@ -562,5 +575,6 @@ function LockedSignalCard({
         </div>
       </div>
     </button>
+    </Tooltip>
   )
 }
