@@ -15,6 +15,7 @@ import { TrendingUp } from 'lucide-react'
 import { EquityCurveChart, DARK_TERMINAL, type EquityPoint } from '@tradecanvas/chart'
 import type { BotTrade } from '../bots/types'
 import { PnlAttributionWaterfall } from './PnlAttributionWaterfall'
+import { TimeOfDayHeatmap } from './TimeOfDayHeatmap'
 import { cn } from '../lib/format'
 
 type ClosedTrade = BotTrade & { closedAt: number; pnlUsd: number }
@@ -54,6 +55,22 @@ export function PerformanceDashboard({ trades }: PerformanceDashboardProps) {
           By market
         </div>
         <PnlAttributionWaterfall trades={trades} />
+      </div>
+
+      {/* Time-of-day performance — when does the bot make money?
+          Pure strategy intelligence: identifies session-of-day edges
+          and lets the user pause bots in unproductive windows. */}
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.18em] font-mono font-semibold text-text-secondary mb-2">
+          When (UTC)
+        </div>
+        <TimeOfDayHeatmap trades={trades} />
+        <p className="text-[10px] text-text-muted mt-2 leading-relaxed">
+          Each cell is one UTC (day, hour) slot. Color = average realized
+          PnL in that slot; size = trade count, so reliable slots
+          dominate the view. If a band of red appears at a consistent
+          hour, that's a window worth excluding from a bot's schedule.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
