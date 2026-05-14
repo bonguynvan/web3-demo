@@ -32,6 +32,11 @@ import { buildSignalDrawings, buildResolvedSignalDrawings, isSignalDrawing } fro
 import type { Signal } from '../signals/types'
 
 // Map our market symbols to Binance symbols
+// localStorage key the chart library uses for its own state blob
+// (indicators + drawings + chart-type + theme). The library owns
+// the schema; we just choose where to store it.
+const CHART_STATE_KEY = 'tc-chart-state-v1'
+
 const BINANCE_SYMBOLS: Record<string, string> = {
   'ETH-PERP': 'ETHUSDT',
   'BTC-PERP': 'BTCUSDT',
@@ -133,6 +138,11 @@ export function TradingChart({ loading }: { loading: boolean }) {
         // fallback
       }
 
+      // Restore the user's last chart setup — indicators, drawings,
+      // chart-type, theme — from localStorage if present. Library
+      // owns the serialization shape; we just hand off the key.
+      try { chart.loadStateFromStorage(CHART_STATE_KEY) } catch { /* ignore */ }
+
       setChartReady(true)
 
       // If there are already candles in the store, feed them now
@@ -168,6 +178,32 @@ export function TradingChart({ loading }: { loading: boolean }) {
     if (!chart || !chartReady) return
     chart.setTheme(getChartTheme(appTheme))
   }, [appTheme, chartReady])
+
+  // Persist chart state (indicators + drawings + type + theme) so the
+  // user's setup survives reloads. saveState is cheap; we run it on
+  // a 5s tick AND on tab-hide so we don't lose work on an accidental
+  // close. The library handles change detection internally — a save
+  // with no diff is a no-op.
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !chartReady) return
+    const persist = () => {
+      try { chart.saveState(CHART_STATE_KEY) } catch { /* storage full */ }
+    }
+    const interval = window.setInterval(persist, 5_000)
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') persist()
+    }
+    document.addEventListener('visibilitychange', onVisChange)
+    window.addEventListener('beforeunload', persist)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisChange)
+      window.removeEventListener('beforeunload', persist)
+      // One final save on unmount so a route change doesn't lose state.
+      persist()
+    }
+  }, [chartReady])
 
   // Update watermark on market change
   useEffect(() => {
