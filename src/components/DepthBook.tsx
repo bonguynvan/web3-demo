@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { DepthChart, DARK_TERMINAL } from '@tradecanvas/chart'
 import { usePrices } from '../hooks/usePrices'
 import { useActiveVenue } from '../hooks/useActiveVenue'
 import { getActiveAdapter } from '../adapters/registry'
@@ -106,6 +107,12 @@ export function DepthBook() {
           {getActiveAdapter().displayName}
         </span>
       </div>
+
+      {book && asks.length > 0 && bids.length > 0 && (
+        <div className="border-b border-border shrink-0">
+          <DepthCurve book={book} decimals={decimals} />
+        </div>
+      )}
 
       <div className="flex items-center px-3 py-1 text-[10px] text-text-muted uppercase tracking-wider border-b border-border shrink-0">
         <span className="flex-1">Price</span>
@@ -253,4 +260,46 @@ function DepthRow({
       </span>
     </div>
   )
+}
+
+/**
+ * DepthCurve — cumulative bid/ask area chart over the ladder.
+ *
+ * Powered by @tradecanvas/chart 0.6 DepthChart. Shows the SAME data as
+ * the ladder below (same `book` snapshot) in the cumulative-volume
+ * representation traders use to spot walls of liquidity. Mid-price
+ * line + spread label come built-in; crosshair lets users hover any
+ * level to read price/volume.
+ */
+function DepthCurve({ book, decimals }: { book: OrderBook; decimals: number }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<DepthChart | null>(null)
+  const HEIGHT = 120
+
+  const data = useMemo(() => ({
+    bids: book.bids.map(l => ({ price: l.price, volume: l.size })),
+    asks: book.asks.map(l => ({ price: l.price, volume: l.size })),
+  }), [book])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const chart = new DepthChart(containerRef.current, {
+      data,
+      theme: DARK_TERMINAL,
+      midPriceLine: true,
+      spreadLabel: true,
+      crosshair: true,
+      priceFormat: (p) => p.toFixed(decimals),
+      volumeFormat: (v) => formatCompact(v),
+    })
+    chartRef.current = chart
+    return () => { chart.destroy(); chartRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    chartRef.current?.setOptions({ data })
+  }, [data])
+
+  return <div ref={containerRef} style={{ width: '100%', height: HEIGHT }} />
 }
