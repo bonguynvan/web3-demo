@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { EquityCurveChart, DARK_TERMINAL, type EquityPoint } from '@tradecanvas/chart'
 import type { BotTrade } from '../bots/types'
+import { PnlAttributionWaterfall } from './PnlAttributionWaterfall'
 import { cn } from '../lib/format'
 
 type ClosedTrade = BotTrade & { closedAt: number; pnlUsd: number }
@@ -45,6 +46,15 @@ export function PerformanceDashboard({ trades }: PerformanceDashboardProps) {
       </header>
 
       <EquityChart trades={trades} />
+
+      {/* Per-market attribution — answers "which markets are actually
+          earning?" at a glance. Powered by tradecanvas WaterfallChart. */}
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.18em] font-mono font-semibold text-text-secondary mb-2">
+          By market
+        </div>
+        <PnlAttributionWaterfall trades={trades} />
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Stat label="PnL · 7d" value={fmt(metrics.pnl7d)} tone={tone(metrics.pnl7d)} />
