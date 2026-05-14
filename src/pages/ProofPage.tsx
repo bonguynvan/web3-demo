@@ -14,6 +14,7 @@ import { fetchProofAggregate, type ProofAggregate } from '../api/proof'
 import { useProofContributeStore } from '../store/proofContributeStore'
 import { Wordmark } from '../components/ui/Logo'
 import { useSignalPerformanceStore, type ResolvedEntry } from '../store/signalPerformanceStore'
+import { SourceMarketHeatmap } from '../components/SourceMarketHeatmap'
 import type { SignalSource } from '../signals/types'
 import { cn } from '../lib/format'
 import { useDocumentMeta } from '../lib/documentMeta'
@@ -138,6 +139,18 @@ export function ProofPage() {
             label="Tracked since"
             value={summary.firstAt ? new Date(summary.firstAt).toLocaleDateString() : '—'}
           />
+        </section>
+
+        <section>
+          <SectionHeader title="Where each source works" />
+          <SourceMarketHeatmap resolved={resolved} />
+          <p className="text-[10px] text-text-muted mt-2 leading-relaxed">
+            Each cell is one (signal source × market) pairing. Color = hit
+            rate (red 0% → green 100%, neutral at 50%); size = sample
+            count. Big green cells are reliable wins; big red cells are
+            reliable losses worth turning off in a bot's allowed sources.
+            Combos with fewer than 3 trades are hidden — too noisy to read.
+          </p>
         </section>
 
         <section>
