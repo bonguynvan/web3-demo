@@ -31,6 +31,7 @@ services:
         VITE_HYPERLIQUID_NETWORK: ${VITE_HYPERLIQUID_NETWORK:-mainnet}
         VITE_CRYPTOPANIC_TOKEN: ${VITE_CRYPTOPANIC_TOKEN:-}
         VITE_HL_WHALE_WALLETS: ${VITE_HL_WHALE_WALLETS:-}
+        VITE_ADMIN_KEY: ${VITE_ADMIN_KEY:-}
     container_name: tradingdek-spa
     restart: unless-stopped
     expose:
@@ -55,6 +56,8 @@ services:
       # the feature entirely — the endpoint returns 503.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      # Admin metrics dashboard — leave empty to disable the endpoint.
+      ADMIN_DASHBOARD_KEY: ${ADMIN_DASHBOARD_KEY:-}
     volumes:
       - pb_data:/pb_data
     expose:

@@ -86,6 +86,10 @@ func main() {
 		// fire on first sign-in.
 		e.Router.POST("/api/trial/start", trialStartHandler(app))
 
+		// Admin metrics — single-tenant operator dashboard, gated by
+		// the ADMIN_DASHBOARD_KEY shared secret.
+		e.Router.GET("/api/admin/metrics", adminMetricsHandler(app))
+
 		return e.Next()
 	})
 

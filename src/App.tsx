@@ -32,6 +32,7 @@ const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m
 const LearnPage = lazy(() => import('./pages/LearnPage').then(m => ({ default: m.LearnPage })))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })))
+const AdminMetricsPage = lazy(() => import('./pages/AdminMetricsPage').then(m => ({ default: m.AdminMetricsPage })))
 
 function RouteFallback() {
   // Layout-aware shimmer: a thin top bar + offset content blocks so the
@@ -75,6 +76,7 @@ function App() {
             <Route path="/legal/:doc" element={<LegalPage />} />
             <Route path="/learn" element={<LearnPage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/admin/metrics" element={<AdminMetricsPage />} />
             <Route element={<AppShell />}>
               <Route path="/trade" element={<TradePage />} />
               <Route path="/portfolio" element={<PortfolioPage />} />
