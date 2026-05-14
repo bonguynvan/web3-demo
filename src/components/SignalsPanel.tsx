@@ -31,6 +31,7 @@ import { deriveProState, isProSource } from '../lib/pro'
 import { UpgradeModal } from './UpgradeModal'
 import { Tooltip } from './ui/Tooltip'
 import { explainSignalStreaming, followupStreaming, parseExplanation, type FollowupTurn } from '../api/ai'
+import { useMutedMarketsStore } from '../store/mutedMarketsStore'
 
 // Per-source teasers shown on hover over a locked signal card.
 // Specific enough to make the upgrade feel concrete, vague enough to
@@ -135,11 +136,15 @@ export function SignalsPanel() {
     setSoloSource(next)
     try { localStorage.setItem(SOLO_KEY, next) } catch { /* full */ }
   }
+  const mutedMarkets = useMutedMarketsStore(s => s.muted)
+  const muteMarket = useMutedMarketsStore(s => s.mute)
+  const clearMutedMarkets = useMutedMarketsStore(s => s.clear)
   const { signals, filteredOut } = useMemo(() => {
     const raw = allSignals.filter(s =>
       !dismissedIds.has(s.id)
       && s.confidence >= minConf
       && (soloSource === '' || s.source === soloSource)
+      && !mutedMarkets.has(s.marketId)
     )
     // Pinned signals float to top regardless of sort
     const sorted = [
@@ -147,7 +152,7 @@ export function SignalsPanel() {
       ...raw.filter(s => !pinned.has(s.id)),
     ]
     return { signals: sorted, filteredOut: allSignals.length - raw.length }
-  }, [allSignals, minConf, soloSource, pinned])
+  }, [allSignals, minConf, soloSource, pinned, mutedMarkets])
   const dismiss = (id: string) => {
     dismissedIds.add(id)
     window.dispatchEvent(new Event(DISMISS_EVENT))
@@ -273,6 +278,20 @@ export function SignalsPanel() {
         )}
       </div>
 
+      {mutedMarkets.size > 0 && (
+        <button
+          onClick={() => clearMutedMarkets()}
+          title={`Click to unmute: ${Array.from(mutedMarkets).join(', ')}`}
+          className="flex items-center justify-between gap-2 px-3 py-1 border-b border-border bg-surface/40 text-[10px] text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-1.5">
+            <VolumeX className="w-3 h-3" />
+            {mutedMarkets.size} muted market{mutedMarkets.size === 1 ? '' : 's'}
+          </span>
+          <span className="uppercase tracking-[0.14em] text-accent">Clear</span>
+        </button>
+      )}
+
       <TelegramConfigModal open={telegramOpen} onClose={() => setTelegramOpen(false)} />
       <SignalSourcesModal open={sourcesOpen} onClose={() => setSourcesOpen(false)} />
 
@@ -293,6 +312,7 @@ export function SignalsPanel() {
               onExplainGated={() => setUpgradeOpen(true)}
               onDismiss={() => dismiss(s.id)}
               onTogglePin={() => togglePin(s.id)}
+              onMuteMarket={() => muteMarket(s.marketId)}
             />
           ))}
         </div>
@@ -402,7 +422,7 @@ function formatAge(ms: number): string {
 }
 
 function SignalCard({
-  signal, now, isPinned, locked, isPro, onClick, onLockedClick, onExplainGated, onDismiss, onTogglePin,
+  signal, now, isPinned, locked, isPro, onClick, onLockedClick, onExplainGated, onDismiss, onTogglePin, onMuteMarket,
 }: {
   signal: Signal
   now: number
@@ -414,6 +434,7 @@ function SignalCard({
   onExplainGated: () => void
   onDismiss: () => void
   onTogglePin: () => void
+  onMuteMarket: () => void
 }) {
   if (locked) return <LockedSignalCard signal={signal} now={now} onClick={onLockedClick} />
   const isLong = signal.direction === 'long'
@@ -545,6 +566,14 @@ function SignalCard({
           {explainState.kind === 'streaming'
             ? <Loader2 className="w-3 h-3 animate-spin" />
             : <Sparkles className="w-3 h-3" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMuteMarket() }}
+          title={`Mute ${signal.marketId} — hide all future signals from this market until you unmute it on the panel header`}
+          aria-label={`Mute ${signal.marketId}`}
+          className="flex items-center justify-center w-5 h-5 rounded text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-short hover:bg-surface transition-opacity cursor-pointer"
+        >
+          <VolumeX className="w-3 h-3" />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onTogglePin() }}
