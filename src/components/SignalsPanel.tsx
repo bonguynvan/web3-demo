@@ -32,6 +32,7 @@ import { UpgradeModal } from './UpgradeModal'
 import { Tooltip } from './ui/Tooltip'
 import { explainSignalStreaming, followupStreaming, parseExplanation, type FollowupTurn } from '../api/ai'
 import { useMutedMarketsStore } from '../store/mutedMarketsStore'
+import { SignalQualityGauge } from './SignalQualityGauge'
 
 // Per-source teasers shown on hover over a locked signal card.
 // Specific enough to make the upgrade feel concrete, vague enough to
@@ -276,6 +277,9 @@ export function SignalsPanel() {
         {filteredOut > 0 && (
           <span className="text-[10px] text-text-muted shrink-0">−{filteredOut}</span>
         )}
+        <div className="shrink-0">
+          <SignalQualityGauge signals={signals} size={64} />
+        </div>
       </div>
 
       {mutedMarkets.size > 0 && (
