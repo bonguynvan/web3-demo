@@ -73,14 +73,34 @@ export const TIMEFRAMES: { label: string; value: TimeFrame }[] = [
   { label: '1W', value: '1w' },
 ]
 
+/**
+ * Chart-type selector. v0.6 of @tradecanvas/chart unlocked the
+ * trend-distortion + reversal-based modes (Renko, Kagi, P&F, Line
+ * Break, Range Bars). Heikin-Ashi smooths candle bodies for trend
+ * identification; Renko/Kagi/P&F filter out time entirely and only
+ * advance on meaningful moves — useful when a bot is operating in a
+ * choppy regime and the user wants to see if the underlying drift is
+ * real or noise.
+ *
+ * All purely visualization — none of these alter the OHLC stream the
+ * bot consumes, so flipping the type doesn't change a single thing
+ * about strategy behavior. Aligned with the auto-bot philosophy.
+ */
 export const CHART_TYPES: { label: string; value: ChartType }[] = [
-  { label: 'Candles', value: 'candlestick' },
-  { label: 'Line', value: 'line' },
-  { label: 'Area', value: 'area' },
-  { label: 'Bars', value: 'bar' },
-  { label: 'Heikin-Ashi', value: 'heikinAshi' },
-  { label: 'Hollow', value: 'hollowCandle' },
-  { label: 'Baseline', value: 'baseline' },
+  // Time-axis (one bar per candle)
+  { label: 'Candles',        value: 'candlestick' },
+  { label: 'Hollow',         value: 'hollowCandle' },
+  { label: 'Bars',           value: 'bar' },
+  { label: 'Line',           value: 'line' },
+  { label: 'Area',           value: 'area' },
+  { label: 'Baseline',       value: 'baseline' },
+  { label: 'Heikin-Ashi',    value: 'heikinAshi' },
+  // Move-axis (advances on price action, ignores time)
+  { label: 'Renko',          value: 'renko' },
+  { label: 'Kagi',           value: 'kagi' },
+  { label: 'Point & Figure', value: 'pointAndFigure' },
+  { label: 'Line Break',     value: 'lineBreak' },
+  { label: 'Range Bars',     value: 'rangeBars' },
 ]
 
 export const DRAWING_TOOL_GROUPS: { label: string; tools: { label: string; value: DrawingToolType }[] }[] = [
