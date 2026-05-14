@@ -28,7 +28,7 @@ import {
 import { getDemoOrders, type DemoOrder } from '../lib/demoData'
 import { useSignals } from '../hooks/useSignals'
 import { useSignalPerformanceStore } from '../store/signalPerformanceStore'
-import { buildSignalDrawings, isSignalDrawing } from '../lib/signalChartMarkers'
+import { buildSignalDrawings, buildResolvedSignalDrawings, isSignalDrawing } from '../lib/signalChartMarkers'
 import type { Signal } from '../signals/types'
 
 // Map our market symbols to Binance symbols
@@ -310,19 +310,22 @@ export function TradingChart({ loading }: { loading: boolean }) {
     const chart = chartRef.current
     if (!chart || !chartReady) return
 
-    const merged = new Map<string, Signal>()
-    for (const s of signals) merged.set(s.id, s)
+    // Live + pending signals: full-tone direction-coded arrows.
+    const liveMerged = new Map<string, Signal>()
+    for (const s of signals) liveMerged.set(s.id, s)
     for (const p of performancePending) {
-      if (!merged.has(p.id)) merged.set(p.id, performanceEntryToSignal(p))
-    }
-    for (const r of performanceResolved) {
-      if (!merged.has(r.id)) merged.set(r.id, performanceEntryToSignal(r))
+      if (!liveMerged.has(p.id)) liveMerged.set(p.id, performanceEntryToSignal(p))
     }
 
+    // Resolved signals: hit/miss-coded faded arrows so users get a
+    // retrospective audit at a glance — green = signal worked, red =
+    // signal missed. Kept separate from the live route so a stale
+    // signal can't mask its outcome.
     const existing = chart.getDrawings() as { id: string }[]
     const userKept = existing.filter(d => !isSignalDrawing(d))
-    const signalDrawings = buildSignalDrawings(Array.from(merged.values()), selectedMarket.symbol)
-    chart.setDrawings([...userKept, ...signalDrawings] as Parameters<typeof chart.setDrawings>[0])
+    const liveDrawings = buildSignalDrawings(Array.from(liveMerged.values()), selectedMarket.symbol)
+    const resolvedDrawings = buildResolvedSignalDrawings(performanceResolved, selectedMarket.symbol)
+    chart.setDrawings([...userKept, ...resolvedDrawings, ...liveDrawings] as Parameters<typeof chart.setDrawings>[0])
   }, [signals, performancePending, performanceResolved, selectedMarket.symbol, chartReady])
 
   // Live price line (also rAF-throttled)

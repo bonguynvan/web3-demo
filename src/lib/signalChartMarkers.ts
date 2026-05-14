@@ -35,9 +35,11 @@ export interface SignalDrawing {
 }
 
 const PREFIX = 'signal:'
+const RESOLVED_PREFIX = 'resolved:'
 
 export function isSignalDrawing(d: { id: string }): boolean {
-  return typeof d.id === 'string' && d.id.startsWith(PREFIX)
+  return typeof d.id === 'string'
+    && (d.id.startsWith(PREFIX) || d.id.startsWith(RESOLVED_PREFIX))
 }
 
 export function buildSignalDrawings(
@@ -79,6 +81,82 @@ export function buildSignalDrawings(
         confidence: s.confidence,
         title: s.title,
         direction: s.direction,
+      },
+    })
+  }
+  return out
+}
+
+/**
+ * buildResolvedSignalDrawings — historical audit markers.
+ *
+ * Live signal markers (above) appear at trigger time and disappear
+ * as the signal dismisses or rolls off. Resolved markers persist —
+ * one per resolved entry in the user's signalPerformanceStore — so
+ * users can retrospectively audit "did the signal a week ago
+ * actually call the move?"
+ *
+ * Visual encoding:
+ *   - hit  → faded long-tone green
+ *   - miss → faded short-tone red
+ *   - smaller arrow than live markers (style.lineWidth 2 vs 3)
+ *   - locked + non-interactive — purely read-only audit
+ *
+ * Anchored at (triggeredAt, entryPrice) so the dot sits exactly where
+ * the signal claimed the price was when it fired.
+ */
+export interface ResolvedSignalEntry {
+  id: string
+  source: string
+  marketId: string
+  direction: 'long' | 'short'
+  entryPrice: number
+  closePrice: number
+  triggeredAt: number
+  closedAt: number
+  hit: boolean
+}
+
+export function buildResolvedSignalDrawings(
+  resolved: ResolvedSignalEntry[],
+  selectedMarketId: string,
+  limit = 100,
+): SignalDrawing[] {
+  const out: SignalDrawing[] = []
+  const filtered = resolved
+    .filter(r => r.marketId === selectedMarketId && Number.isFinite(r.entryPrice))
+    .slice(-limit) // most recent N; older signals roll off
+
+  for (const r of filtered) {
+    const isLong = r.direction === 'long'
+    const color = r.hit
+      ? (isLong ? '#26d984' : '#26d984') // both directions: green on hit
+      : (isLong ? '#ff5d6d' : '#ff5d6d') // red on miss
+    const offset = r.entryPrice * 0.015 // tighter than live markers
+    const head: DrawingAnchor = { time: r.triggeredAt, price: r.entryPrice }
+    const tail: DrawingAnchor = {
+      time: r.triggeredAt,
+      price: isLong ? r.entryPrice - offset : r.entryPrice + offset,
+    }
+    out.push({
+      id: `${RESOLVED_PREFIX}${r.id}`,
+      type: 'arrow',
+      anchors: [tail, head],
+      style: {
+        color,
+        lineWidth: 2,
+        lineStyle: 'solid',
+        fillColor: color,
+        fillOpacity: 0.35, // faded so live signals stand out over resolved
+      },
+      visible: true,
+      locked: true,
+      meta: {
+        source: r.source,
+        hit: r.hit,
+        entryPrice: r.entryPrice,
+        closePrice: r.closePrice,
+        direction: r.direction,
       },
     })
   }
