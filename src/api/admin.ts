@@ -15,6 +15,37 @@ export function adminAvailable(): boolean {
   return apiAvailable() && !!ADMIN_KEY
 }
 
+export interface AdminUserRow {
+  id: string
+  wallet_address: string
+  created: string
+  pro_active: boolean
+  pro_days_remaining: number
+  paygo_balance_usd: number
+  trial_expires_at: string
+}
+
+export interface AdminInvoiceRow {
+  id: string
+  wallet_address: string
+  kind: string
+  amount_usd: number
+  status: string
+  paid_at: string
+  created: string
+  pay_currency: string
+}
+
+export interface AdminProofRow {
+  id: string
+  source: string
+  market_id: string
+  direction: string
+  hit: boolean | null
+  closed_at: string
+  created: string
+}
+
 export interface AdminMetrics {
   generated_at: string
   users_total: number
@@ -29,6 +60,13 @@ export interface AdminMetrics {
   invoices_paid: number
   invoices_by_kind: Record<string, { count: number; sum_usd: number }>
   proof_contributions_30d?: { rows: number; contributors: number }
+  signups_daily?: Array<{ day: string; n: number }>
+  revenue_daily?: Array<{ day: string; sum: number }>
+  recent_users?: AdminUserRow[]
+  recent_invoices?: AdminInvoiceRow[]
+  recent_proof?: AdminProofRow[]
+  proof_by_source?: Array<{ source: string; n: number; hits: number }>
+  proof_by_market?: Array<{ market_id: string; n: number }>
 }
 
 export async function fetchAdminMetrics(signal?: AbortSignal): Promise<AdminMetrics> {

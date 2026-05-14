@@ -45,6 +45,7 @@ func adminMetricsHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) er
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		}
 
+		// ── Aggregate counts ──────────────────────────────────────────────
 		var userCount []countRow
 		_ = app.DB().NewQuery(`SELECT COUNT(*) AS n FROM users`).All(&userCount)
 		out["users_total"] = countOrZero(userCount)
@@ -75,12 +76,12 @@ func adminMetricsHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) er
 			}
 		}
 
-		type invoiceRow struct {
+		type invoiceKindRow struct {
 			Kind   string  `db:"kind"`
 			Count  int64   `db:"count"`
 			SumUSD float64 `db:"sum_usd"`
 		}
-		var invRows []invoiceRow
+		var invRows []invoiceKindRow
 		_ = app.DB().NewQuery(`
 			SELECT kind, COUNT(*) AS count, COALESCE(SUM(amount_usd), 0) AS sum_usd
 			FROM invoices
@@ -102,24 +103,151 @@ func adminMetricsHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) er
 		out["invoices_paid"] = paidCount
 		out["invoices_by_kind"] = invoiceByKind
 
-		var proofRows []struct {
+		var proofCounts []struct {
 			Count        int64 `db:"count"`
 			Contributors int64 `db:"contributors"`
 		}
-		cutoff := time.Now().Add(-30 * 24 * time.Hour).UTC().Format(time.RFC3339)
+		cutoff := time.Now().Add(-30 * 24 * time.Hour).UTC().Format("2006-01-02 15:04:05.000Z")
 		_ = app.DB().NewQuery(`
 			SELECT
 				COUNT(*) AS count,
 				COUNT(DISTINCT device_id) AS contributors
 			FROM proof_contributions
 			WHERE created > {:c}
-		`).Bind(dbx.Params{"c": cutoff}).All(&proofRows)
-		if len(proofRows) > 0 {
+		`).Bind(dbx.Params{"c": cutoff}).All(&proofCounts)
+		if len(proofCounts) > 0 {
 			out["proof_contributions_30d"] = map[string]int64{
-				"rows":         proofRows[0].Count,
-				"contributors": proofRows[0].Contributors,
+				"rows":         proofCounts[0].Count,
+				"contributors": proofCounts[0].Contributors,
 			}
 		}
+
+		// ── Daily trend — last 30 days ────────────────────────────────────
+		type dailyCount struct {
+			Day string `db:"day"`
+			N   int64  `db:"n"`
+		}
+		type dailyRevenue struct {
+			Day string  `db:"day"`
+			Sum float64 `db:"sum"`
+		}
+		var signupsDaily []dailyCount
+		_ = app.DB().NewQuery(`
+			SELECT substr(created, 1, 10) AS day, COUNT(*) AS n
+			FROM users
+			WHERE created > {:c}
+			GROUP BY day
+			ORDER BY day
+		`).Bind(dbx.Params{"c": cutoff}).All(&signupsDaily)
+		out["signups_daily"] = signupsDaily
+
+		var revenueDaily []dailyRevenue
+		_ = app.DB().NewQuery(`
+			SELECT substr(paid_at, 1, 10) AS day, COALESCE(SUM(amount_usd), 0) AS sum
+			FROM invoices
+			WHERE status = 'paid' AND paid_at > {:c}
+			GROUP BY day
+			ORDER BY day
+		`).Bind(dbx.Params{"c": cutoff}).All(&revenueDaily)
+		out["revenue_daily"] = revenueDaily
+
+		// ── Recent rows — for operator visibility ─────────────────────────
+		type recentUserRow struct {
+			ID         string  `db:"id"`
+			Wallet     string  `db:"wallet_address"`
+			Created    string  `db:"created"`
+			ProActive  bool    `db:"pro_active"`
+			ProDays    int64   `db:"pro_days_remaining"`
+			PaygoUSD   float64 `db:"paygo_balance_usd"`
+			TrialExpAt string  `db:"trial_expires_at"`
+		}
+		var recentUsers []recentUserRow
+		_ = app.DB().NewQuery(`
+			SELECT u.id, u.wallet_address, u.created,
+			       COALESCE(e.pro_active, 0) AS pro_active,
+			       COALESCE(e.pro_days_remaining, 0) AS pro_days_remaining,
+			       COALESCE(e.paygo_balance_usd, 0) AS paygo_balance_usd,
+			       COALESCE(e.trial_expires_at, '') AS trial_expires_at
+			FROM users u
+			LEFT JOIN entitlements e ON e.user = u.id
+			ORDER BY u.created DESC
+			LIMIT 25
+		`).All(&recentUsers)
+		out["recent_users"] = recentUsers
+
+		type recentInvoiceRow struct {
+			ID        string  `db:"id"`
+			Wallet    string  `db:"wallet_address"`
+			Kind      string  `db:"kind"`
+			AmountUSD float64 `db:"amount_usd"`
+			Status    string  `db:"status"`
+			PaidAt    string  `db:"paid_at"`
+			Created   string  `db:"created"`
+			Currency  string  `db:"pay_currency"`
+		}
+		var recentInvoices []recentInvoiceRow
+		_ = app.DB().NewQuery(`
+			SELECT i.id, COALESCE(u.wallet_address, '') AS wallet_address,
+			       i.kind, i.amount_usd, i.status,
+			       COALESCE(i.paid_at, '') AS paid_at,
+			       i.created, COALESCE(i.pay_currency, '') AS pay_currency
+			FROM invoices i
+			LEFT JOIN users u ON u.id = i.user
+			ORDER BY i.created DESC
+			LIMIT 25
+		`).All(&recentInvoices)
+		out["recent_invoices"] = recentInvoices
+
+		type recentProofRow struct {
+			ID        string `db:"id"`
+			Source    string `db:"source"`
+			MarketID  string `db:"market_id"`
+			Direction string `db:"direction"`
+			Hit       *bool  `db:"hit"`
+			ClosedAt  string `db:"closed_at"`
+			Created   string `db:"created"`
+		}
+		var recentProof []recentProofRow
+		_ = app.DB().NewQuery(`
+			SELECT id, source, market_id, direction,
+			       hit, COALESCE(closed_at, '') AS closed_at, created
+			FROM proof_contributions
+			ORDER BY created DESC
+			LIMIT 30
+		`).All(&recentProof)
+		out["recent_proof"] = recentProof
+
+		// ── Proof aggregates — last 30d ───────────────────────────────────
+		type sourceRow struct {
+			Source string `db:"source"`
+			N      int64  `db:"n"`
+			Hits   int64  `db:"hits"`
+		}
+		var proofBySource []sourceRow
+		_ = app.DB().NewQuery(`
+			SELECT source, COUNT(*) AS n,
+			       SUM(CASE WHEN hit = TRUE THEN 1 ELSE 0 END) AS hits
+			FROM proof_contributions
+			WHERE created > {:c}
+			GROUP BY source
+			ORDER BY n DESC
+		`).Bind(dbx.Params{"c": cutoff}).All(&proofBySource)
+		out["proof_by_source"] = proofBySource
+
+		type marketRow struct {
+			Market string `db:"market_id"`
+			N      int64  `db:"n"`
+		}
+		var proofByMarket []marketRow
+		_ = app.DB().NewQuery(`
+			SELECT market_id, COUNT(*) AS n
+			FROM proof_contributions
+			WHERE created > {:c}
+			GROUP BY market_id
+			ORDER BY n DESC
+			LIMIT 10
+		`).Bind(dbx.Params{"c": cutoff}).All(&proofByMarket)
+		out["proof_by_market"] = proofByMarket
 
 		return e.JSON(http.StatusOK, out)
 	}
