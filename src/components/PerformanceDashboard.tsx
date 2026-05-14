@@ -10,8 +10,9 @@
  * to avoid leaking single-use atoms into the UI library.
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { TrendingUp } from 'lucide-react'
+import { EquityCurveChart, DARK_TERMINAL, type EquityPoint } from '@tradecanvas/chart'
 import type { BotTrade } from '../bots/types'
 import { cn } from '../lib/format'
 
@@ -124,89 +125,51 @@ function computeMetrics(trades: ClosedTrade[]): Metrics {
   }
 }
 
+/**
+ * EquityChart — full-width cumulative PnL with drawdown shading.
+ *
+ * Powered by @tradecanvas/chart's EquityCurveChart. Drawdown shading
+ * is on for the dashboard variant so the user can see at a glance
+ * where each peak-to-trough phase happened. Crosshair lets them
+ * hover any bar to read the exact dollar amount.
+ */
 function EquityChart({ trades }: { trades: ClosedTrade[] }) {
-  const W = 600
-  const H = 140
-  const PAD_L = 4
-  const PAD_R = 4
-  const PAD_T = 8
-  const PAD_B = 18
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<EquityCurveChart | null>(null)
+  const HEIGHT = 160
 
-  const series = trades.reduce<{ t: number; y: number }[]>((acc, tr) => {
-    const prev = acc.length > 0 ? acc[acc.length - 1].y : 0
-    acc.push({ t: tr.closedAt, y: prev + tr.pnlUsd })
-    return acc
+  const points: EquityPoint[] = useMemo(() => {
+    if (trades.length === 0) return []
+    let cum = 0
+    const out: EquityPoint[] = [{ time: trades[0].closedAt - 1000, value: 0 }]
+    for (const t of trades) {
+      cum += t.pnlUsd
+      out.push({ time: t.closedAt, value: cum })
+    }
+    return out
+  }, [trades])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const chart = new EquityCurveChart(containerRef.current, {
+      data: points,
+      drawdown: true,
+      crosshair: true,
+      fillArea: true,
+      theme: DARK_TERMINAL,
+      timeFormat: (ts) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      valueFormat: (v) => `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`,
+    })
+    chartRef.current = chart
+    return () => { chart.destroy(); chartRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const tMin = series[0].t
-  const tMax = series[series.length - 1].t
-  const tSpan = tMax - tMin || 1
-  const ys = series.map(p => p.y)
-  const yMin = Math.min(0, ...ys)
-  const yMax = Math.max(0, ...ys)
-  const yPad = (yMax - yMin) * 0.1 || 1
-  const yLo = yMin - yPad
-  const yHi = yMax + yPad
+  useEffect(() => {
+    chartRef.current?.update(points)
+  }, [points])
 
-  const project = (t: number, y: number) => ({
-    px: PAD_L + ((t - tMin) / tSpan) * (W - PAD_L - PAD_R),
-    py: PAD_T + (1 - (y - yLo) / (yHi - yLo)) * (H - PAD_T - PAD_B),
-  })
-
-  const points = series.map(p => {
-    const { px, py } = project(p.t, p.y)
-    return `${px.toFixed(2)},${py.toFixed(2)}`
-  })
-
-  const zeroY = project(tMin, 0).py
-  const finalY = ys[ys.length - 1]
-  const positive = finalY >= 0
-  const stroke = positive ? '#22c55e' : '#ef4444'
-  const fillRgba = positive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
-
-  const areaPath = `M ${PAD_L},${zeroY} L ${points.join(' ')} L ${W - PAD_R},${zeroY} Z`
-
-  const fmtTick = (ts: number) =>
-    new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-
-  return (
-    <div className="w-full">
-      <svg
-        width="100%"
-        height={H}
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Cumulative realized PnL over time"
-      >
-        <line
-          x1={PAD_L}
-          y1={zeroY}
-          x2={W - PAD_R}
-          y2={zeroY}
-          stroke="currentColor"
-          strokeOpacity={0.18}
-          strokeDasharray="3 3"
-        />
-        <path d={areaPath} fill={fillRgba} />
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke={stroke}
-          strokeWidth={1.6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        <text x={PAD_L} y={H - 4} fontSize="9" fill="currentColor" opacity={0.5}>
-          {fmtTick(tMin)}
-        </text>
-        <text x={W - PAD_R} y={H - 4} fontSize="9" fill="currentColor" opacity={0.5} textAnchor="end">
-          {fmtTick(tMax)}
-        </text>
-      </svg>
-    </div>
-  )
+  return <div ref={containerRef} style={{ width: '100%', height: HEIGHT }} />
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone: 'long' | 'short' | 'neutral' }) {

@@ -1,11 +1,17 @@
 /**
- * EquityCurve — small SVG sparkline of cumulative realized PnL.
+ * EquityCurve — cumulative realized PnL line.
  *
- * Pure presentational. Caller filters to closed trades and sorts
- * ascending by `closedAt` before passing in. Stretches to 100% width
- * via a 100×height viewBox + non-uniform preserveAspectRatio.
+ * Backed by @tradecanvas/chart 0.6's EquityCurveChart. Drawdown
+ * shading + canvas crosshair come for free; we leave them off here
+ * for the compact-height sparkline variant. The bigger variant on
+ * PerformanceDashboard flips them on.
+ *
+ * Caller still passes closed BotTrade rows sorted ascending by
+ * `closedAt`; we convert to {time, value} EquityPoints on render.
  */
 
+import { useEffect, useMemo, useRef } from 'react'
+import { EquityCurveChart, DARK_TERMINAL, type EquityPoint } from '@tradecanvas/chart'
 import type { BotTrade } from '../bots/types'
 
 interface EquityCurveProps {
@@ -15,62 +21,50 @@ interface EquityCurveProps {
 }
 
 export function EquityCurve({ trades, className, height = 36 }: EquityCurveProps) {
-  const series: { x: number; y: number }[] = [{ x: 0, y: 0 }]
-  let cum = 0
-  for (let i = 0; i < trades.length; i++) {
-    cum += trades[i].pnlUsd
-    series.push({ x: i + 1, y: cum })
-  }
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<EquityCurveChart | null>(null)
 
-  const xs = series.map(p => p.x)
-  const ys = series.map(p => p.y)
-  const xMin = 0
-  const xMax = Math.max(...xs)
-  const yMin = Math.min(0, ...ys)
-  const yMax = Math.max(0, ...ys)
-  const yPad = (yMax - yMin) * 0.1 || 1
+  const points: EquityPoint[] = useMemo(() => {
+    if (trades.length === 0) return []
+    let cum = 0
+    const out: EquityPoint[] = []
+    // Seed at first-trade-time minus 1s with zero so the line starts
+    // from the origin rather than the first profitable trade.
+    out.push({ time: trades[0].closedAt - 1000, value: 0 })
+    for (const t of trades) {
+      cum += t.pnlUsd
+      out.push({ time: t.closedAt, value: cum })
+    }
+    return out
+  }, [trades])
 
-  const W = 100
-  const H = height
-  const project = (x: number, y: number) => ({
-    px: xMax > xMin ? ((x - xMin) / (xMax - xMin)) * W : W / 2,
-    py: H - ((y - (yMin - yPad)) / ((yMax + yPad) - (yMin - yPad))) * H,
-  })
+  useEffect(() => {
+    if (!containerRef.current) return
+    const chart = new EquityCurveChart(containerRef.current, {
+      data: points,
+      drawdown: false,
+      crosshair: false,
+      fillArea: true,
+      theme: DARK_TERMINAL,
+    })
+    chartRef.current = chart
+    return () => {
+      chart.destroy()
+      chartRef.current = null
+    }
+    // Intentional: chart instance is created once, fed via update().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const points = series.map(p => {
-    const { px, py } = project(p.x, p.y)
-    return `${px.toFixed(2)},${py.toFixed(2)}`
-  }).join(' ')
-
-  const last = project(series[series.length - 1].x, series[series.length - 1].y)
-  const first = project(series[0].x, series[0].y)
-  const areaPath = `M ${first.px},${H} L ${points.replace(/,/g, ' ').replace(/  /g, ' ')} L ${last.px},${H} Z`
-
-  const zero = project(0, 0).py
-  const final = ys[ys.length - 1]
-  const positive = final >= 0
-  const stroke = positive ? '#22c55e' : '#ef4444'
-  const fill = positive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
+  useEffect(() => {
+    chartRef.current?.update(points)
+  }, [points])
 
   return (
-    <svg
+    <div
+      ref={containerRef}
       className={className}
-      width="100%"
-      height={height}
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-    >
-      <line x1={0} y1={zero} x2={W} y2={zero} stroke="currentColor" strokeOpacity={0.15} strokeDasharray="2 2" />
-      <path d={areaPath} fill={fill} />
-      <polyline
-        points={points}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+      style={{ width: '100%', height }}
+    />
   )
 }
