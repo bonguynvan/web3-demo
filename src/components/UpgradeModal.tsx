@@ -51,6 +51,7 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
   const [busy, setBusy] = useState<InvoiceKind | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [trialBusy, setTrialBusy] = useState(false)
+  const [trialActivated, setTrialActivated] = useState(false)
   const setEnt = useEntitlementStore(s => s.set)
   const trialAvailable = !!user && me !== null && me.trial_expires_at === null
 
@@ -62,6 +63,7 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
       await startTrial()
       const fresh = await fetchMe()
       setEnt(fresh)
+      setTrialActivated(true)
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -98,7 +100,28 @@ export function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => 
           balanceUsd={proState.balanceUsd}
         />
 
-        {trialAvailable && (
+        {trialActivated ? (
+          <div className="rounded-md border border-long/40 bg-long/10 px-4 py-3 space-y-2">
+            <div className="text-sm font-semibold text-text-primary flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-long" />
+              Trial activated — 14 Pro days credited
+            </div>
+            <p className="text-[11px] text-text-secondary leading-snug">
+              Premium signals (whale, news), Telegram delivery, and AI explainer
+              are all live now. The single biggest payoff in the first 5 minutes
+              is wiring Telegram alerts so signals reach you when you're not on
+              the page.
+            </p>
+            <a
+              href="/trade"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-surface text-[11px] font-semibold uppercase tracking-[0.14em] hover:opacity-90 transition-opacity"
+            >
+              <Sparkles className="w-3 h-3" />
+              Set up Telegram alerts →
+            </a>
+          </div>
+        ) : trialAvailable && (
           <button
             onClick={handleStartTrial}
             disabled={trialBusy}

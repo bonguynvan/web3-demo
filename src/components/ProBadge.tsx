@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Sparkles, Zap, Clock } from 'lucide-react'
+import { Sparkles, Zap, Clock, Wallet } from 'lucide-react'
 import { apiAvailable } from '../api/client'
 import { useEntitlementStore } from '../store/entitlementStore'
 import { deriveProState } from '../lib/pro'
@@ -16,47 +16,53 @@ import { cn } from '../lib/format'
 
 export function ProBadge({ className }: { className?: string }) {
   const me = useEntitlementStore(s => s.data)
-  const proState = deriveProState(me)
+  const ps = deriveProState(me)
   const [open, setOpen] = useState(false)
 
   if (!apiAvailable()) return null
 
-  const isPro = proState.active
+  const variants = {
+    none: {
+      icon: <Zap className="w-3 h-3" />,
+      label: 'Upgrade',
+      title: 'Upgrade to Pro',
+      cls: 'bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent/60',
+    },
+    trial: {
+      icon: <Sparkles className="w-3 h-3" />,
+      label: `Trial · ${ps.daysLeft}d`,
+      title: `Free trial · ${ps.daysLeft} day${ps.daysLeft === 1 ? '' : 's'} left`,
+      cls: 'bg-accent-dim border border-accent/30 text-accent hover:bg-accent hover:text-surface',
+    },
+    days: {
+      icon: <Clock className="w-3 h-3" />,
+      label: `Pro · ${ps.daysLeft}d`,
+      title: `Pro · ${ps.daysLeft} day${ps.daysLeft === 1 ? '' : 's'} of paid time remaining`,
+      cls: 'bg-accent text-surface hover:opacity-90',
+    },
+    paygo: {
+      icon: <Wallet className="w-3 h-3" />,
+      label: `Paygo · $${ps.balanceUsd.toFixed(2)}`,
+      title: `Pay-as-you-go: $${ps.balanceUsd.toFixed(2)} balance (~${ps.daysLeft} days at $0.10/day)`,
+      cls: 'bg-long/15 border border-long/40 text-long hover:bg-long hover:text-surface',
+    },
+  } as const
+
+  const v = variants[ps.source]
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        title={
-          isPro
-            ? `Pro · ${proState.daysLeft >= 0 ? `${proState.daysLeft} days left` : 'active'}`
-            : 'Upgrade to Pro'
-        }
+        title={v.title}
         className={cn(
           'flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono uppercase tracking-[0.14em] transition-colors cursor-pointer',
-          isPro
-            ? 'bg-accent-dim text-accent hover:bg-accent hover:text-surface'
-            : 'bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent/60',
+          v.cls,
           className,
         )}
       >
-        {isPro ? (
-          <>
-            <Sparkles className="w-3 h-3" />
-            <span>Pro</span>
-            {proState.daysLeft >= 0 && proState.daysLeft <= 7 && (
-              <span className="flex items-center gap-0.5 text-[9px] opacity-80">
-                <Clock className="w-2.5 h-2.5" />
-                {proState.daysLeft}d
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            <Zap className="w-3 h-3" />
-            <span>Upgrade</span>
-          </>
-        )}
+        {v.icon}
+        <span>{v.label}</span>
       </button>
       <UpgradeModal open={open} onClose={() => setOpen(false)} />
     </>
