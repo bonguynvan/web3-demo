@@ -15,6 +15,7 @@ import { useProofContributeStore } from '../store/proofContributeStore'
 import { Wordmark } from '../components/ui/Logo'
 import { useSignalPerformanceStore, type ResolvedEntry } from '../store/signalPerformanceStore'
 import { SourceMarketHeatmap } from '../components/SourceMarketHeatmap'
+import { SourceTrendSparkline } from '../components/SourceTrendSparkline'
 import type { SignalSource } from '../signals/types'
 import { cn } from '../lib/format'
 import { useDocumentMeta } from '../lib/documentMeta'
@@ -160,13 +161,14 @@ export function ProofPage() {
           ) : (
             <div className="rounded-lg border border-border overflow-hidden">
               <Table
-                cols={['Source', 'Resolved', 'Hits', 'Hit rate']}
+                cols={['Source', 'Resolved', 'Hits', 'Hit rate', 'Trend']}
                 rightAlignFrom={1}
                 rows={summary.bySource.map(r => [
                   SOURCE_LABELS[r.source] ?? r.source,
                   r.total.toString(),
                   r.hits.toString(),
                   <HitRateCell key={r.source} hitRate={r.hitRate} qualified={r.total >= 3} />,
+                  <SourceTrendSparkline key={r.source} source={r.source} resolved={resolved} />,
                 ])}
               />
             </div>
