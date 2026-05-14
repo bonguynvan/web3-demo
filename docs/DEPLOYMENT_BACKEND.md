@@ -37,6 +37,10 @@ NOWPAY_IPN_SECRET=<paste the IPN secret here>
 PB_ADMIN_EMAIL=you@example.com
 PB_ADMIN_PASSWORD=<long random string>
 PB_ENCRYPTION_KEY=<32 random chars>
+# Optional: enables /api/admin/metrics + the SPA /admin/metrics page.
+# Set the same value as VITE_ADMIN_KEY at SPA build time. Leave empty
+# to keep the operator dashboard disabled (endpoint returns 503).
+ADMIN_DASHBOARD_KEY=
 EOF
 chmod 600 .env
 

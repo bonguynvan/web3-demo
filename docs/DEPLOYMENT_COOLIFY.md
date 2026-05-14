@@ -161,6 +161,12 @@ VITE_NOWPAY_PUBLIC_KEY=
 VITE_PLAUSIBLE_DOMAIN=
 VITE_BINANCE_REST_BASE=https://api.tradingdek.com/api/proxy/binance
 VITE_HYPERLIQUID_BUILDER_CODE=
+
+# Optional — operator metrics dashboard at /admin/metrics. Set BOTH
+# halves to the same long random string (32+ chars). Leave empty to
+# keep the dashboard disabled (backend returns 503, SPA redirects).
+ADMIN_DASHBOARD_KEY=
+VITE_ADMIN_KEY=
 ```
 
 Tips:
