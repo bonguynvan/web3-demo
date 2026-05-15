@@ -12,7 +12,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2 } from 'lucide-react'
+import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2, Trophy } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
 import { cn } from '../lib/format'
@@ -148,6 +149,13 @@ export function BotManagerPage() {
                 {anyEnabled ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
               </button>
             )}
+            <Link
+              to="/bots/leaderboard"
+              title="Leaderboard — rank all bots"
+              className="flex items-center justify-center w-7 h-7 rounded text-text-muted hover:text-amber-400 hover:bg-amber-400/10 transition-colors cursor-pointer"
+            >
+              <Trophy className="w-4 h-4" />
+            </Link>
             <button
               onClick={() => setCompareOpen(true)}
               title="Compare strategies side-by-side"

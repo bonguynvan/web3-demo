@@ -34,6 +34,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ defa
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })))
 const AdminMetricsPage = lazy(() => import('./pages/AdminMetricsPage').then(m => ({ default: m.AdminMetricsPage })))
 const RiskDashboardPage = lazy(() => import('./pages/RiskDashboardPage').then(m => ({ default: m.RiskDashboardPage })))
+const BotLeaderboardPage = lazy(() => import('./pages/BotLeaderboardPage').then(m => ({ default: m.BotLeaderboardPage })))
 
 function RouteFallback() {
   // Layout-aware shimmer: a thin top bar + offset content blocks so the
@@ -84,6 +85,7 @@ function App() {
               <Route path="/library" element={<StrategyLibraryPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/bots" element={<BotManagerPage />} />
+              <Route path="/bots/leaderboard" element={<BotLeaderboardPage />} />
               <Route path="/risk" element={<RiskDashboardPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
