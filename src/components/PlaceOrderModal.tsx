@@ -92,7 +92,7 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   // through Phase 2 — Phase 3 graduates the flow.
   const isHl = venueId === 'hyperliquid'
   const hlAgent = isHl ? loadHlAgent() : null
-  const hlMainnetBlocked = isHl && hlIsMainnet()
+  const hlOnMainnet = isHl && hlIsMainnet()
   const hlAgentReady = isHl && !!hlAgent && hlAgent.approvedAt !== null && hlAgent.network === hlNetwork()
   const hlBlocked = isHl && !hlAgentReady
 
@@ -108,13 +108,11 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
     if (hlBlocked) {
       toast.error(
         'Hyperliquid agent not ready',
-        hlMainnetBlocked
-          ? 'Phase 2 is testnet-only — switch VITE_HYPERLIQUID_NETWORK=testnet'
-          : !hlAgent
-            ? 'Generate + approve an agent in Profile → Hyperliquid agent wallet'
-            : !hlAgent.approvedAt
-              ? 'Agent is generated but not yet approved — sign approval in Profile'
-              : `Agent is on ${hlAgent.network}, current network is ${hlNetwork()}`,
+        !hlAgent
+          ? 'Generate + approve an agent in Profile → Hyperliquid agent wallet'
+          : !hlAgent.approvedAt
+            ? 'Agent is generated but not yet approved — sign approval in Profile'
+            : `Agent is on ${hlAgent.network}, current network is ${hlNetwork()}`,
       )
       return
     }
@@ -176,24 +174,24 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
             'flex items-start gap-2 px-3 py-2.5 rounded-md text-[11px] leading-relaxed border',
             hlBlocked
               ? 'border-short/40 bg-short/10 text-short'
-              : 'border-long/40 bg-long/10 text-long'
+              : hlOnMainnet
+                ? 'border-amber-400/40 bg-amber-400/10 text-amber-200'
+                : 'border-long/40 bg-long/10 text-long'
           )}>
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <div>
-              {hlMainnetBlocked && (
-                <div>Mainnet blocked — Phase 2 is testnet-only.</div>
-              )}
-              {!hlMainnetBlocked && !hlAgent && (
+              {!hlAgent && (
                 <div>No agent — generate + approve one in Profile → Hyperliquid agent wallet.</div>
               )}
-              {!hlMainnetBlocked && hlAgent && !hlAgent.approvedAt && (
+              {hlAgent && !hlAgent.approvedAt && (
                 <div>Agent generated but not approved. Sign approval in Profile first.</div>
               )}
-              {!hlMainnetBlocked && hlAgent && hlAgent.approvedAt && hlAgent.network !== hlNetwork() && (
+              {hlAgent && hlAgent.approvedAt && hlAgent.network !== hlNetwork() && (
                 <div>Agent is on {hlAgent.network}; current network is {hlNetwork()}. Regenerate.</div>
               )}
               {hlAgentReady && (
                 <div>
+                  {hlOnMainnet && <span className="font-semibold mr-1">MAINNET —</span>}
                   Agent <span className="font-mono">{hlAgent!.address.slice(0, 6)}…{hlAgent!.address.slice(-4)}</span> approved on {hlAgent!.network}.
                   Signs silently — no wallet popup.
                 </div>

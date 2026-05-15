@@ -13,7 +13,7 @@ import { HttpTransport } from '@nktkas/hyperliquid'
 import { approveAgent } from '@nktkas/hyperliquid/api/exchange'
 import type { AbstractWallet } from '@nktkas/hyperliquid/signing'
 import type { WalletClient } from 'viem'
-import { hlIsMainnet, hlNetwork } from './hyperliquidAgent'
+import { hlNetwork } from './hyperliquidAgent'
 
 export interface ApproveAgentArgs {
   walletClient: WalletClient
@@ -37,12 +37,6 @@ function adaptWallet(wc: WalletClient): AbstractWallet {
 }
 
 export async function approveHyperliquidAgent(args: ApproveAgentArgs): Promise<void> {
-  if (hlIsMainnet()) {
-    throw new Error(
-      'Mainnet not enabled in Phase 1 — set VITE_HYPERLIQUID_NETWORK=testnet ' +
-      'and validate on testnet before unlocking mainnet.'
-    )
-  }
   const transport = new HttpTransport({ isTestnet: hlNetwork() === 'testnet' })
 
   await approveAgent(

@@ -297,7 +297,7 @@ export function ProfilePage() {
           <SectionHeader
             icon={KeyRound}
             title="Hyperliquid agent wallet"
-            subtitle="Phase 1 of signed trading. Approve a local agent key once via your wallet, then sign orders silently. Locked to testnet until validated."
+            subtitle="Approve a local agent key once via your wallet, then sign orders silently. Switch network via VITE_HYPERLIQUID_NETWORK at build time."
           />
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
             <button
@@ -308,7 +308,12 @@ export function ProfilePage() {
             </button>
             {hlAgent && (
               <span className="font-mono text-text-muted">
-                <span className="uppercase mr-2">{hlNetwork()}</span>
+                <span className={cn(
+                  'uppercase mr-2 px-1.5 py-0.5 rounded text-[10px]',
+                  hlNetwork() === 'mainnet'
+                    ? 'bg-amber-400/20 text-amber-200'
+                    : 'bg-text-muted/15'
+                )}>{hlNetwork()}</span>
                 {hlAgent.address.slice(0, 6)}…{hlAgent.address.slice(-4)} ·{' '}
                 {hlAgent.approvedAt
                   ? <span className="text-long">approved</span>

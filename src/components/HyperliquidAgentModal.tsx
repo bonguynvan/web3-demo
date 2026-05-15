@@ -109,14 +109,15 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
           <div>
             {mainnet ? (
               <>
-                <div className="font-semibold mb-0.5">Mainnet detected — Phase 1 is testnet-only.</div>
-                Approval will throw. Set <code className="font-mono">VITE_HYPERLIQUID_NETWORK=testnet</code> and rebuild
-                before approving an agent.
+                <div className="font-semibold mb-0.5">MAINNET — real funds.</div>
+                Approving an agent here authorizes it to place orders against your live Hyperliquid
+                account. It still <strong>cannot withdraw</strong>, but it can move you in and out of
+                positions. Forget the agent any time to revoke.
               </>
             ) : (
               <>
-                <div className="font-semibold mb-0.5">Testnet — Phase 1.</div>
-                Validate the approve flow here first. Mainnet trading unlocks in a later phase.
+                <div className="font-semibold mb-0.5">Testnet — sandbox.</div>
+                Safe to experiment here. Switch <code className="font-mono">VITE_HYPERLIQUID_NETWORK=mainnet</code> when ready.
               </>
             )}
           </div>
@@ -201,9 +202,9 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
                 <button
                   type="button"
                   onClick={handleApprove}
-                  disabled={busy !== null || !walletClient || mainnet}
+                  disabled={busy !== null || !walletClient}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer disabled:opacity-50"
-                  title={mainnet ? 'Switch to testnet first' : 'Sign approveAgent in your wallet'}
+                  title="Sign approveAgent in your wallet"
                 >
                   {busy === 'approve' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
                   Sign approval

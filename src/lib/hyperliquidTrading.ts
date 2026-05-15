@@ -15,7 +15,7 @@
 import { HttpTransport } from '@nktkas/hyperliquid'
 import { order as sdkOrder, cancel as sdkCancel } from '@nktkas/hyperliquid/api/exchange'
 import { privateKeyToAccount } from 'viem/accounts'
-import { hlIsMainnet, hlNetwork, loadAgent } from './hyperliquidAgent'
+import { hlNetwork, loadAgent } from './hyperliquidAgent'
 
 export interface WireOrder {
   /** Asset index from HyperliquidAdapter.markets[].id ↔ ordinal. */
@@ -46,12 +46,6 @@ export interface PlaceResult {
 }
 
 function ensureAgent() {
-  if (hlIsMainnet()) {
-    throw new Error(
-      'Mainnet not enabled in Phase 2 — set VITE_HYPERLIQUID_NETWORK=testnet ' +
-      'and validate trading on testnet before flipping mainnet on.'
-    )
-  }
   const agent = loadAgent()
   if (!agent) {
     throw new Error('No agent wallet — generate one in Profile → Hyperliquid agent wallet')
