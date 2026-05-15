@@ -14,6 +14,11 @@
  */
 
 import type { VenueAdapter } from '../VenueAdapter'
+import {
+  placeOrder as hlPlaceOrder,
+  cancelOrder as hlCancelOrder,
+  type WireOrder as HlTradingWireOrder,
+} from '../../lib/hyperliquidTrading'
 import type {
   Balance,
   Candle,
@@ -519,34 +524,70 @@ export class HyperliquidAdapter implements VenueAdapter {
       throw venueError('cannot derive size from intent', false, true)
     }
 
-    const _wireOrder = {
+    // Market orders → IOC limit at the slippage cap. Without a slippage
+    // cap an "Ioc" limit at price 0 would cross any depth at any price,
+    // so clamp to ±5% (50 bps default).
+    let limitPx = intent.price
+    if (intent.type === 'market') {
+      const slipBps = intent.slippageBps ?? 500
+      if (intent.price === undefined) {
+        throw venueError('market order requires reference price for slippage cap', false, true)
+      }
+      const mult = intent.side === 'buy' ? 1 + slipBps / 10000 : 1 - slipBps / 10000
+      limitPx = intent.price * mult
+    }
+    if (limitPx === undefined) {
+      throw venueError('limit order requires price', false, true)
+    }
+
+    const wireOrder: HlTradingWireOrder = {
       a: assetIndex,
       b: intent.side === 'buy',
-      p: intent.price !== undefined ? intent.price.toFixed(Math.max(pxDecimals, 0)) : '0',
+      p: limitPx.toFixed(Math.max(pxDecimals, 0)),
       s: sizeBase.toFixed(Math.round(Math.log10(1 / market.stepSize))),
       r: intent.reduceOnly ?? false,
       t: intent.type === 'market'
-        ? { limit: { tif: 'Ioc' as const } }   // HL has no native market — IOC limit at slippage cap
-        : { limit: { tif: intent.tif === 'post_only' ? ('Alo' as const) : ('Gtc' as const) } },
+        ? { limit: { tif: 'Ioc' } }
+        : { limit: { tif: intent.tif === 'post_only' ? 'Alo' : 'Gtc' } },
     }
-    const _action = {
-      type: 'order' as const,
-      orders: [_wireOrder],
-      grouping: 'na' as const,
-    }
-    const _nonce = Date.now()
 
-    // The remaining steps are documented in the JSDoc above. Don't ship
-    // signed transactions without testnet validation.
-    throw venueError(
-      'placeOrder signing not yet wired. See the JSDoc above for the exact ' +
-      'EIP-712 + msgpack recipe; validate against api.hyperliquid-testnet.xyz ' +
-      'before enabling on mainnet.',
-      false, true,
-    )
+    const result = await hlPlaceOrder(wireOrder)
+    const now = Date.now()
+    return {
+      id: result.oid !== undefined ? String(result.oid) : '',
+      clientId: intent.clientId,
+      marketId: market.id,
+      side: intent.side,
+      type: intent.type,
+      tif: (intent.tif ?? (intent.type === 'market' ? 'ioc' : 'gtc')) as Order['tif'],
+      price: limitPx,
+      size: sizeBase,
+      filledSize: result.totalFilled ?? 0,
+      avgFillPrice: result.avgPx,
+      reduceOnly: intent.reduceOnly,
+      status: (result.totalFilled ?? 0) >= sizeBase
+        ? 'filled'
+        : (result.totalFilled ?? 0) > 0
+          ? 'partially_filled'
+          : 'open',
+      createdAt: now,
+      updatedAt: now,
+    }
   }
-  async cancelOrder(_args: { marketId: string; orderId: string }): Promise<void> {
-    throw notImplemented('cancelOrder')
+  async cancelOrder(args: { marketId: string; orderId: string }): Promise<void> {
+    const market = this.getMarket(args.marketId)
+    if (!market) {
+      throw venueError(`unknown market ${args.marketId}`, false, true)
+    }
+    const assetIndex = this.markets.findIndex(m => m.id === market.id)
+    if (assetIndex < 0) {
+      throw venueError(`asset index lookup failed for ${args.marketId}`, false, true)
+    }
+    const oid = Number(args.orderId)
+    if (!Number.isFinite(oid) || oid <= 0) {
+      throw venueError(`invalid orderId ${args.orderId}`, false, true)
+    }
+    await hlCancelOrder({ assetIndex, orderId: oid })
   }
   async cancelAllOrders(_marketId?: string): Promise<void> { throw notImplemented('cancelAllOrders') }
   async setLeverage(_args: { marketId: string; leverage: number }): Promise<void> {

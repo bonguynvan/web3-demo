@@ -13,6 +13,7 @@ import { Modal } from './ui/Modal'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { getAdapter, getActiveAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
+import { loadAgent as loadHlAgent, hlNetwork, hlIsMainnet } from '../lib/hyperliquidAgent'
 import { useVenueBalances } from '../hooks/useVenueBalances'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
@@ -86,6 +87,15 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const notionalRatio = usdtFree > 0 ? notional / usdtFree : 0
   const showHighRiskWarning = side === 'buy' && notional > 0 && usdtFree > 0 && notionalRatio > 0.5
 
+  // Hyperliquid agent-status. Only signed orders are possible when an
+  // approved agent exists on the current network. Mainnet stays blocked
+  // through Phase 2 — Phase 3 graduates the flow.
+  const isHl = venueId === 'hyperliquid'
+  const hlAgent = isHl ? loadHlAgent() : null
+  const hlMainnetBlocked = isHl && hlIsMainnet()
+  const hlAgentReady = isHl && !!hlAgent && hlAgent.approvedAt !== null && hlAgent.network === hlNetwork()
+  const hlBlocked = isHl && !hlAgentReady
+
   const submit = async () => {
     if (!marketId.trim()) {
       toast.error('Missing market', 'Enter a market like BTC/USDT')
@@ -93,6 +103,19 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
     }
     if (!(priceNum > 0 && sizeNum > 0)) {
       toast.error('Invalid input', 'Price and size must be > 0')
+      return
+    }
+    if (hlBlocked) {
+      toast.error(
+        'Hyperliquid agent not ready',
+        hlMainnetBlocked
+          ? 'Phase 2 is testnet-only — switch VITE_HYPERLIQUID_NETWORK=testnet'
+          : !hlAgent
+            ? 'Generate + approve an agent in Profile → Hyperliquid agent wallet'
+            : !hlAgent.approvedAt
+              ? 'Agent is generated but not yet approved — sign approval in Profile'
+              : `Agent is on ${hlAgent.network}, current network is ${hlNetwork()}`,
+      )
       return
     }
     const summary = `${side.toUpperCase()} ${sizeNum} ${marketId.split('/')[0] ?? ''} @ $${priceNum} = $${formatUsd(notional)}`
@@ -144,8 +167,40 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
             className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent capitalize"
           >
             <option value="binance">binance</option>
+            <option value="hyperliquid">hyperliquid</option>
           </select>
         </Field>
+
+        {isHl && (
+          <div className={cn(
+            'flex items-start gap-2 px-3 py-2.5 rounded-md text-[11px] leading-relaxed border',
+            hlBlocked
+              ? 'border-short/40 bg-short/10 text-short'
+              : 'border-long/40 bg-long/10 text-long'
+          )}>
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>
+              {hlMainnetBlocked && (
+                <div>Mainnet blocked — Phase 2 is testnet-only.</div>
+              )}
+              {!hlMainnetBlocked && !hlAgent && (
+                <div>No agent — generate + approve one in Profile → Hyperliquid agent wallet.</div>
+              )}
+              {!hlMainnetBlocked && hlAgent && !hlAgent.approvedAt && (
+                <div>Agent generated but not approved. Sign approval in Profile first.</div>
+              )}
+              {!hlMainnetBlocked && hlAgent && hlAgent.approvedAt && hlAgent.network !== hlNetwork() && (
+                <div>Agent is on {hlAgent.network}; current network is {hlNetwork()}. Regenerate.</div>
+              )}
+              {hlAgentReady && (
+                <div>
+                  Agent <span className="font-mono">{hlAgent!.address.slice(0, 6)}…{hlAgent!.address.slice(-4)}</span> approved on {hlAgent!.network}.
+                  Signs silently — no wallet popup.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <Field label="Market">
           <select
