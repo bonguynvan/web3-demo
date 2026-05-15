@@ -13,7 +13,7 @@
 
 import { useState } from 'react'
 import { Modal } from './ui/Modal'
-import { ShieldCheck, Eye, EyeOff, ExternalLink } from 'lucide-react'
+import { ShieldCheck, Eye, EyeOff, ExternalLink, AlertTriangle, Check, X } from 'lucide-react'
 import {
   seal, unseal, vaultExists, WrongPassphraseError,
   type VaultPayload,
@@ -160,10 +160,40 @@ export function ConnectVenueModal({ open, onClose, venueId }: Props) {
             <span>
               Don't have an API key yet?{' '}
               <span className="text-accent font-medium capitalize">Generate one on {venueId}</span>
-              {' '}— enable Spot &amp; Margin trading, disable withdrawals.
             </span>
             <ExternalLink className="w-3.5 h-3.5 shrink-0 text-text-muted" />
           </a>
+        )}
+
+        {venueId === 'binance' && (
+          <div className="rounded-md border border-border bg-surface/60 px-3 py-2.5 text-[11px] leading-relaxed">
+            <div className="flex items-center gap-1.5 text-text-primary font-semibold mb-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              Key permissions checklist
+            </div>
+            <ul className="space-y-1 font-mono text-text-secondary">
+              <li className="flex items-center gap-1.5">
+                <Check className="w-3 h-3 text-long shrink-0" />
+                Enable Reading
+              </li>
+              <li className="flex items-center gap-1.5">
+                <Check className="w-3 h-3 text-long shrink-0" />
+                Enable Spot &amp; Margin Trading
+              </li>
+              <li className="flex items-center gap-1.5">
+                <X className="w-3 h-3 text-short shrink-0" />
+                <span><span className="text-short font-semibold">Never</span> Enable Withdrawals</span>
+              </li>
+              <li className="flex items-center gap-1.5">
+                <X className="w-3 h-3 text-short shrink-0" />
+                <span><span className="text-short font-semibold">Never</span> Enable Internal Transfer / Universal Transfer</span>
+              </li>
+            </ul>
+            <div className="mt-2 text-text-muted">
+              IP allowlist is optional — only restrict if you call Binance through our backend proxy.
+              Binance is geo-blocked in US / UK / Ontario; use Binance.US there (not yet supported).
+            </div>
+          </div>
         )}
 
         <Field label="API key">
