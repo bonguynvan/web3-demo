@@ -35,6 +35,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ defaul
 const AdminMetricsPage = lazy(() => import('./pages/AdminMetricsPage').then(m => ({ default: m.AdminMetricsPage })))
 const RiskDashboardPage = lazy(() => import('./pages/RiskDashboardPage').then(m => ({ default: m.RiskDashboardPage })))
 const BotLeaderboardPage = lazy(() => import('./pages/BotLeaderboardPage').then(m => ({ default: m.BotLeaderboardPage })))
+const HyperliquidViewerPage = lazy(() => import('./pages/HyperliquidViewerPage').then(m => ({ default: m.HyperliquidViewerPage })))
 
 function RouteFallback() {
   // Layout-aware shimmer: a thin top bar + offset content blocks so the
@@ -78,6 +79,7 @@ function App() {
             <Route path="/legal/:doc" element={<LegalPage />} />
             <Route path="/learn" element={<LearnPage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/hl" element={<HyperliquidViewerPage />} />
             <Route path="/admin/metrics" element={<AdminMetricsPage />} />
             <Route element={<AppShell />}>
               <Route path="/trade" element={<TradePage />} />
