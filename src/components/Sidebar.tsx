@@ -23,6 +23,7 @@ import {
   PieChart,
   BookOpen,
   Bot,
+  ShieldAlert,
   User,
   Sun,
   Moon,
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { path: '/trade', label: 'Trade', icon: LineChart },
   { path: '/portfolio', label: 'Portfolio', icon: PieChart },
   { path: '/bots', label: 'Bot manager', icon: Bot },
+  { path: '/risk', label: 'Risk', icon: ShieldAlert },
   { path: '/library', label: 'Library', icon: BookOpen },
   { path: '/profile', label: 'Profile', icon: User },
 ] as const
