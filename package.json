@@ -19,6 +19,7 @@
     "size": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
+    "@nktkas/hyperliquid": "^0.32.2",
     "@tanstack/react-query": "^5.96.2",
     "@tradecanvas/chart": "^0.6.0",
     "@wagmi/core": "^3.4.7",

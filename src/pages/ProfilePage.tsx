@@ -18,6 +18,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
+import { HyperliquidAgentModal } from '../components/HyperliquidAgentModal'
+import { loadAgent as loadHlAgent, hlNetwork } from '../lib/hyperliquidAgent'
 import { ReferralLinkCard } from '../components/ReferralLinkCard'
 import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
@@ -42,6 +44,9 @@ export function ProfilePage() {
   const toast = useToast()
   const setAllEnabled = useBotStore(s => s.setAllEnabled)
   const hyperliquid = useHyperliquidConnect()
+  const [hlAgentOpen, setHlAgentOpen] = useState(false)
+  const [hlAgentTick, setHlAgentTick] = useState(0)
+  const hlAgent = (() => { void hlAgentTick; return loadHlAgent() })()
   const { states: venueOpenOrders, refresh: refreshOpenOrders } = useVenueOpenOrders()
   const liveOpenOrdersAll = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
@@ -286,6 +291,32 @@ export function ProfilePage() {
             subtitle="Sound, browser, and Telegram toggles live in the Signals panel header (bell, volume, send icons). Per-source enable/disable and threshold tuning are in the SignalSourcesModal (sliders icon)."
           />
         </div>
+
+        {/* Hyperliquid agent wallet (Phase 1 — testnet only) */}
+        <div>
+          <SectionHeader
+            icon={KeyRound}
+            title="Hyperliquid agent wallet"
+            subtitle="Phase 1 of signed trading. Approve a local agent key once via your wallet, then sign orders silently. Locked to testnet until validated."
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+            <button
+              onClick={() => setHlAgentOpen(true)}
+              className="px-3 py-1.5 rounded-md bg-accent text-white font-semibold hover:bg-accent/90 transition-colors cursor-pointer"
+            >
+              {hlAgent ? 'Manage agent' : 'Set up agent'}
+            </button>
+            {hlAgent && (
+              <span className="font-mono text-text-muted">
+                <span className="uppercase mr-2">{hlNetwork()}</span>
+                {hlAgent.address.slice(0, 6)}…{hlAgent.address.slice(-4)} ·{' '}
+                {hlAgent.approvedAt
+                  ? <span className="text-long">approved</span>
+                  : <span className="text-amber-300">pending</span>}
+              </span>
+            )}
+          </div>
+        </div>
       </section>
 
       <ConnectVenueModal
@@ -295,6 +326,11 @@ export function ProfilePage() {
           setConnectVenue(null)
           setVaultPresent(vaultExists())
         }}
+      />
+
+      <HyperliquidAgentModal
+        open={hlAgentOpen}
+        onClose={() => { setHlAgentOpen(false); setHlAgentTick(t => t + 1) }}
       />
 
       <VaultViewModal
