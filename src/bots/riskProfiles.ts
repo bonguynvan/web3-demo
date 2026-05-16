@@ -41,6 +41,7 @@ export interface RiskProfileBundle {
     stopLossPct: number
     takeProfitPct: number
     trailingStopPct: number
+    breakEvenAtPct: number
   }
 }
 
@@ -58,6 +59,7 @@ export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfil
       stopLossPct: 1,
       takeProfitPct: 2,
       trailingStopPct: 0.5,
+      breakEvenAtPct: 0.7,
     },
   },
   balanced: {
@@ -73,6 +75,7 @@ export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfil
       stopLossPct: 2,
       takeProfitPct: 4,
       trailingStopPct: 1,
+      breakEvenAtPct: 1,
     },
   },
   aggressive: {
@@ -88,6 +91,7 @@ export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfil
       stopLossPct: 3,
       takeProfitPct: 6,
       trailingStopPct: 2,
+      breakEvenAtPct: 2,
     },
   },
 }

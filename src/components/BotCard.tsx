@@ -232,7 +232,7 @@ export function BotCard({
           {tradesOpen && (
             <div className="border-t border-border bg-surface/30">
               {recent.map(t => (
-                <TradeRow key={t.id} trade={t} markPrice={adapter.getTicker(t.marketId)?.price} />
+                <TradeRow key={t.id} trade={t} markPrice={adapter.getTicker(t.marketId)?.price} stopLossPct={bot.stopLossPct} />
               ))}
             </div>
           )}
@@ -291,7 +291,7 @@ function Stat({ label, value, valueClass }: { label: string; value: string; valu
   )
 }
 
-function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number }) {
+function TradeRow({ trade, markPrice, stopLossPct }: { trade: BotTrade; markPrice?: number; stopLossPct?: number }) {
   const isOpen = !trade.closedAt
   const liveMark = markPrice ?? trade.closePrice ?? trade.entryPrice
   const sign = trade.direction === 'long' ? 1 : -1
@@ -388,6 +388,18 @@ function TradeRow({ trade, markPrice }: { trade: BotTrade; markPrice?: number })
             value={`${movePct >= 0 ? '+' : ''}${movePct.toFixed(2)}%`}
             valueClass={movePct >= 0 ? 'text-long' : 'text-short'}
           />
+          {(() => {
+            // Surface the stop's current state so the user knows when
+            // a trade has gone risk-free.
+            const sl = stopLossPct
+            if (trade.slMovedToBreakEven) {
+              return <DetailLine label="Stop" value="at entry · BE armed" valueClass="text-amber-300" />
+            }
+            if (sl && sl > 0) {
+              return <DetailLine label="Stop" value={`-${sl}%`} valueClass="text-text-muted" />
+            }
+            return null
+          })()}
           <DetailLine label="Opened" value={new Date(trade.openedAt).toLocaleTimeString()} />
         </div>
       )}

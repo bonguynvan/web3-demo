@@ -31,10 +31,11 @@ interface FormState {
   positionSizeUsd: number
   holdMinutes: number
   maxTradesPerDay: number
-  /** All three risk-exit percents are positive numbers; 0 = disabled. */
+  /** All four risk-exit percents are positive numbers; 0 = disabled. */
   stopLossPct: number
   takeProfitPct: number
   trailingStopPct: number
+  breakEvenAtPct: number
   /** Tracks which profile chip is highlighted. Auto-flips to 'custom' on edit. */
   riskProfile: BotRiskProfile
   /** Sizing mode + risk-percent fields — see BotConfig docs. */
@@ -53,6 +54,7 @@ const DEFAULT_FORM: FormState = {
   stopLossPct: 2,
   takeProfitPct: 4,
   trailingStopPct: 1,
+  breakEvenAtPct: 0,
   riskProfile: 'balanced',
   sizingMode: 'fixed_usd',
   riskPctPerTrade: 0.5,
@@ -90,6 +92,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       stopLossPct: form.stopLossPct > 0 ? form.stopLossPct : undefined,
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
+      breakEvenAtPct: form.breakEvenAtPct > 0 ? form.breakEvenAtPct : undefined,
       riskProfile: form.riskProfile,
       createdAt: Date.now(),
     }
@@ -108,6 +111,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       stopLossPct: b.stopLossPct,
       takeProfitPct: b.takeProfitPct,
       trailingStopPct: b.trailingStopPct,
+      breakEvenAtPct: b.breakEvenAtPct,
       riskProfile: profile,
     }))
   }
@@ -130,6 +134,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       stopLossPct: tpl.config.stopLossPct ?? f.stopLossPct,
       takeProfitPct: tpl.config.takeProfitPct ?? f.takeProfitPct,
       trailingStopPct: tpl.config.trailingStopPct ?? f.trailingStopPct,
+      breakEvenAtPct: tpl.config.breakEvenAtPct ?? 0,
     }))
   }
 
@@ -168,6 +173,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       stopLossPct: form.stopLossPct > 0 ? form.stopLossPct : undefined,
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
+      breakEvenAtPct: form.breakEvenAtPct > 0 ? form.breakEvenAtPct : undefined,
       riskProfile: form.riskProfile,
       sizingMode: form.sizingMode,
       riskPctPerTrade: form.sizingMode === 'risk_pct' && form.riskPctPerTrade > 0 ? form.riskPctPerTrade : undefined,
@@ -409,7 +415,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
             Risk exits (0 = off)
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Field label="Stop loss %">
               <input
                 type="number"
@@ -441,6 +447,17 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
                 onChange={e => setForm(f => ({ ...f, trailingStopPct: Math.max(0, Number(e.target.value)) }))}
                 title="Locks gains: close when PnL drops X% from its peak. Only arms after a win."
                 className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-accent outline-none focus:border-accent font-mono"
+              />
+            </Field>
+            <Field label="BE at %">
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={form.breakEvenAtPct}
+                onChange={e => setForm(f => ({ ...f, breakEvenAtPct: Math.max(0, Number(e.target.value)) }))}
+                title="Once PnL reaches +X%, move stop to entry. Risk-free trade from there. Independent of trailing."
+                className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-amber-300 outline-none focus:border-amber-300 font-mono"
               />
             </Field>
           </div>

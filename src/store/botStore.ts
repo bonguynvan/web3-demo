@@ -72,6 +72,7 @@ interface BotStore {
   recordTrade: (trade: BotTrade) => void
   closeTrade: (tradeId: string, closePrice: number, closedAt: number, exitReason?: BotExitReason) => void
   updateTradePeak: (tradeId: string, peakPnlPct: number) => void
+  markSlMovedToBreakEven: (tradeId: string) => void
   clearClosedTrades: () => void
 }
 
@@ -155,6 +156,19 @@ export const useBotStore = create<BotStore>((set) => {
         if (peakPnlPct <= prior) return t
         changed = true
         return { ...t, peakPnlPct }
+      })
+      if (!changed) return state
+      persist({ bots: state.bots, trades })
+      return { trades }
+    }),
+
+    markSlMovedToBreakEven: (tradeId) => set(state => {
+      let changed = false
+      const trades = state.trades.map(t => {
+        if (t.id !== tradeId) return t
+        if (t.slMovedToBreakEven) return t
+        changed = true
+        return { ...t, slMovedToBreakEven: true }
       })
       if (!changed) return state
       persist({ bots: state.bots, trades })

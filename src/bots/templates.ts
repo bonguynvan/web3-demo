@@ -27,6 +27,8 @@ export interface BotTemplate {
     stopLossPct?: number
     takeProfitPct?: number
     trailingStopPct?: number
+    /** Move SL to entry once PnL reaches +X%. Trade goes "risk-free." */
+    breakEvenAtPct?: number
   }
   /** Illustrative performance estimates — surfaced in the studio so a user
    *  picking templates has a baseline expectation. NOT a backtest. Tuned to
@@ -60,6 +62,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       stopLossPct: 1.5,
       takeProfitPct: 3.5,
       trailingStopPct: 1,
+      breakEvenAtPct: 1,
     },
     performance: {
       winRate: 0.64,
@@ -83,6 +86,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       stopLossPct: 2,
       takeProfitPct: 4,
       trailingStopPct: 1.5,
+      breakEvenAtPct: 1.5,
     },
     performance: {
       winRate: 0.52,
@@ -128,6 +132,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       stopLossPct: 3,
       takeProfitPct: 5,
       trailingStopPct: 2,
+      breakEvenAtPct: 2,
     },
     performance: {
       winRate: 0.51,

@@ -31,6 +31,7 @@ export function useBotEngine(): void {
   const recordTrade = useBotStore(s => s.recordTrade)
   const closeTrade = useBotStore(s => s.closeTrade)
   const updateTradePeak = useBotStore(s => s.updateTradePeak)
+  const markSlMovedToBreakEven = useBotStore(s => s.markSlMovedToBreakEven)
 
   const toast = useToast()
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
@@ -204,9 +205,19 @@ export function useBotEngine(): void {
         const sl = bot?.stopLossPct ?? 0
         const tp = bot?.takeProfitPct ?? 0
         const trail = bot?.trailingStopPct ?? 0
+        const breakEven = bot?.breakEvenAtPct ?? 0
+
+        // Break-even shifts the SL floor from -sl to 0 once price has moved
+        // far enough in our favor. After arming, a pullback to entry closes
+        // at exactly 0 PnL — turning the trade into a "free option."
+        const slFloor = t.slMovedToBreakEven ? 0 : -sl
 
         let exitReason: BotExitReason | null = null
-        if (sl > 0 && pnlPct <= -sl) exitReason = 'stop_loss'
+        if (sl > 0 && pnlPct <= slFloor) {
+          // Tag as break_even (not stop_loss) when the floor was moved.
+          // Lets the trade-journal distinguish "stopped flat" from "took a loss."
+          exitReason = t.slMovedToBreakEven ? 'break_even' : 'stop_loss'
+        }
         else if (tp > 0 && pnlPct >= tp) exitReason = 'take_profit'
         else if (trail > 0) {
           const peak = t.peakPnlPct ?? 0
@@ -215,6 +226,10 @@ export function useBotEngine(): void {
         if (!exitReason && now >= t.closeAt) exitReason = 'hold_expired'
 
         if (!exitReason) {
+          // Arm break-even once price has moved past the trigger.
+          if (breakEven > 0 && !t.slMovedToBreakEven && pnlPct >= breakEven) {
+            markSlMovedToBreakEven(t.id)
+          }
           if (pnlPct > (t.peakPnlPct ?? -Infinity)) {
             updateTradePeak(t.id, pnlPct)
           }
@@ -233,7 +248,7 @@ export function useBotEngine(): void {
       }
     }, TICK_MS)
     return () => clearInterval(id)
-  }, [trades, bots, closeTrade, updateTradePeak])
+  }, [trades, bots, closeTrade, updateTradePeak, markSlMovedToBreakEven])
 
   // ─── Early-close on opposing confluence signal ─────────────────────
   //

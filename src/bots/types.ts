@@ -67,6 +67,12 @@ export interface BotConfig {
    *  from the trade's peak favorable PnL. Only arms once PnL goes positive. */
   trailingStopPct?: number
 
+  /** Break-even stop trigger. When pnlPct reaches +breakEvenAtPct, the
+   *  stop floor is moved from -stopLossPct to 0 (entry). Once moved the
+   *  trade is "risk-free" — a pullback to entry closes flat, not at a
+   *  loss. Independent of trailingStopPct (both can be active). */
+  breakEvenAtPct?: number
+
   /** Risk archetype. 'conservative' / 'balanced' / 'aggressive' carry semantic
    *  meaning for the UI (badge, sort order, copy); 'custom' is the implicit
    *  fallback once the user has tuned values away from a preset. */
@@ -82,6 +88,7 @@ export type BotExitReason =
   | 'stop_loss'      // stopLossPct breached
   | 'take_profit'    // takeProfitPct hit
   | 'trailing_stop'  // pulled back trailingStopPct from peak
+  | 'break_even'     // stop was moved to entry then price reverted
   | 'reversal'       // opposing confluence signal fired
 
 export interface BotTrade {
@@ -106,6 +113,9 @@ export interface BotTrade {
   /** Highest favorable PnL percent observed during the life of the trade.
    *  Updated by the engine on each heartbeat to power the trailing stop. */
   peakPnlPct?: number
+  /** Set once `breakEvenAtPct` has been crossed and the stop is moved to
+   *  entry. Subsequent ticks compare pnlPct against 0 instead of -stopLossPct. */
+  slMovedToBreakEven?: boolean
   /** Set when the trade closes. */
   closedAt?: number
   closePrice?: number
