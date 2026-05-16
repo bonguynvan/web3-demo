@@ -291,12 +291,11 @@ export function StrategyLibraryPage() {
         <div className="mt-10 p-4 bg-panel/60 border border-border rounded-lg text-[11px] text-text-muted leading-relaxed flex items-start gap-3">
           <Upload className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <div>
-            <div className="text-text-secondary font-medium mb-0.5">Publish your own bot</div>
-            Export it as JSON from any bot card, then submit a PR adding it to{' '}
-            <code className="text-text-primary bg-surface px-1 rounded">src/strategies/library.ts</code>{' '}
-            with <code className="text-text-primary bg-surface px-1 rounded">kind: 'community'</code>.
-            Until a backend ships, the team reviews submissions in-repo so authorship and
-            performance numbers are version-controlled.
+            <div className="text-text-secondary font-medium mb-0.5">Share your strategy</div>
+            Open any bot card and pick <span className="text-text-primary">Share / export JSON</span> to save a portable
+            snapshot of your config. The public marketplace is still in build — until it lands,
+            email your export to <span className="text-text-primary">feedback@tradingdek.com</span> and
+            we'll feature strong strategies in the Community tab.
           </div>
         </div>
       </section>
@@ -320,21 +319,21 @@ export function StrategyLibraryPage() {
 
 function PublishGuideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Modal open={open} onClose={onClose} title="Publish your bot" maxWidth="max-w-md">
+    <Modal open={open} onClose={onClose} title="Share your bot" maxWidth="max-w-md">
       <div className="p-4 space-y-3 text-xs leading-relaxed text-text-secondary">
         <p>
-          Until the marketplace has a server, publication is a pull request — that
-          way authorship, performance numbers, and review history live in version
-          control where they can't be silently rewritten.
+          The public marketplace is still in build. Until it ships, sharing
+          a bot is a manual review by the TradingDek team — that way
+          authorship and performance numbers are vetted before they show
+          up in front of other traders.
         </p>
         <ol className="list-decimal ml-4 space-y-1.5 text-[11px]">
           <li>Open the Bots panel, click ⋮ on your bot, choose "Share / export JSON".</li>
-          <li>Add a new entry to <code className="text-text-primary bg-surface px-1 rounded">src/strategies/library.ts</code>.
-            Set <code className="text-text-primary bg-surface px-1 rounded">kind: 'community'</code>,
-            include your handle, and optionally a starting <code className="text-text-primary bg-surface px-1 rounded">performance</code> snapshot.</li>
-          <li>Submit a PR. The team verifies the config compiles and the
-            performance claim is consistent with public hit-rate data.</li>
-          <li>Once merged, your strategy shows up in the Community tab with your
+          <li>Email the JSON file to <span className="text-text-primary">feedback@tradingdek.com</span> with
+            your preferred handle and a one-line description of what the bot does.</li>
+          <li>The team checks the config is valid and the performance is consistent
+            with public hit-rate data. Expect a reply within a few days.</li>
+          <li>Once approved, your strategy shows up in the Community tab with your
             handle next to it. Followers see new bots from you in the Following tab.</li>
         </ol>
         <div className="pt-3 border-t border-border text-[10px] text-text-muted">
