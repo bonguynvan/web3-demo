@@ -1,5 +1,5 @@
 /**
- * FeedbackWidget — bottom-left floating button that opens a tiny modal
+ * FeedbackWidget — bottom-right floating button that opens a tiny modal
  * with a pre-filled mailto: link. Picks up the current route and
  * browser as context so a bug report arrives with the boilerplate
  * already written.
@@ -56,7 +56,7 @@ export function FeedbackWidget() {
 
   return (
     <>
-      <div className="fixed bottom-20 md:bottom-4 left-4 z-40 flex items-center gap-2">
+      <div className="fixed bottom-20 md:bottom-4 right-4 z-40 flex items-center gap-2">
         <div className="relative">
           {hintVisible && (
             <span
