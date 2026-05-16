@@ -12,9 +12,11 @@ import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { BOT_TEMPLATES, type BotTemplate } from '../bots/templates'
 import { RISK_PROFILES, RISK_PROFILE_ORDER } from '../bots/riskProfiles'
-import { cn } from '../lib/format'
+import { runBacktest, type BacktestResult } from '../bots/backtest'
+import { cn, formatUsd } from '../lib/format'
 import type { SignalSource } from '../signals/types'
-import type { BotRiskProfile } from '../bots/types'
+import type { BotRiskProfile, BotConfig } from '../bots/types'
+import { TrendingUp, TrendingDown, Activity } from 'lucide-react'
 
 const SOURCE_OPTIONS: SignalSource[] = [
   'confluence', 'funding', 'crossover', 'rsi', 'volatility', 'whale',
@@ -53,8 +55,38 @@ const DEFAULT_FORM: FormState = {
 export function BotConfigForm({ onClose }: { onClose: () => void }) {
   const addBot = useBotStore(s => s.addBot)
   const markets = useTradingStore(s => s.markets)
+  const selectedMarket = useTradingStore(s => s.selectedMarket)
+  const candles = useTradingStore(s => s.candles)
   const [form, setForm] = useState<FormState>(DEFAULT_FORM)
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null)
+  const [preview, setPreview] = useState<BacktestResult | null>(null)
+
+  const runPreview = () => {
+    if (candles.length < 50) {
+      setPreview(null)
+      return
+    }
+    // Build a transient BotConfig snapshot from the current form. The
+    // backtest is pure — nothing escapes this component.
+    const cfg: BotConfig = {
+      id: 'preview',
+      name: form.name,
+      enabled: true,
+      mode: 'paper',
+      allowedSources: form.allowedSources,
+      allowedMarkets: form.allowedMarkets,
+      minConfidence: Math.max(0, Math.min(1, form.minConfidence / 100)),
+      positionSizeUsd: form.positionSizeUsd,
+      holdMinutes: form.holdMinutes,
+      maxTradesPerDay: form.maxTradesPerDay,
+      stopLossPct: form.stopLossPct > 0 ? form.stopLossPct : undefined,
+      takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
+      trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
+      riskProfile: form.riskProfile,
+      createdAt: Date.now(),
+    }
+    setPreview(runBacktest(cfg, selectedMarket.symbol, candles))
+  }
 
   const applyProfile = (profile: Exclude<BotRiskProfile, 'custom'>) => {
     const b = RISK_PROFILES[profile].defaults
@@ -342,6 +374,54 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           </div>
         </Field>
 
+        <div className="pt-1 space-y-2">
+          <button
+            type="button"
+            onClick={runPreview}
+            disabled={candles.length < 50}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-md border border-accent/40 bg-accent-dim/20 text-accent hover:bg-accent-dim/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            title={candles.length < 50 ? 'Need at least 50 candles on the active market to preview' : `Replay this config against ${candles.length} candles of ${selectedMarket.symbol}`}
+          >
+            <Activity className="w-3 h-3" />
+            Preview backtest{preview ? ' · re-run' : ''}
+          </button>
+
+          {preview && (
+            <div className="rounded-md border border-border bg-panel/40 px-2.5 py-2 text-[10px] font-mono space-y-1">
+              <div className="flex items-center justify-between text-text-muted uppercase tracking-wider">
+                <span>{selectedMarket.symbol} · {preview.trades.length} trades · {preview.candleCount} bars</span>
+                <span>
+                  {preview.trades.length > 0
+                    ? `${((preview.windowEnd - preview.windowStart) / 86400000).toFixed(0)}d window`
+                    : 'no fills'}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <PreviewStat
+                  label="Net"
+                  value={`${preview.totalPnlUsd >= 0 ? '+' : ''}$${formatUsd(preview.totalPnlUsd)}`}
+                  tone={preview.totalPnlUsd > 0 ? 'long' : preview.totalPnlUsd < 0 ? 'short' : 'neutral'}
+                />
+                <PreviewStat
+                  label="Win"
+                  value={preview.trades.length > 0 ? `${(preview.winRate * 100).toFixed(0)}%` : '—'}
+                  tone={preview.winRate >= 0.55 ? 'long' : preview.winRate < 0.45 && preview.trades.length >= 3 ? 'short' : 'neutral'}
+                />
+                <PreviewStat label="W/L" value={`${preview.wins}/${preview.losses}`} />
+                <PreviewStat label="Max DD" value={`$${formatUsd(preview.maxDrawdownUsd)}`} tone={preview.maxDrawdownUsd > 0 ? 'short' : 'neutral'} />
+              </div>
+              {preview.trades.length > 0 && (
+                <div className="flex items-center gap-1.5 text-text-muted">
+                  {preview.totalPnlUsd >= 0
+                    ? <TrendingUp className="w-3 h-3 text-long" />
+                    : <TrendingDown className="w-3 h-3 text-short" />}
+                  <span>Historical only · live results will differ.</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-2 pt-1">
           <button
             onClick={handleSave}
@@ -357,6 +437,16 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PreviewStat({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'long' | 'short' | 'neutral' }) {
+  const toneCls = tone === 'long' ? 'text-long' : tone === 'short' ? 'text-short' : 'text-text-primary'
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] text-text-muted uppercase tracking-wider">{label}</span>
+      <span className={cn('font-semibold tabular-nums', toneCls)}>{value}</span>
     </div>
   )
 }

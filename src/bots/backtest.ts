@@ -40,7 +40,7 @@ export interface BacktestTrade {
   closedAtIdx: number
   openedAtTime: number
   closedAtTime: number
-  closeReason: 'hold-expired' | 'opposing-confluence'
+  closeReason: 'hold-expired' | 'opposing-confluence' | 'stop-loss' | 'take-profit'
 }
 
 export interface BacktestResult {
@@ -88,7 +88,31 @@ export function runBacktest(
         s.direction !== openTrade!.signal.direction &&
         s.confidence >= 0.7,
       )
-      if (heldFor >= REVERSAL_MIN_HOLD_MS && opposing) {
+
+      // SL/TP first — these are hard floors/ceilings that fire intra-bar.
+      // We check against the bar's high/low rather than close so a wick
+      // that touched the level counts (matches what live execution would
+      // see). Trailing stop is intentionally NOT modeled here: it would
+      // need cross-bar peak tracking and is better validated live.
+      const sl = config.stopLossPct ?? 0
+      const tp = config.takeProfitPct ?? 0
+      const entryPx = openTrade.signal.suggestedPrice ?? candles[openTrade.idx].close
+      const bar = candles[i]
+      let exit: BacktestTrade['closeReason'] | null = null
+      if (entryPx > 0 && (sl > 0 || tp > 0)) {
+        const isLong = openTrade.signal.direction === 'long'
+        const slPx = isLong ? entryPx * (1 - sl / 100) : entryPx * (1 + sl / 100)
+        const tpPx = isLong ? entryPx * (1 + tp / 100) : entryPx * (1 - tp / 100)
+        const lo = bar.low ?? bar.close
+        const hi = bar.high ?? bar.close
+        if (sl > 0 && (isLong ? lo <= slPx : hi >= slPx)) exit = 'stop-loss'
+        else if (tp > 0 && (isLong ? hi >= tpPx : lo <= tpPx)) exit = 'take-profit'
+      }
+
+      if (exit) {
+        trades.push(closeAt(openTrade, candles, i, exit, config))
+        openTrade = null
+      } else if (heldFor >= REVERSAL_MIN_HOLD_MS && opposing) {
         trades.push(closeAt(openTrade, candles, i, 'opposing-confluence', config))
         openTrade = null
       } else if (now >= openTrade.closeAtTime) {
@@ -163,9 +187,19 @@ function closeAt(
   config: BotConfig,
 ): BacktestTrade {
   const entryPrice = open.signal.suggestedPrice ?? candles[open.idx].close
-  const closePrice = candles[closeIdx].close
+  const isLong = open.signal.direction === 'long'
+  // For SL/TP we model the fill at the exact trigger price, not the
+  // bar's close. Mirrors what a real protective order would execute at.
+  let closePrice = candles[closeIdx].close
+  if (reason === 'stop-loss') {
+    const sl = config.stopLossPct ?? 0
+    if (sl > 0) closePrice = isLong ? entryPrice * (1 - sl / 100) : entryPrice * (1 + sl / 100)
+  } else if (reason === 'take-profit') {
+    const tp = config.takeProfitPct ?? 0
+    if (tp > 0) closePrice = isLong ? entryPrice * (1 + tp / 100) : entryPrice * (1 - tp / 100)
+  }
   const size = config.positionSizeUsd / entryPrice
-  const sign = open.signal.direction === 'long' ? 1 : -1
+  const sign = isLong ? 1 : -1
   const pnlUsd = sign * (closePrice - entryPrice) * size
   return {
     id: `bt-${open.idx}-${closeIdx}`,
