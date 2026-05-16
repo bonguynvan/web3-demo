@@ -20,6 +20,7 @@ import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import { computeStats } from '../bots/computeStats'
+import { profileBundle } from '../bots/riskProfiles'
 import { EquityCurve } from './EquityCurve'
 import { cn, formatUsd } from '../lib/format'
 
@@ -125,6 +126,20 @@ export function BotCard({
               >
                 {bot.mode}
               </button>
+              {bot.riskProfile && bot.riskProfile !== 'custom' && (() => {
+                const pb = profileBundle(bot.riskProfile)
+                return (
+                  <span
+                    className={cn(
+                      'text-[9px] uppercase tracking-wider px-1.5 py-px rounded font-semibold border',
+                      pb.toneClass,
+                    )}
+                    title={pb.blurb}
+                  >
+                    {pb.emoji} {pb.label}
+                  </span>
+                )
+              })()}
             </div>
             <div className="text-[10px] text-text-muted mt-0.5">
               {bot.allowedSources.length === 0 ? 'any source' : bot.allowedSources.join(' / ')}

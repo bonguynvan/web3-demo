@@ -15,6 +15,10 @@ import type { SignalDirection, SignalSource } from '../signals/types'
 
 export type BotMode = 'paper' | 'live'
 
+/** Risk archetype for a bot. Drives default SL/TP/sizing in the studio
+ *  and the colored badge on bot cards. 'custom' = user tuned by hand. */
+export type BotRiskProfile = 'conservative' | 'balanced' | 'aggressive' | 'custom'
+
 export interface BotConfig {
   id: string
   name: string
@@ -47,6 +51,11 @@ export interface BotConfig {
   /** Trailing stop: lock in gains by closing when PnL falls this many percent
    *  from the trade's peak favorable PnL. Only arms once PnL goes positive. */
   trailingStopPct?: number
+
+  /** Risk archetype. 'conservative' / 'balanced' / 'aggressive' carry semantic
+   *  meaning for the UI (badge, sort order, copy); 'custom' is the implicit
+   *  fallback once the user has tuned values away from a preset. */
+  riskProfile?: BotRiskProfile
 
   createdAt: number
 }

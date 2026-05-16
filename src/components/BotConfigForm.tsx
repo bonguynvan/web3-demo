@@ -11,8 +11,10 @@ import { X } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
 import { useTradingStore } from '../store/tradingStore'
 import { BOT_TEMPLATES, type BotTemplate } from '../bots/templates'
+import { RISK_PROFILES, RISK_PROFILE_ORDER } from '../bots/riskProfiles'
 import { cn } from '../lib/format'
 import type { SignalSource } from '../signals/types'
+import type { BotRiskProfile } from '../bots/types'
 
 const SOURCE_OPTIONS: SignalSource[] = [
   'confluence', 'funding', 'crossover', 'rsi', 'volatility', 'whale',
@@ -30,19 +32,22 @@ interface FormState {
   stopLossPct: number
   takeProfitPct: number
   trailingStopPct: number
+  /** Tracks which profile chip is highlighted. Auto-flips to 'custom' on edit. */
+  riskProfile: BotRiskProfile
 }
 
 const DEFAULT_FORM: FormState = {
   name: 'New Bot',
   allowedSources: ['confluence'],
   allowedMarkets: [],
-  minConfidence: 70,
+  minConfidence: 60,
   positionSizeUsd: 100,
   holdMinutes: 60,
   maxTradesPerDay: 10,
   stopLossPct: 2,
   takeProfitPct: 4,
-  trailingStopPct: 0,
+  trailingStopPct: 1,
+  riskProfile: 'balanced',
 }
 
 export function BotConfigForm({ onClose }: { onClose: () => void }) {
@@ -50,6 +55,27 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
   const markets = useTradingStore(s => s.markets)
   const [form, setForm] = useState<FormState>(DEFAULT_FORM)
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null)
+
+  const applyProfile = (profile: Exclude<BotRiskProfile, 'custom'>) => {
+    const b = RISK_PROFILES[profile].defaults
+    setActiveTemplate(null)
+    setForm(f => ({
+      ...f,
+      minConfidence: Math.round(b.minConfidence * 100),
+      positionSizeUsd: b.positionSizeUsd,
+      holdMinutes: b.holdMinutes,
+      maxTradesPerDay: b.maxTradesPerDay,
+      stopLossPct: b.stopLossPct,
+      takeProfitPct: b.takeProfitPct,
+      trailingStopPct: b.trailingStopPct,
+      riskProfile: profile,
+    }))
+  }
+
+  /** Wrap any single-field setter so the profile auto-flips to 'custom'. */
+  const onTune = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm(f => ({ ...f, [key]: value, riskProfile: 'custom' }))
+  }
 
   const applyTemplate = (tpl: BotTemplate) => {
     setActiveTemplate(tpl.id)
@@ -102,6 +128,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       stopLossPct: form.stopLossPct > 0 ? form.stopLossPct : undefined,
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
+      riskProfile: form.riskProfile,
     })
     onClose()
   }
@@ -120,6 +147,41 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="px-3 py-2 space-y-3">
+        <Field label="Risk profile">
+          <div className="grid grid-cols-3 gap-1.5">
+            {RISK_PROFILE_ORDER.map(p => {
+              const bundle = RISK_PROFILES[p]
+              const on = form.riskProfile === p
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => applyProfile(p)}
+                  title={bundle.blurb}
+                  className={cn(
+                    'flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-md border text-left transition-colors cursor-pointer',
+                    on
+                      ? bundle.toneClass
+                      : 'bg-panel text-text-muted border-border hover:text-text-primary',
+                  )}
+                >
+                  <span className="text-[11px] font-semibold">
+                    {bundle.emoji} {bundle.label}
+                  </span>
+                  <span className="text-[9px] opacity-80 leading-tight line-clamp-2">
+                    {bundle.blurb.split('.')[0]}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {form.riskProfile === 'custom' && (
+            <div className="mt-1 text-[10px] text-text-muted font-mono italic">
+              Custom — defaults tuned by hand.
+            </div>
+          )}
+        </Field>
+
         <Field label="Start from a template">
           <div className="flex flex-wrap gap-1.5">
             {BOT_TEMPLATES.map(tpl => {
