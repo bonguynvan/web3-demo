@@ -218,6 +218,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           <div className="flex flex-wrap gap-1.5">
             {BOT_TEMPLATES.map(tpl => {
               const on = activeTemplate === tpl.id
+              const perf = tpl.performance
               return (
                 <button
                   key={tpl.id}
@@ -232,10 +233,51 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
                 >
                   <span>{tpl.emoji}</span>
                   <span className="font-medium">{tpl.name}</span>
+                  {perf && (
+                    <span className={cn(
+                      'text-[9px] font-mono ml-0.5',
+                      on ? 'opacity-80' : 'opacity-60',
+                    )}>
+                      ~{Math.round(perf.winRate * 100)}%
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
+          {(() => {
+            const tpl = BOT_TEMPLATES.find(t => t.id === activeTemplate)
+            if (!tpl?.performance) return null
+            const p = tpl.performance
+            return (
+              <div className="mt-2 rounded-md border border-border bg-panel/40 px-2.5 py-2 text-[10px] font-mono">
+                <div className="text-text-muted uppercase tracking-wider mb-1 flex items-baseline justify-between">
+                  <span>Typical performance</span>
+                  <span className="opacity-70">est · n≈{p.sample}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <PerfStat
+                    label="Win rate"
+                    value={`${Math.round(p.winRate * 100)}%`}
+                    tone={p.winRate >= 0.55 ? 'long' : p.winRate < 0.5 ? 'short' : 'neutral'}
+                  />
+                  <PerfStat
+                    label="Avg/trade"
+                    value={`${p.avgTradePct >= 0 ? '+' : ''}${p.avgTradePct.toFixed(2)}%`}
+                    tone={p.avgTradePct > 0 ? 'long' : 'short'}
+                  />
+                  <PerfStat
+                    label="Max DD"
+                    value={`-${p.maxDrawdownPct.toFixed(0)}%`}
+                    tone={p.maxDrawdownPct >= 10 ? 'short' : 'neutral'}
+                  />
+                </div>
+                <div className="text-text-muted opacity-70 italic mt-1.5">
+                  Illustrative range for this archetype. Your run will vary by market and timing.
+                </div>
+              </div>
+            )
+          })()}
         </Field>
 
         <Field label="Name">
@@ -437,6 +479,16 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PerfStat({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'long' | 'short' | 'neutral' }) {
+  const toneCls = tone === 'long' ? 'text-long' : tone === 'short' ? 'text-short' : 'text-text-primary'
+  return (
+    <div className="flex flex-col items-start">
+      <span className="text-[9px] text-text-muted uppercase tracking-wider">{label}</span>
+      <span className={cn('font-semibold tabular-nums text-[11px]', toneCls)}>{value}</span>
     </div>
   )
 }

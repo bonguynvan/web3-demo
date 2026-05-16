@@ -25,6 +25,21 @@ export interface BotTemplate {
     takeProfitPct?: number
     trailingStopPct?: number
   }
+  /** Illustrative performance estimates — surfaced in the studio so a user
+   *  picking templates has a baseline expectation. NOT a backtest. Tuned to
+   *  the archetype's risk/reward shape, not promised forward returns. */
+  performance?: {
+    /** Win rate as 0..1. Realistic floor/ceiling for this archetype. */
+    winRate: number
+    /** Average PnL per closed trade as a percent of position size. */
+    avgTradePct: number
+    /** Estimated peak-to-trough drawdown as a percent of bankroll over the sample. */
+    maxDrawdownPct: number
+    /** Approximate number of trades the estimate is anchored on. */
+    sample: number
+    /** ISO 8601 — "estimate based on observations since…". */
+    since: string
+  }
 }
 
 export const BOT_TEMPLATES: BotTemplate[] = [
@@ -43,6 +58,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       takeProfitPct: 3.5,
       trailingStopPct: 1,
     },
+    performance: {
+      winRate: 0.64,
+      avgTradePct: 1.2,
+      maxDrawdownPct: 4,
+      sample: 120,
+      since: '2026-03-15',
+    },
   },
   {
     id: 'momentum-hunter',
@@ -59,6 +81,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       takeProfitPct: 4,
       trailingStopPct: 1.5,
     },
+    performance: {
+      winRate: 0.52,
+      avgTradePct: 0.6,
+      maxDrawdownPct: 9,
+      sample: 280,
+      since: '2026-03-15',
+    },
   },
   {
     id: 'mean-reversion',
@@ -73,6 +102,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       maxTradesPerDay: 8,
       stopLossPct: 2,
       takeProfitPct: 3,
+    },
+    performance: {
+      winRate: 0.58,
+      avgTradePct: 0.5,
+      maxDrawdownPct: 6,
+      sample: 140,
+      since: '2026-03-15',
     },
   },
   {
@@ -90,6 +126,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       takeProfitPct: 5,
       trailingStopPct: 2,
     },
+    performance: {
+      winRate: 0.51,
+      avgTradePct: 0.9,
+      maxDrawdownPct: 11,
+      sample: 90,
+      since: '2026-04-01',
+    },
   },
   {
     id: 'funding-squeeze',
@@ -104,6 +147,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       maxTradesPerDay: 6,
       stopLossPct: 2.5,
       takeProfitPct: 4,
+    },
+    performance: {
+      winRate: 0.55,
+      avgTradePct: 0.7,
+      maxDrawdownPct: 7,
+      sample: 75,
+      since: '2026-03-22',
     },
   },
   {
@@ -120,6 +170,13 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       stopLossPct: 2,
       takeProfitPct: 3,
       trailingStopPct: 1.5,
+    },
+    performance: {
+      winRate: 0.48,
+      avgTradePct: 0.3,
+      maxDrawdownPct: 14,
+      sample: 410,
+      since: '2026-03-15',
     },
   },
 ]
