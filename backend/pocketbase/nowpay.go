@@ -51,6 +51,15 @@ type nowpayEvent struct {
 func nowpayWebhookHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error {
 	secret := os.Getenv("NOWPAY_IPN_SECRET")
 	return func(e *core.RequestEvent) error {
+		// Fail closed: if the IPN secret is unset, refuse all webhooks
+		// rather than accepting anonymous credit requests. Misconfig in
+		// Coolify must not silently open the endpoint.
+		if secret == "" {
+			return e.JSON(http.StatusServiceUnavailable, map[string]string{
+				"error": "nowpay webhook not configured (NOWPAY_IPN_SECRET unset)",
+			})
+		}
+
 		body, err := io.ReadAll(e.Request.Body)
 		if err != nil {
 			return e.JSON(http.StatusBadRequest, map[string]string{"error": "read failed"})
@@ -61,10 +70,8 @@ func nowpayWebhookHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) e
 		if got == "" {
 			got = e.Request.Header.Get("X-Nowpayments-Sig")
 		}
-		if secret != "" {
-			if !verifyNowpaySig(body, got, secret) {
-				return e.JSON(http.StatusUnauthorized, map[string]string{"error": "bad signature"})
-			}
+		if !verifyNowpaySig(body, got, secret) {
+			return e.JSON(http.StatusUnauthorized, map[string]string{"error": "bad signature"})
 		}
 
 		var ev nowpayEvent
@@ -159,22 +166,29 @@ func upsertInvoice(app *pocketbase.PocketBase, ev *nowpayEvent, credit bool) err
 		"invoices", "nowpay_invoice_id = {:id}",
 		map[string]any{"id": paymentIDStr},
 	)
+	// Capture the pre-update status so we only credit on the
+	// pending→paid transition. NOWPayments retries webhooks on every
+	// state change (and on non-2xx responses), so without this gate a
+	// single $30 payment can credit the user 2-3× across retries.
+	var priorStatus string
 	if inv == nil {
 		inv = core.NewRecord(col)
 		inv.Set("nowpay_invoice_id", paymentIDStr)
 		inv.Set("user", userID)
 		inv.Set("kind", kind)
 		inv.Set("amount_usd", ev.PriceAmount)
+	} else {
+		priorStatus = inv.GetString("status")
 	}
 	inv.Set("status", normalizedStatus(ev.PaymentStatus))
 	inv.Set("pay_currency", ev.PayCurrency)
-	if credit {
+	if credit && priorStatus != "paid" {
 		inv.Set("paid_at", types.NowDateTime())
 	}
 	if err := app.Save(inv); err != nil {
 		return err
 	}
-	if credit {
+	if credit && priorStatus != "paid" {
 		return creditEntitlement(app, userID, kind, ev.PriceAmount)
 	}
 	return nil
