@@ -35,6 +35,7 @@ export function RiskDashboardPage() {
   })
 
   const trades = useBotStore(s => s.trades)
+  const bots = useBotStore(s => s.bots)
   const dailyPnlCapUsd = useRiskStore(s => s.dailyPnlCapUsd)
   const maxDrawdownUsd = useRiskStore(s => s.maxDrawdownUsd)
   const maxExposureUsd = useRiskStore(s => s.maxExposureUsd)
@@ -64,6 +65,26 @@ export function RiskDashboardPage() {
     const openTrades = trades.filter(t => t.closedAt === undefined)
     const exposure = openTrades.reduce((s, t) => s + t.positionUsd, 0)
 
+    // Aggregate open risk — sum across every open trade with a stop:
+    //   risk_i = positionUsd_i × stopLossPct_i / 100
+    // The single number a pro watches most: "if every stop fires today,
+    // this is the total loss." Trades without a stop contribute their
+    // full positionUsd as risk (treated as 100% downside) so users see
+    // exactly how dangerous unstopped trades are.
+    const botById = new Map(bots.map(b => [b.id, b]))
+    let openRiskUsd = 0
+    let unstoppedCount = 0
+    for (const t of openTrades) {
+      const b = botById.get(t.botId)
+      const slPct = b?.stopLossPct
+      if (slPct && slPct > 0) {
+        openRiskUsd += t.positionUsd * (slPct / 100)
+      } else {
+        openRiskUsd += t.positionUsd
+        unstoppedCount += 1
+      }
+    }
+
     const byMarket = new Map<string, number>()
     for (const t of openTrades) {
       byMarket.set(t.marketId, (byMarket.get(t.marketId) ?? 0) + t.positionUsd)
@@ -72,8 +93,11 @@ export function RiskDashboardPage() {
       .map(([marketId, usd]) => ({ marketId, usd, pct: exposure > 0 ? usd / exposure : 0 }))
       .sort((a, b) => b.usd - a.usd)
 
-    return { realizedToday, drawdown, exposure, openTrades: openTrades.length, markets, peak, cum }
-  }, [trades])
+    return {
+      realizedToday, drawdown, exposure, openTrades: openTrades.length, markets, peak, cum,
+      openRiskUsd, unstoppedCount,
+    }
+  }, [trades, bots])
 
   const anyCapSet = dailyPnlCapUsd > 0 || maxDrawdownUsd > 0 || maxExposureUsd > 0
 
@@ -121,6 +145,37 @@ export function RiskDashboardPage() {
             </div>
           </div>
         )}
+
+        <div className="rounded-lg border border-border bg-panel/40 px-4 py-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted font-mono mb-1">
+                Total open risk
+              </div>
+              <div className={cn(
+                'text-2xl font-mono font-semibold tabular-nums',
+                metrics.openRiskUsd > 0 ? 'text-short' : 'text-text-muted',
+              )}>
+                -${metrics.openRiskUsd.toFixed(2)}
+              </div>
+              <div className="text-[11px] text-text-muted mt-1">
+                {metrics.openTrades === 0
+                  ? 'No open positions.'
+                  : `If every stop fires today across ${metrics.openTrades} open trade${metrics.openTrades === 1 ? '' : 's'}.`}
+                {metrics.unstoppedCount > 0 && (
+                  <span className="text-amber-300 ml-2">
+                    {metrics.unstoppedCount} unstopped (counted at full notional)
+                  </span>
+                )}
+              </div>
+            </div>
+            {metrics.openRiskUsd > 0 && metrics.exposure > 0 && (
+              <div className="text-right text-[10px] font-mono text-text-muted">
+                <div>{((metrics.openRiskUsd / metrics.exposure) * 100).toFixed(1)}% of exposure</div>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <RiskCard
