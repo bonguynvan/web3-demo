@@ -213,6 +213,12 @@ export function BotCard({
           />
         </div>
 
+        {/* Exit-reason breakdown — tells the operator where the edge
+            actually comes from. A bot that mostly exits on hold-expired
+            has no real edge; one that mostly hits TP has signal alpha. */}
+        <ExitMix trades={closedSorted} />
+
+
         {closedSorted.length >= 2 && (
           <div className="mt-2">
             <EquityCurve trades={closedSorted} height={28} />
@@ -403,6 +409,53 @@ function TradeRow({ trade, markPrice, stopLossPct }: { trade: BotTrade; markPric
           <DetailLine label="Opened" value={new Date(trade.openedAt).toLocaleTimeString()} />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * ExitMix — shows the % distribution of close reasons across the bot's
+ * realized trades. A pro reading this can tell whether the edge came
+ * from the signal (TP-heavy), whether stops protected the downside
+ * (SL/BE catching the rest), or whether the bot is just churning
+ * (hold_expired dominant).
+ */
+function ExitMix({ trades }: { trades: BotTrade[] }) {
+  if (trades.length < 3) return null
+  const counts: Record<string, number> = {}
+  for (const t of trades) {
+    const r = t.exitReason ?? 'hold_expired'
+    counts[r] = (counts[r] ?? 0) + 1
+  }
+  // Display order: prefer TP first (success), then BE (defended), SL (lost),
+  // trailing (locked), reversal (faded out), hold (expired without signal).
+  const order: Array<{ key: string; label: string; tone: string }> = [
+    { key: 'take_profit', label: 'TP', tone: 'text-long' },
+    { key: 'trailing_stop', label: 'Trail', tone: 'text-long/70' },
+    { key: 'break_even', label: 'BE', tone: 'text-amber-300' },
+    { key: 'stop_loss', label: 'SL', tone: 'text-short' },
+    { key: 'reversal', label: 'Rev', tone: 'text-text-muted' },
+    { key: 'hold_expired', label: 'Hold', tone: 'text-text-muted' },
+  ]
+  const total = trades.length
+  const segments = order
+    .filter(o => (counts[o.key] ?? 0) > 0)
+    .map(o => ({ ...o, n: counts[o.key], pct: (counts[o.key] / total) * 100 }))
+  if (segments.length === 0) return null
+
+  return (
+    <div className="mt-2">
+      <div className="text-[9px] text-text-muted uppercase tracking-wider mb-1 font-mono">
+        Exit mix
+      </div>
+      <div className="flex items-center gap-1 flex-wrap text-[10px] font-mono">
+        {segments.map(seg => (
+          <span key={seg.key} className={cn('inline-flex items-baseline gap-0.5', seg.tone)} title={`${seg.n} trades`}>
+            <span className="font-semibold">{seg.label}</span>
+            <span>{Math.round(seg.pct)}%</span>
+          </span>
+        )).reduce((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} className="text-text-muted">·</span>, el], [] as React.ReactNode[])}
+      </div>
     </div>
   )
 }
