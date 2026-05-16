@@ -12,9 +12,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Download } from 'lucide-react'
 import { Wordmark } from '../components/ui/Logo'
 import { LoadingState } from '../components/ui/LoadingState'
+import { downloadCsv, csvTimestamp } from '../lib/csvExport'
 import { useDocumentMeta } from '../lib/documentMeta'
 import {
   fetchAdminMetrics, adminAvailable,
@@ -172,14 +173,24 @@ function MetricsBody({ data }: { data: AdminMetrics }) {
 
       {data.recent_users && data.recent_users.length > 0 && (
         <section>
-          <SectionHeader>Recent users (newest 25)</SectionHeader>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-[11px] uppercase tracking-[0.18em] font-mono font-semibold text-text-secondary">
+              Recent users (newest 25)
+            </h2>
+            <ExportButton onClick={() => exportUsersCsv(data.recent_users!)} label="CSV" />
+          </div>
           <RecentUsersTable rows={data.recent_users} />
         </section>
       )}
 
       {data.recent_invoices && data.recent_invoices.length > 0 && (
         <section>
-          <SectionHeader>Recent invoices (newest 25)</SectionHeader>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-[11px] uppercase tracking-[0.18em] font-mono font-semibold text-text-secondary">
+              Recent invoices (newest 25)
+            </h2>
+            <ExportButton onClick={() => exportInvoicesCsv(data.recent_invoices!)} label="CSV" />
+          </div>
           <RecentInvoicesTable rows={data.recent_invoices} />
         </section>
       )}
@@ -414,6 +425,52 @@ function truncWallet(w: string): string {
   if (!w) return '—'
   if (w.length <= 12) return w
   return `${w.slice(0, 6)}…${w.slice(-4)}`
+}
+
+function ExportButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+      title="Download as CSV"
+    >
+      <Download className="w-3 h-3" />
+      {label}
+    </button>
+  )
+}
+
+function exportUsersCsv(rows: AdminUserRow[]): void {
+  downloadCsv({
+    filename: `admin-users-${csvTimestamp()}`,
+    headers: ['id', 'wallet_address', 'created', 'pro_active', 'pro_days_remaining', 'paygo_balance_usd', 'trial_expires_at'],
+    rows: rows.map(r => [
+      r.id,
+      r.wallet_address,
+      r.created,
+      r.pro_active,
+      r.pro_days_remaining,
+      r.paygo_balance_usd.toFixed(2),
+      r.trial_expires_at,
+    ]),
+  })
+}
+
+function exportInvoicesCsv(rows: AdminInvoiceRow[]): void {
+  downloadCsv({
+    filename: `admin-invoices-${csvTimestamp()}`,
+    headers: ['id', 'wallet_address', 'kind', 'amount_usd', 'pay_currency', 'status', 'created', 'paid_at'],
+    rows: rows.map(r => [
+      r.id,
+      r.wallet_address,
+      r.kind,
+      r.amount_usd.toFixed(2),
+      r.pay_currency,
+      r.status,
+      r.created,
+      r.paid_at,
+    ]),
+  })
 }
 
 function fmtDate(s: string): string {
