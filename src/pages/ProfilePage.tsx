@@ -20,6 +20,7 @@ import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, L
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
 import { HyperliquidAgentModal } from '../components/HyperliquidAgentModal'
 import { loadAgent as loadHlAgent, hlNetwork } from '../lib/hyperliquidAgent'
+import { useAgentKeyCacheStore } from '../store/agentKeyCacheStore'
 import { ReferralLinkCard } from '../components/ReferralLinkCard'
 import { VaultViewModal } from '../components/VaultViewModal'
 import type { VenueId } from '../adapters/types'
@@ -47,6 +48,7 @@ export function ProfilePage() {
   const [hlAgentOpen, setHlAgentOpen] = useState(false)
   const [hlAgentTick, setHlAgentTick] = useState(0)
   const hlAgent = (() => { void hlAgentTick; return loadHlAgent() })()
+  const hlUnlocked = useAgentKeyCacheStore(s => s.privateKey !== null)
   const { states: venueOpenOrders, refresh: refreshOpenOrders } = useVenueOpenOrders()
   const liveOpenOrdersAll = Object.entries(venueOpenOrders).flatMap(([venueId, st]) =>
     (st?.orders ?? []).map(o => ({ venueId, order: o })))
@@ -316,7 +318,9 @@ export function ProfilePage() {
                 )}>{hlNetwork()}</span>
                 {hlAgent.address.slice(0, 6)}…{hlAgent.address.slice(-4)} ·{' '}
                 {hlAgent.approvedAt
-                  ? <span className="text-long">approved</span>
+                  ? <span className={hlUnlocked ? 'text-long' : 'text-amber-300'}>
+                      {hlUnlocked ? 'approved · unlocked' : 'approved · locked'}
+                    </span>
                   : <span className="text-amber-300">pending</span>}
               </span>
             )}

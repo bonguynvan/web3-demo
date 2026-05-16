@@ -13,15 +13,18 @@
 
 import { useState } from 'react'
 import { useAccount, useConnect, useWalletClient } from 'wagmi'
-import { ShieldCheck, AlertTriangle, KeyRound, Trash2, CheckCircle2, Loader2, Copy } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, KeyRound, Trash2, CheckCircle2, Loader2, Copy, Lock, Unlock } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useToast } from '../store/toastStore'
 import { cn } from '../lib/format'
 import {
-  loadAgent, generateAgent, clearAgent, markApproved, hlNetwork, hlIsMainnet,
+  loadAgent, generateAgent, unlockAgent, clearAgent, markApproved,
+  hlNetwork, hlIsMainnet,
   type HlAgentRecord,
 } from '../lib/hyperliquidAgent'
 import { approveHyperliquidAgent } from '../lib/hyperliquidApprove'
+import { vaultExists, WrongPassphraseError } from '../lib/credentialsVault'
+import { useAgentKeyCacheStore } from '../store/agentKeyCacheStore'
 
 interface Props {
   open: boolean
@@ -34,11 +37,15 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
   const { connect: connectWallet, connectors } = useConnect()
   const { data: walletClient } = useWalletClient()
   const [agent, setAgent] = useState<HlAgentRecord | null>(() => loadAgent())
-  const [busy, setBusy] = useState<'generate' | 'approve' | null>(null)
+  const [busy, setBusy] = useState<'generate' | 'approve' | 'unlock' | null>(null)
+  const [passphrase, setPassphrase] = useState('')
+  const [confirmPassphrase, setConfirmPassphrase] = useState('')
+  const unlocked = useAgentKeyCacheStore(s => s.privateKey !== null)
 
   const network = hlNetwork()
   const mainnet = hlIsMainnet()
   const approved = agent?.approvedAt != null
+  const hasVault = vaultExists()
 
   const handleConnect = () => {
     const first = connectors[0]
@@ -49,14 +56,51 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
     connectWallet({ connector: first })
   }
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (!passphrase) {
+      toast.error('Passphrase required', 'Pick a passphrase to seal the agent key')
+      return
+    }
+    if (passphrase.length < 8) {
+      toast.error('Passphrase too short', 'Use at least 8 characters')
+      return
+    }
+    if (!hasVault && passphrase !== confirmPassphrase) {
+      toast.error('Passphrases differ', 'Type the same passphrase in both fields')
+      return
+    }
     setBusy('generate')
     try {
-      const rec = generateAgent()
+      const rec = await generateAgent(passphrase)
       setAgent(rec)
+      setPassphrase('')
+      setConfirmPassphrase('')
       toast.success('Agent generated', `${truncAddr(rec.address)} — sign approval to enable`)
     } catch (e) {
-      toast.error('Failed to generate agent', e instanceof Error ? e.message : 'Unknown error')
+      const msg = e instanceof WrongPassphraseError
+        ? 'Wrong passphrase — that does not match your existing vault'
+        : e instanceof Error ? e.message : 'Unknown error'
+      toast.error('Failed to generate agent', msg)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleUnlock = async () => {
+    if (!passphrase) {
+      toast.error('Passphrase required', '')
+      return
+    }
+    setBusy('unlock')
+    try {
+      await unlockAgent(passphrase)
+      setPassphrase('')
+      toast.success('Agent unlocked', 'Orders can now be signed silently')
+    } catch (e) {
+      const msg = e instanceof WrongPassphraseError
+        ? 'Wrong passphrase'
+        : e instanceof Error ? e.message : 'Unknown error'
+      toast.error('Unlock failed', msg)
     } finally {
       setBusy(null)
     }
@@ -180,9 +224,55 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
                     network is <code className="font-mono">{network}</code>. Forget + regenerate.
                   </div>
                 )}
+                <Row label="Vault">
+                  {unlocked ? (
+                    <span className="text-long font-mono flex items-center gap-1">
+                      <Unlock className="w-3 h-3" />
+                      Unlocked
+                    </span>
+                  ) : (
+                    <span className="text-amber-300 font-mono flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Locked
+                    </span>
+                  )}
+                </Row>
               </>
             ) : (
               <div className="text-xs text-text-muted">No agent yet. Generate one below.</div>
+            )}
+
+            {((!agent) || (agent && !unlocked)) && (
+              <div className="space-y-2 pt-1">
+                <input
+                  type="password"
+                  value={passphrase}
+                  onChange={e => setPassphrase(e.target.value)}
+                  placeholder={agent
+                    ? 'Vault passphrase (to unlock)'
+                    : hasVault
+                      ? 'Existing vault passphrase'
+                      : 'New vault passphrase (8+ chars)'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent font-mono"
+                />
+                {!agent && !hasVault && (
+                  <input
+                    type="password"
+                    value={confirmPassphrase}
+                    onChange={e => setConfirmPassphrase(e.target.value)}
+                    placeholder="Confirm passphrase"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="w-full text-sm bg-surface border border-border rounded-md px-3 py-2 text-text-primary outline-none focus:border-accent font-mono"
+                  />
+                )}
+                <div className="text-[10px] text-text-muted">
+                  Encrypts the agent key at rest (AES-GCM + PBKDF2 600k iterations). Never sent anywhere.
+                  No reset — pick something you'll remember.
+                </div>
+              </div>
             )}
 
             <div className="flex flex-wrap gap-2 pt-2">
@@ -198,7 +288,19 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
                 </button>
               )}
 
-              {agent && !approved && (
+              {agent && !unlocked && (
+                <button
+                  type="button"
+                  onClick={handleUnlock}
+                  disabled={busy !== null}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {busy === 'unlock' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlock className="w-3.5 h-3.5" />}
+                  Unlock
+                </button>
+              )}
+
+              {agent && !approved && unlocked && (
                 <button
                   type="button"
                   onClick={handleApprove}

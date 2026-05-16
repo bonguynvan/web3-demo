@@ -1,37 +1,40 @@
 /**
- * hyperliquidAgent — local-only agent wallet store.
+ * hyperliquidAgent — agent wallet metadata + vault-encrypted secret.
  *
- * Hyperliquid's "agent wallet" model lets a master account approve a
- * disposable subkey to sign orders on its behalf. The master signs
- * `approveAgent` once (EIP-712 via the user's connected wallet); from
- * then on, the agent's private key — held entirely in the user's
- * browser — can sign individual orders without a wallet prompt every
- * time.
+ * The agent private key is sealed inside the credentials vault
+ * (AES-GCM + PBKDF2-SHA256 @ 600k iterations). Only the public-side
+ * metadata (address, network, approval status) lives in plain
+ * localStorage. To sign orders we need the plaintext key in memory:
+ * that's the in-tab `agentKeyCacheStore` populated on `unlockAgent()`.
  *
- * Storage: localStorage key `tc-hl-agent-v1`. NOT encrypted in Phase 1
- * — it's a low-privilege key that can only place orders (no
- * withdrawals, no balance moves). On mainnet we'll route this through
- * the credentials vault before unlocking live trading.
+ * v1 of this module stored the private key in plain localStorage. v2
+ * (this file) breaks the schema: any v1 record on disk is dropped on
+ * load so we don't leak old keys forever. Users must regenerate.
  *
- * Phase 1 forces `VITE_HYPERLIQUID_NETWORK=testnet` — mainnet calls
- * throw until Phase 3 graduates the flow.
+ * Network: VITE_HYPERLIQUID_NETWORK = mainnet | testnet (default).
  */
 
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import { seal, unseal, vaultExists, type VaultPayload } from './credentialsVault'
+import { useAgentKeyCacheStore, getAgentPrivateKey as getCachedKey } from '../store/agentKeyCacheStore'
 
-const STORAGE_KEY = 'tc-hl-agent-v1'
+const STORAGE_KEY = 'tc-hl-agent-v2'
+const LEGACY_STORAGE_KEY = 'tc-hl-agent-v1'
 
 export type HlNetwork = 'mainnet' | 'testnet'
 
+/**
+ * Public-only agent metadata. Does NOT contain the private key —
+ * that lives in the vault and (after unlock) in agentKeyCacheStore.
+ */
 export interface HlAgentRecord {
   address: `0x${string}`
-  privateKey: `0x${string}`
   network: HlNetwork
   name: string
   createdAt: number
-  /** Set once the master has signed `approveAgent` on chain. Null until then. */
+  /** Set once the master has signed `approveAgent`. Null until then. */
   approvedAt: number | null
-  /** Optional master address that approved this agent (for UI display only). */
+  /** Master address that approved this agent (for UI display only). */
   masterAddress: `0x${string}` | null
 }
 
@@ -45,19 +48,18 @@ export function hlIsMainnet(): boolean {
 }
 
 export function loadAgent(): HlAgentRecord | null {
+  // Drop any legacy v1 record on first load — those embed the private
+  // key in plaintext localStorage, which we no longer accept.
+  try { localStorage.removeItem(LEGACY_STORAGE_KEY) } catch { /* ignore */ }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<HlAgentRecord>
-    if (
-      typeof parsed.address !== 'string' ||
-      typeof parsed.privateKey !== 'string' ||
-      typeof parsed.createdAt !== 'number'
-    ) return null
+    if (typeof parsed.address !== 'string' || typeof parsed.createdAt !== 'number') return null
     const network: HlNetwork = parsed.network === 'mainnet' ? 'mainnet' : 'testnet'
     return {
       address: parsed.address as `0x${string}`,
-      privateKey: parsed.privateKey as `0x${string}`,
       network,
       name: typeof parsed.name === 'string' ? parsed.name : 'tradingdek',
       createdAt: parsed.createdAt,
@@ -69,7 +71,7 @@ export function loadAgent(): HlAgentRecord | null {
   }
 }
 
-export function saveAgent(rec: HlAgentRecord): void {
+function saveMetadata(rec: HlAgentRecord): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(rec))
   } catch { /* full or denied */ }
@@ -77,31 +79,66 @@ export function saveAgent(rec: HlAgentRecord): void {
 
 export function clearAgent(): void {
   try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
-}
-
-/**
- * Generates a fresh agent wallet. The private key is a 32-byte hex
- * string; the address is its keccak256 derivation. NOT yet approved
- * on chain — call the approve flow separately.
- */
-export function generateAgent(name: string = `tradingdek-${Date.now().toString(36).slice(-6)}`): HlAgentRecord {
-  const pk = generatePrivateKey()
-  const account = privateKeyToAccount(pk)
-  const rec: HlAgentRecord = {
-    address: account.address,
-    privateKey: pk,
-    network: hlNetwork(),
-    name,
-    createdAt: Date.now(),
-    approvedAt: null,
-    masterAddress: null,
-  }
-  saveAgent(rec)
-  return rec
+  useAgentKeyCacheStore.getState().clear()
 }
 
 export function markApproved(masterAddress: `0x${string}`): void {
   const existing = loadAgent()
   if (!existing) return
-  saveAgent({ ...existing, approvedAt: Date.now(), masterAddress })
+  saveMetadata({ ...existing, approvedAt: Date.now(), masterAddress })
 }
+
+/**
+ * Generates a fresh agent key, seals it into the vault under the
+ * given passphrase, and saves the public metadata to localStorage.
+ * Also populates the in-memory cache so the user can immediately
+ * sign without re-prompting for the passphrase.
+ *
+ * If a vault exists, the passphrase must unlock it (we merge into
+ * the existing payload). If no vault exists yet, this creates one.
+ */
+export async function generateAgent(passphrase: string, name?: string): Promise<HlAgentRecord> {
+  const pk = generatePrivateKey()
+  const account = privateKeyToAccount(pk)
+
+  let payload: VaultPayload
+  if (vaultExists()) {
+    payload = await unseal(passphrase) // throws WrongPassphraseError on mismatch
+  } else {
+    payload = { venues: {} }
+  }
+  payload.hlAgentKey = pk
+  await seal(passphrase, payload)
+
+  const rec: HlAgentRecord = {
+    address: account.address,
+    network: hlNetwork(),
+    name: name ?? `tradingdek-${Date.now().toString(36).slice(-6)}`,
+    createdAt: Date.now(),
+    approvedAt: null,
+    masterAddress: null,
+  }
+  saveMetadata(rec)
+  useAgentKeyCacheStore.getState().setKey(pk)
+  return rec
+}
+
+/**
+ * Unseals the vault and loads the agent key into the in-memory cache.
+ * Throws WrongPassphraseError if the passphrase is wrong, or a plain
+ * Error if the vault has no agent key sealed inside.
+ */
+export async function unlockAgent(passphrase: string): Promise<void> {
+  if (!vaultExists()) throw new Error('No vault yet — generate an agent first')
+  const payload = await unseal(passphrase)
+  if (!payload.hlAgentKey) {
+    throw new Error('Vault unlocked but no agent key sealed inside — regenerate')
+  }
+  useAgentKeyCacheStore.getState().setKey(payload.hlAgentKey)
+}
+
+export function isAgentUnlocked(): boolean {
+  return getCachedKey() !== null
+}
+
+export { getCachedKey as getAgentPrivateKey }

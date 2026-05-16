@@ -43,6 +43,11 @@ export interface VaultPayload {
   /** Per-venue metadata (timestamps, last-used, etc.). Backward-compatible
    *  — older vaults that omit this still decrypt fine. */
   meta?: Partial<Record<VenueId, VaultEntryMeta>>
+  /** Hyperliquid agent private key (32-byte hex). Kept here rather than
+   *  in localStorage so XSS can't trivially exfiltrate it. Metadata
+   *  (address, network, approval status) still lives in localStorage —
+   *  only the secret half is sealed. */
+  hlAgentKey?: `0x${string}`
 }
 
 function bufToB64(buf: ArrayBuffer | Uint8Array): string {

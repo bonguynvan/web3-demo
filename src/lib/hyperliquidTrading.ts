@@ -15,7 +15,7 @@
 import { HttpTransport } from '@nktkas/hyperliquid'
 import { order as sdkOrder, cancel as sdkCancel } from '@nktkas/hyperliquid/api/exchange'
 import { privateKeyToAccount } from 'viem/accounts'
-import { hlNetwork, loadAgent } from './hyperliquidAgent'
+import { hlNetwork, loadAgent, getAgentPrivateKey } from './hyperliquidAgent'
 
 export interface WireOrder {
   /** Asset index from HyperliquidAdapter.markets[].id ↔ ordinal. */
@@ -45,7 +45,7 @@ export interface PlaceResult {
   raw: unknown
 }
 
-function ensureAgent() {
+function ensureAgent(): { privateKey: `0x${string}` } {
   const agent = loadAgent()
   if (!agent) {
     throw new Error('No agent wallet — generate one in Profile → Hyperliquid agent wallet')
@@ -59,7 +59,11 @@ function ensureAgent() {
   if (!agent.approvedAt) {
     throw new Error('Agent is generated but not yet approved — sign approval in Profile')
   }
-  return agent
+  const pk = getAgentPrivateKey()
+  if (!pk) {
+    throw new Error('Agent vault locked — unlock in Profile → Hyperliquid agent wallet')
+  }
+  return { privateKey: pk }
 }
 
 function transport() {
@@ -72,8 +76,8 @@ function transport() {
  * so we never silently swallow rejections.
  */
 export async function placeOrder(wire: WireOrder): Promise<PlaceResult> {
-  const agent = ensureAgent()
-  const wallet = privateKeyToAccount(agent.privateKey)
+  const { privateKey } = ensureAgent()
+  const wallet = privateKeyToAccount(privateKey)
 
   const res = await sdkOrder(
     { transport: transport(), wallet },
@@ -90,8 +94,8 @@ export async function placeOrder(wire: WireOrder): Promise<PlaceResult> {
  * Cancels an open order by (asset index, oid). The SDK expects both.
  */
 export async function cancelOrder(args: { assetIndex: number; orderId: number }): Promise<void> {
-  const agent = ensureAgent()
-  const wallet = privateKeyToAccount(agent.privateKey)
+  const { privateKey } = ensureAgent()
+  const wallet = privateKeyToAccount(privateKey)
 
   await sdkCancel(
     { transport: transport(), wallet },

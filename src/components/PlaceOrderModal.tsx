@@ -14,6 +14,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { getAdapter, getActiveAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
 import { loadAgent as loadHlAgent, hlNetwork, hlIsMainnet } from '../lib/hyperliquidAgent'
+import { useAgentKeyCacheStore } from '../store/agentKeyCacheStore'
 import { useVenueBalances } from '../hooks/useVenueBalances'
 import { useToast } from '../store/toastStore'
 import type { VenueId } from '../adapters/types'
@@ -93,7 +94,8 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
   const isHl = venueId === 'hyperliquid'
   const hlAgent = isHl ? loadHlAgent() : null
   const hlOnMainnet = isHl && hlIsMainnet()
-  const hlAgentReady = isHl && !!hlAgent && hlAgent.approvedAt !== null && hlAgent.network === hlNetwork()
+  const hlUnlocked = useAgentKeyCacheStore(s => s.privateKey !== null)
+  const hlAgentReady = isHl && !!hlAgent && hlAgent.approvedAt !== null && hlAgent.network === hlNetwork() && hlUnlocked
   const hlBlocked = isHl && !hlAgentReady
 
   const submit = async () => {
@@ -112,7 +114,9 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
           ? 'Generate + approve an agent in Profile → Hyperliquid agent wallet'
           : !hlAgent.approvedAt
             ? 'Agent is generated but not yet approved — sign approval in Profile'
-            : `Agent is on ${hlAgent.network}, current network is ${hlNetwork()}`,
+            : hlAgent.network !== hlNetwork()
+              ? `Agent is on ${hlAgent.network}, current network is ${hlNetwork()}`
+              : 'Vault locked — unlock in Profile → Hyperliquid agent wallet',
       )
       return
     }
@@ -188,6 +192,9 @@ export function PlaceOrderModal({ open, onClose, defaultMarketId, onPlaced }: Pr
               )}
               {hlAgent && hlAgent.approvedAt && hlAgent.network !== hlNetwork() && (
                 <div>Agent is on {hlAgent.network}; current network is {hlNetwork()}. Regenerate.</div>
+              )}
+              {hlAgent && hlAgent.approvedAt && hlAgent.network === hlNetwork() && !hlUnlocked && (
+                <div>Vault locked. Unlock in Profile → Hyperliquid agent wallet to enable signing.</div>
               )}
               {hlAgentReady && (
                 <div>
