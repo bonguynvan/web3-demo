@@ -32,8 +32,23 @@ export interface BotConfig {
   /** 0..1 — only acts on signals at or above this confidence. */
   minConfidence: number
 
-  /** USD notional per trade. */
+  /** Fixed USD notional per trade. Used when sizingMode is undefined or
+   *  'fixed_usd'. Kept as the primary field for backward compat. */
   positionSizeUsd: number
+
+  /** Sizing mode:
+   *    'fixed_usd' (default) — use positionSizeUsd as the trade notional
+   *    'risk_pct' — size by risk: notional = (equity × riskPctPerTrade) /
+   *                  (entryPrice × stopLossPct/100). Requires both
+   *                  accountEquityUsd (in riskStore) and stopLossPct on
+   *                  the bot. Falls back to positionSizeUsd if either is
+   *                  missing so a misconfig doesn't silently open a
+   *                  zero-size trade. */
+  sizingMode?: 'fixed_usd' | 'risk_pct'
+
+  /** Percent of equity to risk per trade when sizingMode='risk_pct'.
+   *  Typical pro range: 0.25 — 1.0. Clamped to 5 max in the engine. */
+  riskPctPerTrade?: number
 
   /** Hold window before auto-closing at current mark. */
   holdMinutes: number

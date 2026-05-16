@@ -27,6 +27,10 @@ export interface RiskLimits {
   dailyPnlCapUsd: number
   maxDrawdownUsd: number
   maxExposureUsd: number
+  /** User-declared total tradeable equity. Drives risk-percent sizing:
+   *  positionSize = (equity × riskPctPerTrade) / (entryPrice × stopLossPct/100).
+   *  0 = unset; bots fall back to fixed-USD sizing. */
+  accountEquityUsd: number
 }
 
 export interface RiskBreach {
@@ -51,6 +55,7 @@ const DEFAULTS: RiskLimits = {
   dailyPnlCapUsd: 0,
   maxDrawdownUsd: 0,
   maxExposureUsd: 0,
+  accountEquityUsd: 0,
 }
 
 interface PersistedShape extends RiskLimits {
@@ -67,6 +72,7 @@ function load(): PersistedShape {
       dailyPnlCapUsd: Number(parsed.dailyPnlCapUsd) || 0,
       maxDrawdownUsd: Number(parsed.maxDrawdownUsd) || 0,
       maxExposureUsd: Number(parsed.maxExposureUsd) || 0,
+      accountEquityUsd: Number(parsed.accountEquityUsd) || 0,
     }
     const breach = parsed.breach && typeof parsed.breach.at === 'number' && typeof parsed.breach.reason === 'string'
       ? { at: parsed.breach.at, reason: parsed.breach.reason }
@@ -92,31 +98,32 @@ export const useRiskStore = create<RiskState>((set, get) => {
   return {
     ...initial,
     setLimits: (patch) => {
-      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, breach, lastWarnedAt } = get()
+      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, breach, lastWarnedAt } = get()
       const next: RiskLimits = {
         dailyPnlCapUsd: patch.dailyPnlCapUsd ?? dailyPnlCapUsd,
         maxDrawdownUsd: patch.maxDrawdownUsd ?? maxDrawdownUsd,
         maxExposureUsd: patch.maxExposureUsd ?? maxExposureUsd,
+        accountEquityUsd: patch.accountEquityUsd ?? accountEquityUsd,
       }
       set(next)
       persist({ ...next, breach, lastWarnedAt })
     },
     setBreach: (reason) => {
-      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, lastWarnedAt } = get()
+      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, lastWarnedAt } = get()
       const breach: RiskBreach = { at: Date.now(), reason }
       set({ breach })
-      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, breach, lastWarnedAt })
+      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, breach, lastWarnedAt })
     },
     clearBreach: () => {
-      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, lastWarnedAt } = get()
+      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, lastWarnedAt } = get()
       set({ breach: null })
-      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, breach: null, lastWarnedAt })
+      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, breach: null, lastWarnedAt })
     },
     markWarned: (kind) => {
-      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, breach, lastWarnedAt } = get()
+      const { dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, breach, lastWarnedAt } = get()
       const next: RiskWarnTimestamps = { ...lastWarnedAt, [kind]: Date.now() }
       set({ lastWarnedAt: next })
-      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, breach, lastWarnedAt: next })
+      persist({ dailyPnlCapUsd, maxDrawdownUsd, maxExposureUsd, accountEquityUsd, breach, lastWarnedAt: next })
     },
   }
 })

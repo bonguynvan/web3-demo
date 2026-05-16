@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useBotStore } from '../store/botStore'
+import { useRiskStore } from '../store/riskStore'
 import { useTradingStore } from '../store/tradingStore'
 import { BOT_TEMPLATES, type BotTemplate } from '../bots/templates'
 import { RISK_PROFILES, RISK_PROFILE_ORDER } from '../bots/riskProfiles'
@@ -36,6 +37,9 @@ interface FormState {
   trailingStopPct: number
   /** Tracks which profile chip is highlighted. Auto-flips to 'custom' on edit. */
   riskProfile: BotRiskProfile
+  /** Sizing mode + risk-percent fields — see BotConfig docs. */
+  sizingMode: 'fixed_usd' | 'risk_pct'
+  riskPctPerTrade: number
 }
 
 const DEFAULT_FORM: FormState = {
@@ -50,10 +54,14 @@ const DEFAULT_FORM: FormState = {
   takeProfitPct: 4,
   trailingStopPct: 1,
   riskProfile: 'balanced',
+  sizingMode: 'fixed_usd',
+  riskPctPerTrade: 0.5,
 }
 
 export function BotConfigForm({ onClose }: { onClose: () => void }) {
   const addBot = useBotStore(s => s.addBot)
+  const accountEquityUsd = useRiskStore(s => s.accountEquityUsd)
+  const setRiskLimits = useRiskStore(s => s.setLimits)
   const markets = useTradingStore(s => s.markets)
   const selectedMarket = useTradingStore(s => s.selectedMarket)
   const candles = useTradingStore(s => s.candles)
@@ -161,6 +169,8 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
       riskProfile: form.riskProfile,
+      sizingMode: form.sizingMode,
+      riskPctPerTrade: form.sizingMode === 'risk_pct' && form.riskPctPerTrade > 0 ? form.riskPctPerTrade : undefined,
     })
     onClose()
   }
@@ -326,16 +336,55 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           />
         </Field>
 
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="Size (USD)">
+        <Field label="Sizing mode">
+          <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, sizingMode: 'fixed_usd', riskProfile: 'custom' }))}
+              className={cn(
+                'px-2 py-1 rounded-md border text-[11px] font-medium transition-colors cursor-pointer',
+                form.sizingMode === 'fixed_usd'
+                  ? 'bg-accent-dim/40 text-accent border-accent/40'
+                  : 'bg-panel text-text-muted border-border hover:text-text-primary',
+              )}
+            >
+              Fixed USD
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, sizingMode: 'risk_pct', riskProfile: 'custom' }))}
+              className={cn(
+                'px-2 py-1 rounded-md border text-[11px] font-medium transition-colors cursor-pointer',
+                form.sizingMode === 'risk_pct'
+                  ? 'bg-accent-dim/40 text-accent border-accent/40'
+                  : 'bg-panel text-text-muted border-border hover:text-text-primary',
+              )}
+            >
+              Risk % of equity
+            </button>
+          </div>
+          {form.sizingMode === 'risk_pct' ? (
+            <RiskPctSizing
+              riskPct={form.riskPctPerTrade}
+              stopLossPct={form.stopLossPct}
+              fallbackUsd={form.positionSizeUsd}
+              equity={accountEquityUsd}
+              onRiskPctChange={(v) => setForm(f => ({ ...f, riskPctPerTrade: v, riskProfile: 'custom' }))}
+              onSetEquity={(v) => setRiskLimits({ accountEquityUsd: v })}
+            />
+          ) : (
             <input
               type="number"
               min={1}
               value={form.positionSizeUsd}
-              onChange={e => setForm(f => ({ ...f, positionSizeUsd: Number(e.target.value) }))}
+              onChange={e => setForm(f => ({ ...f, positionSizeUsd: Number(e.target.value), riskProfile: 'custom' }))}
               className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-mono"
+              title="Notional USD per trade"
             />
-          </Field>
+          )}
+        </Field>
+
+        <div className="grid grid-cols-2 gap-2">
           <Field label="Hold (min)">
             <input
               type="number"
@@ -481,6 +530,101 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function RiskPctSizing({
+  riskPct, stopLossPct, fallbackUsd, equity, onRiskPctChange, onSetEquity,
+}: {
+  riskPct: number
+  stopLossPct: number
+  fallbackUsd: number
+  equity: number
+  onRiskPctChange: (v: number) => void
+  onSetEquity: (v: number) => void
+}) {
+  const computedNotional = equity > 0 && riskPct > 0 && stopLossPct > 0
+    ? Math.min(equity, (equity * riskPct / 100) / (stopLossPct / 100))
+    : null
+  const dollarsAtRisk = equity > 0 && riskPct > 0 ? equity * riskPct / 100 : null
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          step="0.05"
+          value={riskPct}
+          onChange={e => onRiskPctChange(Math.max(0, Number(e.target.value)))}
+          className="flex-1 bg-panel border border-border rounded px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-mono"
+          title="Percent of total equity to risk per trade. Typical pro range: 0.25–1.0%."
+        />
+        <span className="text-[10px] font-mono text-text-muted">% of equity</span>
+      </div>
+      {equity > 0 ? (
+        <div className="rounded-md border border-border bg-panel/40 px-2 py-1.5 text-[10px] font-mono space-y-0.5">
+          <div className="flex justify-between text-text-muted">
+            <span>Equity</span>
+            <span className="text-text-secondary">${equity.toLocaleString()}</span>
+          </div>
+          {dollarsAtRisk !== null && (
+            <div className="flex justify-between text-text-muted">
+              <span>$ at risk / trade</span>
+              <span className={dollarsAtRisk > equity * 0.02 ? 'text-amber-300' : 'text-text-primary'}>
+                ${dollarsAtRisk.toFixed(2)}
+              </span>
+            </div>
+          )}
+          {computedNotional !== null ? (
+            <div className="flex justify-between">
+              <span className="text-text-muted">Notional / trade</span>
+              <span className="text-accent font-semibold">${computedNotional.toFixed(2)}</span>
+            </div>
+          ) : (
+            <div className="text-text-muted italic">
+              Set a stop-loss % below to compute notional.
+            </div>
+          )}
+        </div>
+      ) : (
+        <EquityPrompt fallbackUsd={fallbackUsd} onSetEquity={onSetEquity} />
+      )}
+    </div>
+  )
+}
+
+function EquityPrompt({ fallbackUsd, onSetEquity }: { fallbackUsd: number; onSetEquity: (v: number) => void }) {
+  const [val, setVal] = useState('')
+  return (
+    <div className="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1.5 text-[10px] leading-relaxed">
+      <div className="text-amber-200 font-semibold mb-1">Set your equity first</div>
+      <div className="text-text-muted mb-1.5">
+        Risk-percent sizing needs to know your total tradeable equity.
+        Falling back to fixed ${fallbackUsd}/trade until set.
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min={0}
+          step="100"
+          value={val}
+          placeholder="e.g. 10000"
+          onChange={e => setVal(e.target.value)}
+          className="flex-1 bg-surface border border-border rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const n = Number(val)
+            if (n > 0) onSetEquity(n)
+          }}
+          className="px-2 py-1 rounded bg-accent text-white text-[10px] font-semibold uppercase tracking-wider cursor-pointer"
+        >
+          Save
+        </button>
       </div>
     </div>
   )

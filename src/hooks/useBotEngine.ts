@@ -36,6 +36,7 @@ export function useBotEngine(): void {
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
   const { isConnected: walletConnected } = useAccount()
   const maxExposureUsd = useRiskStore(s => s.maxExposureUsd)
+  const accountEquityUsd = useRiskStore(s => s.accountEquityUsd)
   // Toast at most once per bot per "exposure-blocked" episode so a busy
   // signal feed doesn't spam the user with the same warning every 5s.
   const exposureNotifiedRef = useRef<Set<string>>(new Set())
@@ -77,22 +78,27 @@ export function useBotEngine(): void {
 
         const entryPrice = s.suggestedPrice
         if (entryPrice === undefined || entryPrice <= 0) continue
-        const size = bot.positionSizeUsd / entryPrice
 
-        // Exposure cap pre-check. Without this the bot would open the
-        // trade and useRiskMonitor would *then* detect the breach and
-        // pause everything — leaving an oversized position open. By
-        // gating before recordTrade we keep total exposure under the cap.
+        // Trade notional: either fixed USD (legacy/default) or risk-percent
+        // (size up so a stop-loss hit equals a fixed % of equity). The
+        // risk-percent branch needs both accountEquityUsd and stopLossPct
+        // — falls back to positionSizeUsd if either is missing so a
+        // misconfig doesn't silently open a zero-size trade.
+        const notional = computeNotional(bot, accountEquityUsd)
+        const size = notional / entryPrice
+
+        // Exposure cap pre-check. Gates before recordTrade so the bot
+        // doesn't open a trade that useRiskMonitor would then breach on.
         if (maxExposureUsd > 0) {
           const currentExposure = trades
             .filter(t => t.closedAt === undefined)
             .reduce((acc, t) => acc + t.positionUsd, 0)
-          if (currentExposure + bot.positionSizeUsd > maxExposureUsd) {
+          if (currentExposure + notional > maxExposureUsd) {
             if (!exposureNotifiedRef.current.has(bot.id)) {
               exposureNotifiedRef.current.add(bot.id)
               toast.warning(
                 `${bot.name} skipped — exposure cap`,
-                `Open $${currentExposure.toFixed(0)} + $${bot.positionSizeUsd} would exceed cap $${maxExposureUsd}`,
+                `Open $${currentExposure.toFixed(0)} + $${notional.toFixed(0)} would exceed cap $${maxExposureUsd}`,
               )
             }
             continue
@@ -134,7 +140,7 @@ export function useBotEngine(): void {
                 direction: s.direction,
                 entryPrice,
                 size,
-                positionUsd: bot.positionSizeUsd,
+                positionUsd: notional,
                 openedAt: Date.now(),
                 closeAt: Date.now() + bot.holdMinutes * 60_000,
                 mode: 'live',
@@ -254,6 +260,35 @@ export function useBotEngine(): void {
       closeTrade(t.id, closePrice, now, 'reversal')
     }
   }, [signals, trades, closeTrade])
+}
+
+/**
+ * Trade notional in USD.
+ *
+ *   sizingMode = 'risk_pct' → notional = (equity × riskPctPerTrade / 100)
+ *                                        / (stopLossPct / 100)
+ *     i.e. position scaled so a stop-out equals riskPctPerTrade% of equity.
+ *     Falls back to positionSizeUsd if equity or stop are missing/zero —
+ *     this prevents a misconfigured risk_pct bot from silently opening a
+ *     zero-size trade.
+ *
+ *   sizingMode = 'fixed_usd' (default) → notional = positionSizeUsd
+ *
+ * Result is clamped to [0, equity] so a fat-finger 50% riskPct can't
+ * exceed the user's stated bankroll.
+ */
+function computeNotional(bot: BotConfig, accountEquityUsd: number): number {
+  if (bot.sizingMode === 'risk_pct') {
+    const riskPct = Math.min(5, Math.max(0, bot.riskPctPerTrade ?? 0))
+    const stopPct = bot.stopLossPct ?? 0
+    if (accountEquityUsd > 0 && riskPct > 0 && stopPct > 0) {
+      const dollarsAtRisk = accountEquityUsd * (riskPct / 100)
+      const notional = dollarsAtRisk / (stopPct / 100)
+      return Math.min(notional, accountEquityUsd)
+    }
+    // Misconfig — fall through to fixed-USD so we never open size 0.
+  }
+  return bot.positionSizeUsd
 }
 
 function matches(bot: BotConfig, signal: Signal): boolean {
