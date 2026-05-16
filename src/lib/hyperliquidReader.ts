@@ -114,6 +114,24 @@ export interface HlFill {
   hash: string
 }
 
+/** Per-coin funding / OI / volume snapshot. Funding rate is annualized
+ *  for readability — Hyperliquid reports per-hour. */
+export interface HlFundingRow {
+  coin: string
+  markPx: number
+  oraclePx: number
+  /** Annualized funding rate as a decimal (e.g. 0.5 = 50% / year). */
+  fundingAnnual: number
+  /** Hourly funding rate as a decimal. */
+  fundingHourly: number
+  /** Open interest in USD notional. */
+  openInterestUsd: number
+  /** 24-hour notional volume in USD. */
+  volume24hUsd: number
+  /** Premium = (mark - oracle) / oracle. Positive = mark trading rich. */
+  premiumPct: number
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 export function isValidAddress(s: string): boolean {
@@ -151,6 +169,49 @@ export async function fetchHlAccount(address: string, signal?: AbortSignal): Pro
     positions,
     fetchedAt: Date.now(),
   }
+}
+
+/**
+ * Per-market funding / OI / volume snapshot for all HL perps. Public,
+ * no auth needed. The cheap version of Coinglass — single venue, but
+ * it covers HL's 200+ perp markets in one call.
+ */
+export async function fetchHlFundingTable(signal?: AbortSignal): Promise<HlFundingRow[]> {
+  interface HlUniverseEntry { name: string; szDecimals: number; maxLeverage: number }
+  interface HlAssetCtx {
+    funding: string
+    openInterest: string
+    markPx: string
+    oraclePx: string
+    dayNtlVlm: string
+  }
+  const data = await postInfo<[{ universe: HlUniverseEntry[] }, HlAssetCtx[]]>(
+    { type: 'metaAndAssetCtxs' },
+    signal,
+  )
+  if (!Array.isArray(data) || data.length < 2) return []
+  const [meta, ctxs] = data
+  const rows: HlFundingRow[] = []
+  for (let i = 0; i < meta.universe.length; i++) {
+    const u = meta.universe[i]
+    const c = ctxs[i]
+    if (!c) continue
+    const fundingHourly = parseFloat(c.funding) || 0
+    const markPx = parseFloat(c.markPx) || 0
+    const oraclePx = parseFloat(c.oraclePx) || 0
+    const oi = parseFloat(c.openInterest) || 0
+    rows.push({
+      coin: u.name,
+      markPx,
+      oraclePx,
+      fundingHourly,
+      fundingAnnual: fundingHourly * 24 * 365,
+      openInterestUsd: oi * markPx,
+      volume24hUsd: parseFloat(c.dayNtlVlm) || 0,
+      premiumPct: oraclePx > 0 ? ((markPx - oraclePx) / oraclePx) * 100 : 0,
+    })
+  }
+  return rows
 }
 
 export async function fetchHlFills(address: string, signal?: AbortSignal): Promise<HlFill[]> {
