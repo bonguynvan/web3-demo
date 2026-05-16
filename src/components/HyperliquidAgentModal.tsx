@@ -189,6 +189,17 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
 
         {isConnected && (
           <>
+            <StepBar
+              step={
+                !agent
+                  ? 'generate'
+                  : !unlocked
+                    ? 'unlock'
+                    : !approved
+                      ? 'approve'
+                      : 'done'
+              }
+            />
             <Row label="Network">
               <span className="uppercase">{network}</span>
             </Row>
@@ -330,6 +341,49 @@ export function HyperliquidAgentModal({ open, onClose }: Props) {
 
       </div>
     </Modal>
+  )
+}
+
+type Step = 'generate' | 'unlock' | 'approve' | 'done'
+
+function StepBar({ step }: { step: Step }) {
+  // Linear order: generate → approve → done. `unlock` is a side state
+  // (existing agent, fresh session) that maps to step 1 visually since
+  // the user only needs to unlock before approval/signing.
+  const stage = step === 'generate' || step === 'unlock' ? 1 : step === 'approve' ? 2 : 3
+  const items: Array<{ idx: number; label: string }> = [
+    { idx: 1, label: step === 'unlock' ? 'Unlock' : 'Generate' },
+    { idx: 2, label: 'Approve' },
+    { idx: 3, label: 'Ready' },
+  ]
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider">
+      {items.map((it, i) => {
+        const done = stage > it.idx
+        const active = stage === it.idx
+        return (
+          <div key={it.idx} className="flex items-center gap-1.5">
+            <span className={cn(
+              'inline-flex items-center justify-center w-5 h-5 rounded-full border',
+              done ? 'border-long bg-long/20 text-long'
+                : active ? 'border-accent bg-accent/20 text-accent'
+                  : 'border-border text-text-muted'
+            )}>
+              {done ? <CheckCircle2 className="w-3 h-3" /> : it.idx}
+            </span>
+            <span className={cn(
+              active ? 'text-text-primary' : done ? 'text-long' : 'text-text-muted'
+            )}>{it.label}</span>
+            {i < items.length - 1 && (
+              <span className={cn(
+                'inline-block w-4 h-px',
+                done ? 'bg-long' : 'bg-border'
+              )} />
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

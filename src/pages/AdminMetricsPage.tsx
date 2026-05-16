@@ -59,7 +59,7 @@ export function AdminMetricsPage() {
   return (
     <div className="min-h-screen bg-surface text-text-primary overflow-y-auto">
       <header className="border-b border-border bg-panel/60 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <Link to="/" className="hover:opacity-80 transition-opacity">
             <Wordmark size="sm" />
           </Link>
@@ -79,7 +79,7 @@ export function AdminMetricsPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-10 space-y-10">
         <h1 className="text-2xl md:text-3xl font-bold">Operator metrics</h1>
 
         {err && (

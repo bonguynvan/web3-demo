@@ -92,7 +92,7 @@ export function HyperliquidViewerPage() {
   return (
     <div className="min-h-screen bg-surface text-text-primary overflow-y-auto">
       <header className="border-b border-border bg-panel/60 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
             Home
@@ -112,7 +112,7 @@ export function HyperliquidViewerPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-10 space-y-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
             <Wallet className="w-6 h-6 text-accent" />
