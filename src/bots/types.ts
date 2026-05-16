@@ -97,7 +97,17 @@ export interface BotTrade {
   signalId: string
   marketId: string
   direction: SignalDirection
+  /** Actual entry price — venue's avg fill for live, signal price for paper. */
   entryPrice: number
+  /** What the signal asked for. Differs from entryPrice on live trades when
+   *  the venue fills at a worse price than requested. Undefined for legacy
+   *  trades + paper trades where entry == intended by construction. */
+  intendedEntryPrice?: number
+  /** Slippage in basis points, signed by direction so positive = adverse:
+   *  long: bps = (actual - intended) / intended × 10000
+   *  short: bps = (intended - actual) / intended × 10000
+   *  Undefined for legacy + paper trades. */
+  slippageBps?: number
   /** Base-asset units. */
   size: number
   positionUsd: number

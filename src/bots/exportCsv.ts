@@ -11,7 +11,7 @@ import type { BotConfig, BotTrade } from './types'
 export function exportTradesCsv(trades: BotTrade[], bots: BotConfig[]): void {
   if (trades.length === 0) return
   const nameById = new Map(bots.map(b => [b.id, b.name]))
-  const header = 'openedAt,closedAt,bot,marketId,direction,entryPrice,closePrice,size,positionUsd,pnlUsd,status'
+  const header = 'openedAt,closedAt,bot,marketId,direction,entryPrice,intendedEntryPrice,slippageBps,closePrice,size,positionUsd,pnlUsd,exitReason,status'
   const rows = trades.map(t => [
     new Date(t.openedAt).toISOString(),
     t.closedAt ? new Date(t.closedAt).toISOString() : '',
@@ -19,10 +19,13 @@ export function exportTradesCsv(trades: BotTrade[], bots: BotConfig[]): void {
     t.marketId,
     t.direction,
     t.entryPrice.toFixed(8),
+    t.intendedEntryPrice?.toFixed(8) ?? '',
+    t.slippageBps !== undefined ? t.slippageBps.toString() : '',
     t.closePrice?.toFixed(8) ?? '',
     t.size.toFixed(8),
     t.positionUsd.toFixed(2),
     t.pnlUsd?.toFixed(4) ?? '',
+    t.exitReason ?? '',
     t.closedAt ? 'closed' : 'open',
   ].join(','))
   const csv = [header, ...rows].join('\n')

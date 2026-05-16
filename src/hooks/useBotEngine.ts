@@ -133,13 +133,23 @@ export function useBotEngine(): void {
                 size,
                 price: entryPrice,
               })
+              // Slippage = adverse delta between intended and actual fill.
+              // Long: positive bps when fill > intended (paid up).
+              // Short: positive bps when fill < intended (sold low).
+              const actualEntry = placed.avgFillPrice ?? entryPrice
+              const sign = s.direction === 'long' ? 1 : -1
+              const slippageBps = actualEntry !== entryPrice
+                ? Math.round(((actualEntry - entryPrice) / entryPrice) * 10000 * sign)
+                : 0
               const trade: BotTrade = {
                 id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                 botId: bot.id,
                 signalId: s.id,
                 marketId: s.marketId,
                 direction: s.direction,
-                entryPrice,
+                entryPrice: actualEntry,
+                intendedEntryPrice: entryPrice,
+                slippageBps,
                 size,
                 positionUsd: notional,
                 openedAt: Date.now(),
