@@ -128,15 +128,17 @@ export function BotCard({
               </button>
               {bot.riskProfile && bot.riskProfile !== 'custom' && (() => {
                 const pb = profileBundle(bot.riskProfile)
+                const Icon = pb.icon
                 return (
                   <span
                     className={cn(
-                      'text-[9px] uppercase tracking-wider px-1.5 py-px rounded font-semibold border',
+                      'text-[9px] uppercase tracking-wider px-1.5 py-px rounded font-semibold border inline-flex items-center gap-1',
                       pb.toneClass,
                     )}
                     title={pb.blurb}
                   >
-                    {pb.emoji} {pb.label}
+                    <Icon className="w-2.5 h-2.5" />
+                    {pb.label}
                   </span>
                 )
               })()}

@@ -183,6 +183,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-3 gap-1.5">
             {RISK_PROFILE_ORDER.map(p => {
               const bundle = RISK_PROFILES[p]
+              const Icon = bundle.icon
               const on = form.riskProfile === p
               return (
                 <button
@@ -197,8 +198,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
                       : 'bg-panel text-text-muted border-border hover:text-text-primary',
                   )}
                 >
-                  <span className="text-[11px] font-semibold">
-                    {bundle.emoji} {bundle.label}
+                  <span className="text-[11px] font-semibold flex items-center gap-1">
+                    <Icon className="w-3 h-3" />
+                    {bundle.label}
                   </span>
                   <span className="text-[9px] opacity-80 leading-tight line-clamp-2">
                     {bundle.blurb.split('.')[0]}
@@ -219,6 +221,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
             {BOT_TEMPLATES.map(tpl => {
               const on = activeTemplate === tpl.id
               const perf = tpl.performance
+              const Icon = tpl.icon
               return (
                 <button
                   key={tpl.id}
@@ -231,7 +234,7 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
                       : 'bg-panel text-text-muted border-border hover:text-text-primary',
                   )}
                 >
-                  <span>{tpl.emoji}</span>
+                  <Icon className="w-3 h-3" />
                   <span className="font-medium">{tpl.name}</span>
                   {perf && (
                     <span className={cn(

@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react'
-import { X, Play, BarChart3 } from 'lucide-react'
+import { X, Play, BarChart3, Bot, type LucideIcon } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useTradingStore } from '../store/tradingStore'
 import { useBotStore } from '../store/botStore'
@@ -43,7 +43,7 @@ const LOOKBACKS: { label: string; days: number }[] = [
 interface Strategy {
   key: string
   name: string
-  emoji: string
+  icon: LucideIcon
   config: BotConfig
 }
 
@@ -144,7 +144,7 @@ export function StrategyComparisonModal({ open, onClose }: Props) {
                   {on && color && (
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
                   )}
-                  <span>{s.emoji}</span>
+                  <s.icon className="w-3 h-3" />
                   <span className="font-medium">{s.name}</span>
                 </button>
               )
@@ -331,7 +331,7 @@ function ComparisonTable({ results }: { results: StrategyResult[] }) {
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
-                    <span>{r.strategy.emoji}</span>
+                    <r.strategy.icon className="w-3 h-3 text-text-muted shrink-0" />
                     <span className="text-text-primary font-medium truncate">{r.strategy.name}</span>
                   </div>
                 </td>
@@ -358,7 +358,7 @@ function templateToStrategy(t: BotTemplate): Strategy {
   return {
     key: `tpl:${t.id}`,
     name: t.name,
-    emoji: t.emoji,
+    icon: t.icon,
     config: {
       id: `bt-tpl-${t.id}`,
       name: t.name,
@@ -379,7 +379,7 @@ function savedBotToStrategy(b: BotConfig): Strategy {
   return {
     key: `bot:${b.id}`,
     name: b.name,
-    emoji: '🤖',
+    icon: Bot,
     config: b,
   }
 }

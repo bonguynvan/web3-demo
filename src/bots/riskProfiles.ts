@@ -19,12 +19,15 @@
  * leaderboard derive from the same labels.
  */
 
+import type { LucideIcon } from 'lucide-react'
+import { Shield, Scale, Flame } from 'lucide-react'
 import type { BotRiskProfile } from './types'
 
 export interface RiskProfileBundle {
   /** Display label and sort key. */
   label: string
-  emoji: string
+  /** Lucide icon component shown on chips and bot-card badges. */
+  icon: LucideIcon
   /** One-line description for cards / pickers. */
   blurb: string
   /** Tailwind color token used by badges. */
@@ -44,7 +47,7 @@ export interface RiskProfileBundle {
 export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfileBundle> = {
   conservative: {
     label: 'Conservative',
-    emoji: '🛡️',
+    icon: Shield,
     blurb: 'Tight stops, modest targets, fewer trades. Optimized for capital preservation.',
     toneClass: 'text-long border-long/40 bg-long/10',
     defaults: {
@@ -59,7 +62,7 @@ export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfil
   },
   balanced: {
     label: 'Balanced',
-    emoji: '⚖️',
+    icon: Scale,
     blurb: 'Default. Mid-range stops and hold times. Good baseline before tuning.',
     toneClass: 'text-accent border-accent/40 bg-accent-dim/30',
     defaults: {
@@ -74,7 +77,7 @@ export const RISK_PROFILES: Record<Exclude<BotRiskProfile, 'custom'>, RiskProfil
   },
   aggressive: {
     label: 'Aggressive',
-    emoji: '⚡',
+    icon: Flame,
     blurb: 'Wider targets, more trades, larger size. Higher variance — pair with strict daily caps.',
     toneClass: 'text-short border-short/40 bg-short/10',
     defaults: {

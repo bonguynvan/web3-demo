@@ -7,12 +7,15 @@
  * runtime logic per template.
  */
 
+import type { LucideIcon } from 'lucide-react'
+import { Crosshair, Rocket, Repeat, Waves, Zap, FlaskConical } from 'lucide-react'
 import type { SignalSource } from '../signals/types'
 
 export interface BotTemplate {
   id: string
   name: string
-  emoji: string
+  /** Lucide icon component. Rendered at 12-14px in chips, 16px in cards. */
+  icon: LucideIcon
   description: string
   config: {
     allowedSources: SignalSource[]
@@ -46,7 +49,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'confluence-sniper',
     name: 'Confluence Sniper',
-    emoji: '🎯',
+    icon: Crosshair,
     description: 'Only fires when ≥2 sources align. Highest conviction, fewest signals.',
     config: {
       allowedSources: ['confluence'],
@@ -69,7 +72,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'momentum-hunter',
     name: 'Momentum Hunter',
-    emoji: '🚀',
+    icon: Rocket,
     description: 'EMA crossovers and volatility spikes. Catches breakouts early.',
     config: {
       allowedSources: ['crossover', 'volatility'],
@@ -92,7 +95,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'mean-reversion',
     name: 'Mean Reversion',
-    emoji: '🔄',
+    icon: Repeat,
     description: 'RSI extremes only. Counter-trend, longer hold.',
     config: {
       allowedSources: ['rsi'],
@@ -114,7 +117,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'whale-follower',
     name: 'Whale Follower',
-    emoji: '🐋',
+    icon: Waves,
     description: 'Tail large directional flow. Live only — whale-flow has no historical replay.',
     config: {
       allowedSources: ['whale'],
@@ -137,7 +140,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'funding-squeeze',
     name: 'Funding Squeeze',
-    emoji: '⚡',
+    icon: Zap,
     description: 'Counter-bias when funding is crowded. Mean-reverts long/short squeezes.',
     config: {
       allowedSources: ['funding'],
@@ -159,7 +162,7 @@ export const BOT_TEMPLATES: BotTemplate[] = [
   {
     id: 'kitchen-sink',
     name: 'Kitchen Sink',
-    emoji: '🧪',
+    icon: FlaskConical,
     description: 'Every source. Maximum signal volume — pair with a tight max/day.',
     config: {
       allowedSources: [],
