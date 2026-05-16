@@ -10,7 +10,7 @@
  */
 
 import { create } from 'zustand'
-import type { BotConfig, BotTrade } from '../bots/types'
+import type { BotConfig, BotTrade, BotExitReason } from '../bots/types'
 
 const STORAGE_KEY = 'tc-bots-v1'
 
@@ -70,7 +70,8 @@ interface BotStore {
   removeBot: (id: string) => void
   addBot: (cfg: Omit<BotConfig, 'id' | 'createdAt'>) => void
   recordTrade: (trade: BotTrade) => void
-  closeTrade: (tradeId: string, closePrice: number, closedAt: number) => void
+  closeTrade: (tradeId: string, closePrice: number, closedAt: number, exitReason?: BotExitReason) => void
+  updateTradePeak: (tradeId: string, peakPnlPct: number) => void
   clearClosedTrades: () => void
 }
 
@@ -129,13 +130,33 @@ export const useBotStore = create<BotStore>((set) => {
       return { trades }
     }),
 
-    closeTrade: (tradeId, closePrice, closedAt) => set(state => {
+    closeTrade: (tradeId, closePrice, closedAt, exitReason) => set(state => {
       const trades = state.trades.map(t => {
         if (t.id !== tradeId) return t
         const sign = t.direction === 'long' ? 1 : -1
         const pnlUsd = sign * (closePrice - t.entryPrice) * t.size
-        return { ...t, closedAt, closePrice, pnlUsd }
+        return {
+          ...t,
+          closedAt,
+          closePrice,
+          pnlUsd,
+          exitReason: exitReason ?? t.exitReason ?? 'hold_expired',
+        }
       })
+      persist({ bots: state.bots, trades })
+      return { trades }
+    }),
+
+    updateTradePeak: (tradeId, peakPnlPct) => set(state => {
+      let changed = false
+      const trades = state.trades.map(t => {
+        if (t.id !== tradeId) return t
+        const prior = t.peakPnlPct ?? -Infinity
+        if (peakPnlPct <= prior) return t
+        changed = true
+        return { ...t, peakPnlPct }
+      })
+      if (!changed) return state
       persist({ bots: state.bots, trades })
       return { trades }
     }),

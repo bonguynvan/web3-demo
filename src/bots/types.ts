@@ -37,8 +37,28 @@ export interface BotConfig {
   /** Hard cap to prevent runaway bots. Counts trades opened in last 24h. */
   maxTradesPerDay: number
 
+  /** Stop-loss as a positive percent (e.g. 2 = -2% from entry triggers close).
+   *  Undefined or 0 = no stop. Check happens every engine tick. */
+  stopLossPct?: number
+
+  /** Take-profit as a positive percent (e.g. 4 = +4% from entry triggers close). */
+  takeProfitPct?: number
+
+  /** Trailing stop: lock in gains by closing when PnL falls this many percent
+   *  from the trade's peak favorable PnL. Only arms once PnL goes positive. */
+  trailingStopPct?: number
+
   createdAt: number
 }
+
+/** Why an open trade was closed. Optional for backward compat — old trades
+ *  written before this field existed simply omit it. */
+export type BotExitReason =
+  | 'hold_expired'   // closeAt elapsed
+  | 'stop_loss'      // stopLossPct breached
+  | 'take_profit'    // takeProfitPct hit
+  | 'trailing_stop'  // pulled back trailingStopPct from peak
+  | 'reversal'       // opposing confluence signal fired
 
 export interface BotTrade {
   id: string
@@ -59,10 +79,15 @@ export interface BotTrade {
   /** Venue order id when mode === 'live'. Lets the UI correlate to
    *  live open orders / fills. */
   venueOrderId?: string
+  /** Highest favorable PnL percent observed during the life of the trade.
+   *  Updated by the engine on each heartbeat to power the trailing stop. */
+  peakPnlPct?: number
   /** Set when the trade closes. */
   closedAt?: number
   closePrice?: number
   pnlUsd?: number
+  /** Why this trade closed. Defaults to hold_expired for legacy trades. */
+  exitReason?: BotExitReason
 }
 
 export interface BotStats {

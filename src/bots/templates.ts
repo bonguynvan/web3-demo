@@ -20,6 +20,10 @@ export interface BotTemplate {
     positionSizeUsd: number
     holdMinutes: number
     maxTradesPerDay: number
+    /** Positive percent (e.g. 2 = -2% from entry triggers close). 0 / undefined = off. */
+    stopLossPct?: number
+    takeProfitPct?: number
+    trailingStopPct?: number
   }
 }
 
@@ -35,6 +39,9 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 100,
       holdMinutes: 60,
       maxTradesPerDay: 10,
+      stopLossPct: 1.5,
+      takeProfitPct: 3.5,
+      trailingStopPct: 1,
     },
   },
   {
@@ -48,6 +55,9 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 50,
       holdMinutes: 30,
       maxTradesPerDay: 20,
+      stopLossPct: 2,
+      takeProfitPct: 4,
+      trailingStopPct: 1.5,
     },
   },
   {
@@ -61,6 +71,8 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 100,
       holdMinutes: 90,
       maxTradesPerDay: 8,
+      stopLossPct: 2,
+      takeProfitPct: 3,
     },
   },
   {
@@ -74,6 +86,9 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 200,
       holdMinutes: 30,
       maxTradesPerDay: 15,
+      stopLossPct: 3,
+      takeProfitPct: 5,
+      trailingStopPct: 2,
     },
   },
   {
@@ -87,6 +102,8 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 150,
       holdMinutes: 60,
       maxTradesPerDay: 6,
+      stopLossPct: 2.5,
+      takeProfitPct: 4,
     },
   },
   {
@@ -100,6 +117,9 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       positionSizeUsd: 50,
       holdMinutes: 45,
       maxTradesPerDay: 30,
+      stopLossPct: 2,
+      takeProfitPct: 3,
+      trailingStopPct: 1.5,
     },
   },
 ]

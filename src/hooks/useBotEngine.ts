@@ -17,7 +17,7 @@ import { useRiskStore } from '../store/riskStore'
 import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useToast } from '../store/toastStore'
 import { useVaultSessionStore } from '../store/vaultSessionStore'
-import type { BotConfig, BotTrade } from '../bots/types'
+import type { BotConfig, BotTrade, BotExitReason } from '../bots/types'
 import type { Signal } from '../signals/types'
 
 const TICK_MS = 5_000
@@ -30,6 +30,7 @@ export function useBotEngine(): void {
   const trades = useBotStore(s => s.trades)
   const recordTrade = useBotStore(s => s.recordTrade)
   const closeTrade = useBotStore(s => s.closeTrade)
+  const updateTradePeak = useBotStore(s => s.updateTradePeak)
 
   const toast = useToast()
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
@@ -168,31 +169,65 @@ export function useBotEngine(): void {
     }
   }, [signals, bots, trades, recordTrade, vaultUnlocked, walletConnected, hasConnection, maxExposureUsd, toast])
 
-  // ─── Close expired trades on a heartbeat ───────────────────────────
+  // ─── Risk-aware close loop ─────────────────────────────────────────
+  //
+  // Every tick we evaluate each open trade against — in this priority order:
+  //   1. stop_loss   — pnlPct ≤ -bot.stopLossPct          (hard floor)
+  //   2. take_profit — pnlPct ≥  bot.takeProfitPct        (lock the win)
+  //   3. trailing    — pnlPct ≤ peakPnlPct − bot.trailingStopPct
+  //                    (only armed once pnlPct has been positive)
+  //   4. hold_expired — now ≥ t.closeAt                   (existing fallback)
+  //
+  // If none fire, we still update peakPnlPct so trailing has a value to
+  // compare against on the next tick. This is the only mutation in the
+  // non-exit branch, so the store stays quiet when nothing's happening.
   useEffect(() => {
     const id = setInterval(() => {
       const now = Date.now()
       const adapter = getActiveAdapter()
       for (const t of trades) {
         if (t.closedAt) continue
-        if (now < t.closeAt) continue
         const ticker = adapter.getTicker(t.marketId)
-        const closePrice = ticker?.price ?? t.entryPrice
+        const mark = ticker?.price ?? t.entryPrice
+        const sign = t.direction === 'long' ? 1 : -1
+        // pnlPct of the position relative to entry (NOT account equity).
+        const pnlPct = t.entryPrice > 0
+          ? (sign * (mark - t.entryPrice) / t.entryPrice) * 100
+          : 0
+        const bot = bots.find(b => b.id === t.botId)
+        const sl = bot?.stopLossPct ?? 0
+        const tp = bot?.takeProfitPct ?? 0
+        const trail = bot?.trailingStopPct ?? 0
 
-        // Live trade with a known venue order id: try to cancel the
-        // unfilled limit order before marking the trade closed locally.
-        // The order may already be filled or canceled — swallow errors.
+        let exitReason: BotExitReason | null = null
+        if (sl > 0 && pnlPct <= -sl) exitReason = 'stop_loss'
+        else if (tp > 0 && pnlPct >= tp) exitReason = 'take_profit'
+        else if (trail > 0) {
+          const peak = t.peakPnlPct ?? 0
+          if (peak > 0 && pnlPct <= peak - trail) exitReason = 'trailing_stop'
+        }
+        if (!exitReason && now >= t.closeAt) exitReason = 'hold_expired'
+
+        if (!exitReason) {
+          if (pnlPct > (t.peakPnlPct ?? -Infinity)) {
+            updateTradePeak(t.id, pnlPct)
+          }
+          continue
+        }
+
+        // Live trade with a known venue order id: best-effort cancel of
+        // the still-resting limit before we mark the trade closed locally.
         if (t.mode === 'live' && t.venueOrderId) {
           const a = getAdapter('binance')
           if (a) {
-            void a.cancelOrder({ marketId: t.marketId, orderId: t.venueOrderId }).catch(() => { /* best-effort */ })
+            void a.cancelOrder({ marketId: t.marketId, orderId: t.venueOrderId }).catch(() => { /* swallow */ })
           }
         }
-        closeTrade(t.id, closePrice, now)
+        closeTrade(t.id, mark, now, exitReason)
       }
     }, TICK_MS)
     return () => clearInterval(id)
-  }, [trades, closeTrade])
+  }, [trades, bots, closeTrade, updateTradePeak])
 
   // ─── Early-close on opposing confluence signal ─────────────────────
   //
@@ -216,7 +251,7 @@ export function useBotEngine(): void {
       if (!reversal) continue
       const ticker = adapter.getTicker(t.marketId)
       const closePrice = ticker?.price ?? t.entryPrice
-      closeTrade(t.id, closePrice, now)
+      closeTrade(t.id, closePrice, now, 'reversal')
     }
   }, [signals, trades, closeTrade])
 }

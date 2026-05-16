@@ -26,6 +26,10 @@ interface FormState {
   positionSizeUsd: number
   holdMinutes: number
   maxTradesPerDay: number
+  /** All three risk-exit percents are positive numbers; 0 = disabled. */
+  stopLossPct: number
+  takeProfitPct: number
+  trailingStopPct: number
 }
 
 const DEFAULT_FORM: FormState = {
@@ -36,6 +40,9 @@ const DEFAULT_FORM: FormState = {
   positionSizeUsd: 100,
   holdMinutes: 60,
   maxTradesPerDay: 10,
+  stopLossPct: 2,
+  takeProfitPct: 4,
+  trailingStopPct: 0,
 }
 
 export function BotConfigForm({ onClose }: { onClose: () => void }) {
@@ -54,6 +61,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       positionSizeUsd: tpl.config.positionSizeUsd,
       holdMinutes: tpl.config.holdMinutes,
       maxTradesPerDay: tpl.config.maxTradesPerDay,
+      stopLossPct: tpl.config.stopLossPct ?? f.stopLossPct,
+      takeProfitPct: tpl.config.takeProfitPct ?? f.takeProfitPct,
+      trailingStopPct: tpl.config.trailingStopPct ?? f.trailingStopPct,
     }))
   }
 
@@ -89,6 +99,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       positionSizeUsd: form.positionSizeUsd,
       holdMinutes: form.holdMinutes,
       maxTradesPerDay: form.maxTradesPerDay,
+      stopLossPct: form.stopLossPct > 0 ? form.stopLossPct : undefined,
+      takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
+      trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
     })
     onClose()
   }
@@ -202,6 +215,47 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
               className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-mono"
             />
           </Field>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+            Risk exits (0 = off)
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="Stop loss %">
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={form.stopLossPct}
+                onChange={e => setForm(f => ({ ...f, stopLossPct: Math.max(0, Number(e.target.value)) }))}
+                title="Close when PnL falls to -X% from entry. Recommended: 1-3."
+                className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-short outline-none focus:border-short font-mono"
+              />
+            </Field>
+            <Field label="Take profit %">
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={form.takeProfitPct}
+                onChange={e => setForm(f => ({ ...f, takeProfitPct: Math.max(0, Number(e.target.value)) }))}
+                title="Close when PnL hits +X% from entry. Recommended: 2-6."
+                className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-long outline-none focus:border-long font-mono"
+              />
+            </Field>
+            <Field label="Trailing %">
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={form.trailingStopPct}
+                onChange={e => setForm(f => ({ ...f, trailingStopPct: Math.max(0, Number(e.target.value)) }))}
+                title="Locks gains: close when PnL drops X% from its peak. Only arms after a win."
+                className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-accent outline-none focus:border-accent font-mono"
+              />
+            </Field>
+          </div>
         </div>
 
         <Field label={`Markets (${form.allowedMarkets.length === 0 ? 'any' : form.allowedMarkets.length + ' selected'})`}>
