@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot, ShieldAlert, Trophy, Wallet } from 'lucide-react'
+import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot, ShieldAlert, Trophy, Wallet, BookOpen } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
 import { HyperliquidAgentModal } from '../components/HyperliquidAgentModal'
 import { loadAgent as loadHlAgent, hlNetwork } from '../lib/hyperliquidAgent'
@@ -301,7 +301,7 @@ export function ProfilePage() {
             title="Tools"
             subtitle="Surfaces that don't fit the bottom nav. All read-only or operator-tier."
           />
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <Link
               to="/risk"
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-border bg-panel/40 hover:bg-panel hover:border-accent/40 transition-colors"
@@ -320,6 +320,16 @@ export function ProfilePage() {
               <div className="min-w-0">
                 <div className="text-sm font-medium text-text-primary">Bot leaderboard</div>
                 <div className="text-[11px] text-text-muted truncate">Ranked PnL · equity curves</div>
+              </div>
+            </Link>
+            <Link
+              to="/journal"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-border bg-panel/40 hover:bg-panel hover:border-accent/40 transition-colors"
+            >
+              <BookOpen className="w-4 h-4 text-accent shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text-primary">Trade journal</div>
+                <div className="text-[11px] text-text-muted truncate">Notes · tags · weekly review</div>
               </div>
             </Link>
             <Link

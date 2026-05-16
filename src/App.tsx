@@ -35,6 +35,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ defaul
 const AdminMetricsPage = lazy(() => import('./pages/AdminMetricsPage').then(m => ({ default: m.AdminMetricsPage })))
 const RiskDashboardPage = lazy(() => import('./pages/RiskDashboardPage').then(m => ({ default: m.RiskDashboardPage })))
 const BotLeaderboardPage = lazy(() => import('./pages/BotLeaderboardPage').then(m => ({ default: m.BotLeaderboardPage })))
+const JournalPage = lazy(() => import('./pages/JournalPage').then(m => ({ default: m.JournalPage })))
 const HyperliquidViewerPage = lazy(() => import('./pages/HyperliquidViewerPage').then(m => ({ default: m.HyperliquidViewerPage })))
 
 function RouteFallback() {
@@ -88,6 +89,7 @@ function App() {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/bots" element={<BotManagerPage />} />
               <Route path="/bots/leaderboard" element={<BotLeaderboardPage />} />
+              <Route path="/journal" element={<JournalPage />} />
               <Route path="/risk" element={<RiskDashboardPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />

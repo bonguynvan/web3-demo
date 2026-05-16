@@ -21,6 +21,9 @@ import { useToast } from '../store/toastStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import { computeStats } from '../bots/computeStats'
 import { profileBundle } from '../bots/riskProfiles'
+import { JournalEntryEditor } from './JournalEntryEditor'
+import { useJournalStore } from '../store/journalStore'
+import { BookOpen } from 'lucide-react'
 import { EquityCurve } from './EquityCurve'
 import { cn, formatUsd } from '../lib/format'
 
@@ -48,6 +51,7 @@ export function BotCard({
       t.closedAt !== undefined && t.pnlUsd !== undefined)
     .sort((a, b) => a.closedAt - b.closedAt)
   const [tradesOpen, setTradesOpen] = useState(true)
+  const [journalingId, setJournalingId] = useState<string | null>(null)
 
   let longRealized = 0
   let shortRealized = 0
@@ -238,11 +242,24 @@ export function BotCard({
           {tradesOpen && (
             <div className="border-t border-border bg-surface/30">
               {recent.map(t => (
-                <TradeRow key={t.id} trade={t} markPrice={adapter.getTicker(t.marketId)?.price} stopLossPct={bot.stopLossPct} />
+                <TradeRow
+                  key={t.id}
+                  trade={t}
+                  markPrice={adapter.getTicker(t.marketId)?.price}
+                  stopLossPct={bot.stopLossPct}
+                  onAnnotate={t.closedAt ? () => setJournalingId(t.id) : undefined}
+                />
               ))}
             </div>
           )}
         </>
+      )}
+      {journalingId && (
+        <JournalEntryEditor
+          tradeId={journalingId}
+          trade={trades.find(t => t.id === journalingId)}
+          onClose={() => setJournalingId(null)}
+        />
       )}
     </div>
   )
@@ -297,7 +314,8 @@ function Stat({ label, value, valueClass }: { label: string; value: string; valu
   )
 }
 
-function TradeRow({ trade, markPrice, stopLossPct }: { trade: BotTrade; markPrice?: number; stopLossPct?: number }) {
+function TradeRow({ trade, markPrice, stopLossPct, onAnnotate }: { trade: BotTrade; markPrice?: number; stopLossPct?: number; onAnnotate?: () => void }) {
+  const journalEntry = useJournalStore(s => s.entries[trade.id])
   const isOpen = !trade.closedAt
   const liveMark = markPrice ?? trade.closePrice ?? trade.entryPrice
   const sign = trade.direction === 'long' ? 1 : -1
@@ -407,6 +425,25 @@ function TradeRow({ trade, markPrice, stopLossPct }: { trade: BotTrade; markPric
             return null
           })()}
           <DetailLine label="Opened" value={new Date(trade.openedAt).toLocaleTimeString()} />
+          {onAnnotate && (
+            <div className="col-span-2 mt-1 pt-1 border-t border-border/40 flex items-center justify-between">
+              <button
+                onClick={(e) => { e.stopPropagation(); onAnnotate() }}
+                className={cn(
+                  'inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer',
+                  journalEntry ? 'text-accent hover:text-accent/80' : 'text-text-muted hover:text-text-primary',
+                )}
+              >
+                <BookOpen className="w-3 h-3" />
+                {journalEntry ? 'Edit journal entry' : 'Annotate'}
+              </button>
+              {journalEntry && journalEntry.tags.length > 0 && (
+                <span className="text-[9px] font-mono text-text-muted truncate">
+                  {journalEntry.tags.slice(0, 3).join(' · ')}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
