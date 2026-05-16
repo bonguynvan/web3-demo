@@ -16,6 +16,7 @@ import { ArrowLeft, Trophy, ArrowDown, ArrowUp } from 'lucide-react'
 import { SparklineChart, DARK_TERMINAL } from '@tradecanvas/chart'
 import { useBotStore } from '../store/botStore'
 import { useDocumentMeta } from '../lib/documentMeta'
+import { EmptyState } from '../components/ui/EmptyState'
 import { cn } from '../lib/format'
 import type { BotTrade } from '../bots/types'
 
@@ -136,9 +137,19 @@ export function BotLeaderboardPage() {
         </div>
 
         {rows.length === 0 ? (
-          <div className="rounded-lg border border-border bg-panel/30 px-4 py-10 text-center text-sm text-text-muted">
-            No bots configured yet. <Link to="/bots" className="underline">Create one</Link>.
-          </div>
+          <EmptyState
+            density="spacious"
+            title="No bots configured yet"
+            description="Set up your first bot to start filling this leaderboard."
+            action={
+              <Link
+                to="/bots"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-accent text-white hover:bg-accent/90 transition-colors"
+              >
+                Create a bot
+              </Link>
+            }
+          />
         ) : (
           <div className="rounded-lg border border-border overflow-x-auto">
             <table className="w-full text-xs">

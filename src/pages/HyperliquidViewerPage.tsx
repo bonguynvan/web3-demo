@@ -12,9 +12,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Search, Wallet, Loader2 } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Search, Wallet } from 'lucide-react'
 import { fetchHlAccount, fetchHlFills, isValidAddress, type HlAccount, type HlFill } from '../lib/hyperliquidReader'
 import { useDocumentMeta } from '../lib/documentMeta'
+import { EmptyState } from '../components/ui/EmptyState'
+import { LoadingState } from '../components/ui/LoadingState'
 import { cn } from '../lib/format'
 
 const POLL_MS = 30_000
@@ -169,17 +171,15 @@ export function HyperliquidViewerPage() {
         )}
 
         {!addr && (
-          <div className="rounded-lg border border-border bg-panel/30 px-4 py-10 text-center text-sm text-text-muted">
-            Paste a 0x address above to begin.
-          </div>
+          <EmptyState
+            density="spacious"
+            icon={<Wallet className="w-6 h-6" />}
+            title="Inspect any Hyperliquid wallet"
+            description="Paste a 0x address to see balances, open positions, and recent fills. Or pick a whale chip above."
+          />
         )}
 
-        {addr && !account && loading && (
-          <div className="flex items-center gap-2 text-text-muted text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Fetching account state…
-          </div>
-        )}
+        {addr && !account && loading && <LoadingState label="Fetching account state…" />}
 
         {account && (
           <AccountBody account={account} fills={fills ?? []} />
@@ -213,9 +213,10 @@ function AccountBody({ account, fills }: { account: HlAccount; fills: HlFill[] }
       <section>
         <SectionHeader>Open positions · unrealized {fmtPnl(totalUnrealized)}</SectionHeader>
         {account.positions.length === 0 ? (
-          <div className="rounded-lg border border-border bg-panel/30 px-4 py-6 text-center text-xs text-text-muted">
-            No open positions.
-          </div>
+          <EmptyState
+            title="No open positions"
+            description="This wallet isn't holding any perp positions right now."
+          />
         ) : (
           <div className="rounded-lg border border-border overflow-x-auto">
             <table className="w-full text-xs">
@@ -265,9 +266,10 @@ function AccountBody({ account, fills }: { account: HlAccount; fills: HlFill[] }
       <section>
         <SectionHeader>Recent fills (newest {recent.length})</SectionHeader>
         {recent.length === 0 ? (
-          <div className="rounded-lg border border-border bg-panel/30 px-4 py-6 text-center text-xs text-text-muted">
-            No fills.
-          </div>
+          <EmptyState
+            title="No fill history"
+            description="Recent fills will land here when this wallet trades."
+          />
         ) : (
           <div className="rounded-lg border border-border overflow-x-auto">
             <table className="w-full text-xs">

@@ -12,8 +12,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Loader2 } from 'lucide-react'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Wordmark } from '../components/ui/Logo'
+import { LoadingState } from '../components/ui/LoadingState'
 import { useDocumentMeta } from '../lib/documentMeta'
 import {
   fetchAdminMetrics, adminAvailable,
@@ -87,12 +88,7 @@ export function AdminMetricsPage() {
           </div>
         )}
 
-        {!data && loading && (
-          <div className="flex items-center gap-2 text-text-muted text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading metrics…
-          </div>
-        )}
+        {!data && loading && <LoadingState label="Loading metrics…" />}
 
         {data && <MetricsBody data={data} />}
       </main>

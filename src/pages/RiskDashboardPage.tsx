@@ -22,6 +22,7 @@ import { ShieldAlert, AlertTriangle, Settings as SettingsIcon } from 'lucide-rea
 import { useBotStore } from '../store/botStore'
 import { useRiskStore } from '../store/riskStore'
 import { useDocumentMeta } from '../lib/documentMeta'
+import { EmptyState } from '../components/ui/EmptyState'
 import { cn } from '../lib/format'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -150,9 +151,10 @@ export function RiskDashboardPage() {
             Per-market concentration
           </h2>
           {metrics.markets.length === 0 ? (
-            <div className="rounded-lg border border-border bg-panel/30 px-4 py-6 text-center text-xs text-text-muted">
-              No open positions.
-            </div>
+            <EmptyState
+              title="No open positions"
+              description="Concentration appears here when bots start taking trades."
+            />
           ) : (
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-xs">
