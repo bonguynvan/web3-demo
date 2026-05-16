@@ -36,6 +36,10 @@ interface FormState {
   takeProfitPct: number
   trailingStopPct: number
   breakEvenAtPct: number
+  /** Multi-target TPs. 0 = single-TP mode (takeProfitPct used as the only TP). */
+  tp1Pct: number
+  tp1ClosePct: number
+  tp2Pct: number
   /** Tracks which profile chip is highlighted. Auto-flips to 'custom' on edit. */
   riskProfile: BotRiskProfile
   /** Sizing mode + risk-percent fields — see BotConfig docs. */
@@ -55,6 +59,9 @@ const DEFAULT_FORM: FormState = {
   takeProfitPct: 4,
   trailingStopPct: 1,
   breakEvenAtPct: 0,
+  tp1Pct: 0,
+  tp1ClosePct: 50,
+  tp2Pct: 0,
   riskProfile: 'balanced',
   sizingMode: 'fixed_usd',
   riskPctPerTrade: 0.5,
@@ -93,6 +100,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
       breakEvenAtPct: form.breakEvenAtPct > 0 ? form.breakEvenAtPct : undefined,
+      tp1Pct: form.tp1Pct > 0 ? form.tp1Pct : undefined,
+      tp1ClosePct: form.tp1Pct > 0 ? form.tp1ClosePct : undefined,
+      tp2Pct: form.tp2Pct > 0 ? form.tp2Pct : undefined,
       riskProfile: form.riskProfile,
       createdAt: Date.now(),
     }
@@ -135,6 +145,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       takeProfitPct: tpl.config.takeProfitPct ?? f.takeProfitPct,
       trailingStopPct: tpl.config.trailingStopPct ?? f.trailingStopPct,
       breakEvenAtPct: tpl.config.breakEvenAtPct ?? 0,
+      tp1Pct: tpl.config.tp1Pct ?? 0,
+      tp1ClosePct: tpl.config.tp1ClosePct ?? 50,
+      tp2Pct: tpl.config.tp2Pct ?? 0,
     }))
   }
 
@@ -174,6 +187,9 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
       takeProfitPct: form.takeProfitPct > 0 ? form.takeProfitPct : undefined,
       trailingStopPct: form.trailingStopPct > 0 ? form.trailingStopPct : undefined,
       breakEvenAtPct: form.breakEvenAtPct > 0 ? form.breakEvenAtPct : undefined,
+      tp1Pct: form.tp1Pct > 0 ? form.tp1Pct : undefined,
+      tp1ClosePct: form.tp1Pct > 0 ? form.tp1ClosePct : undefined,
+      tp2Pct: form.tp2Pct > 0 ? form.tp2Pct : undefined,
       riskProfile: form.riskProfile,
       sizingMode: form.sizingMode,
       riskPctPerTrade: form.sizingMode === 'risk_pct' && form.riskPctPerTrade > 0 ? form.riskPctPerTrade : undefined,
@@ -460,6 +476,52 @@ export function BotConfigForm({ onClose }: { onClose: () => void }) {
                 className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-amber-300 outline-none focus:border-amber-300 font-mono"
               />
             </Field>
+          </div>
+          <div className="mt-3">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+              Multi-target TPs (0 = single-TP mode)
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="TP1 %">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={form.tp1Pct}
+                  onChange={e => setForm(f => ({ ...f, tp1Pct: Math.max(0, Number(e.target.value)) }))}
+                  title="First TP — partial close. Set to take some profit and let the rest ride."
+                  className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-long outline-none focus:border-long font-mono"
+                />
+              </Field>
+              <Field label="Close at TP1 %">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="5"
+                  value={form.tp1ClosePct}
+                  onChange={e => setForm(f => ({ ...f, tp1ClosePct: Math.max(0, Math.min(100, Number(e.target.value))) }))}
+                  title="Percent of position to close at TP1 (e.g. 50 = half off)."
+                  className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-mono"
+                />
+              </Field>
+              <Field label="TP2 %">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={form.tp2Pct}
+                  onChange={e => setForm(f => ({ ...f, tp2Pct: Math.max(0, Number(e.target.value)) }))}
+                  title="Final TP for the runner. Falls back to single-TP value if 0."
+                  className="w-full bg-panel border border-border rounded px-2 py-1.5 text-xs text-long outline-none focus:border-long font-mono"
+                />
+              </Field>
+            </div>
+            {form.tp1Pct > 0 && form.tp2Pct > 0 && form.tp2Pct <= form.tp1Pct && (
+              <div className="text-[10px] text-short mt-1 font-mono">
+                TP2 must be greater than TP1 — runner has no upside.
+              </div>
+            )}
           </div>
         </div>
 

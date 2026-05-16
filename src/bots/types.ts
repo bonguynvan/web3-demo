@@ -73,6 +73,18 @@ export interface BotConfig {
    *  loss. Independent of trailingStopPct (both can be active). */
   breakEvenAtPct?: number
 
+  /** First take-profit trigger (partial close). When pnlPct reaches
+   *  +tp1Pct, close tp1ClosePct% of the position and let the rest ride.
+   *  If unset, `takeProfitPct` continues to drive a single full-close TP.
+   *  Pairs well with breakEvenAtPct so the runner becomes risk-free. */
+  tp1Pct?: number
+  /** Percent of position to close at TP1 (0..100, e.g. 50 = half).
+   *  Default 50 when tp1Pct is set but this is omitted. */
+  tp1ClosePct?: number
+  /** Final TP for the remaining position after TP1. If unset, falls back
+   *  to `takeProfitPct`. Should be > tp1Pct (otherwise tp1 == tp2). */
+  tp2Pct?: number
+
   /** Risk archetype. 'conservative' / 'balanced' / 'aggressive' carry semantic
    *  meaning for the UI (badge, sort order, copy); 'custom' is the implicit
    *  fallback once the user has tuned values away from a preset. */
@@ -86,7 +98,8 @@ export interface BotConfig {
 export type BotExitReason =
   | 'hold_expired'   // closeAt elapsed
   | 'stop_loss'      // stopLossPct breached
-  | 'take_profit'    // takeProfitPct hit
+  | 'take_profit'    // takeProfitPct or tp2Pct hit (full close)
+  | 'tp1_partial'    // tp1Pct hit — partial close, runner continues
   | 'trailing_stop'  // pulled back trailingStopPct from peak
   | 'break_even'     // stop was moved to entry then price reverted
   | 'reversal'       // opposing confluence signal fired
@@ -126,6 +139,12 @@ export interface BotTrade {
   /** Set once `breakEvenAtPct` has been crossed and the stop is moved to
    *  entry. Subsequent ticks compare pnlPct against 0 instead of -stopLossPct. */
   slMovedToBreakEven?: boolean
+  /** Set once TP1 has fired and a partial close has executed. Prevents
+   *  TP1 from firing twice. */
+  tp1Hit?: boolean
+  /** PnL realized at the TP1 partial close. Summed into final pnlUsd
+   *  when the remaining position eventually closes. */
+  tp1ClosedPnlUsd?: number
   /** Set when the trade closes. */
   closedAt?: number
   closePrice?: number

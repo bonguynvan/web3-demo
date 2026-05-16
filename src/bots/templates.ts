@@ -29,6 +29,10 @@ export interface BotTemplate {
     trailingStopPct?: number
     /** Move SL to entry once PnL reaches +X%. Trade goes "risk-free." */
     breakEvenAtPct?: number
+    /** Multi-target TPs. tp1Pct fires a partial close; tp2Pct closes the runner. */
+    tp1Pct?: number
+    tp1ClosePct?: number
+    tp2Pct?: number
   }
   /** Illustrative performance estimates — surfaced in the studio so a user
    *  picking templates has a baseline expectation. NOT a backtest. Tuned to
@@ -63,6 +67,11 @@ export const BOT_TEMPLATES: BotTemplate[] = [
       takeProfitPct: 3.5,
       trailingStopPct: 1,
       breakEvenAtPct: 1,
+      // Multi-target: scale half off at +1.8%, let the rest ride to +3.5%.
+      // Pairs with breakEvenAtPct so the runner becomes risk-free.
+      tp1Pct: 1.8,
+      tp1ClosePct: 50,
+      tp2Pct: 3.5,
     },
     performance: {
       winRate: 0.64,

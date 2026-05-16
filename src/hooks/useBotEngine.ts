@@ -32,6 +32,7 @@ export function useBotEngine(): void {
   const closeTrade = useBotStore(s => s.closeTrade)
   const updateTradePeak = useBotStore(s => s.updateTradePeak)
   const markSlMovedToBreakEven = useBotStore(s => s.markSlMovedToBreakEven)
+  const partialCloseTrade = useBotStore(s => s.partialCloseTrade)
 
   const toast = useToast()
   const vaultUnlocked = useVaultSessionStore(s => s.unlocked)
@@ -213,7 +214,13 @@ export function useBotEngine(): void {
           : 0
         const bot = bots.find(b => b.id === t.botId)
         const sl = bot?.stopLossPct ?? 0
-        const tp = bot?.takeProfitPct ?? 0
+        // Multi-target TPs:
+        //   tp1Pct → partial close (tp1ClosePct% of position, default 50)
+        //   tp2Pct → final close on the remainder (or takeProfitPct fallback)
+        // Legacy bots without tp1Pct use takeProfitPct as the single full-TP.
+        const tp1 = bot?.tp1Pct ?? 0
+        const tp1Close = bot?.tp1ClosePct ?? 50
+        const tp = bot?.tp2Pct ?? bot?.takeProfitPct ?? 0
         const trail = bot?.trailingStopPct ?? 0
         const breakEven = bot?.breakEvenAtPct ?? 0
 
@@ -221,6 +228,20 @@ export function useBotEngine(): void {
         // far enough in our favor. After arming, a pullback to entry closes
         // at exactly 0 PnL — turning the trade into a "free option."
         const slFloor = t.slMovedToBreakEven ? 0 : -sl
+
+        // TP1 partial close — fires before any other exit so it has a chance
+        // to lock in a portion before the final-TP / trailing logic runs.
+        if (tp1 > 0 && !t.tp1Hit && pnlPct >= tp1) {
+          const partialSize = Math.min(t.size, t.size * (tp1Close / 100))
+          if (partialSize > 0) {
+            const sign = t.direction === 'long' ? 1 : -1
+            const partialPnl = sign * (mark - t.entryPrice) * partialSize
+            partialCloseTrade(t.id, mark, partialSize, partialPnl)
+            // Continue to next tick — engine will see the reduced position
+            // on the next pass and apply trailing/SL against the runner.
+            continue
+          }
+        }
 
         let exitReason: BotExitReason | null = null
         if (sl > 0 && pnlPct <= slFloor) {
@@ -258,7 +279,7 @@ export function useBotEngine(): void {
       }
     }, TICK_MS)
     return () => clearInterval(id)
-  }, [trades, bots, closeTrade, updateTradePeak, markSlMovedToBreakEven])
+  }, [trades, bots, closeTrade, updateTradePeak, markSlMovedToBreakEven, partialCloseTrade])
 
   // ─── Early-close on opposing confluence signal ─────────────────────
   //

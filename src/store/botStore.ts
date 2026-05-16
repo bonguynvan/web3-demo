@@ -73,6 +73,9 @@ interface BotStore {
   closeTrade: (tradeId: string, closePrice: number, closedAt: number, exitReason?: BotExitReason) => void
   updateTradePeak: (tradeId: string, peakPnlPct: number) => void
   markSlMovedToBreakEven: (tradeId: string) => void
+  /** Realize a partial close at TP1. Reduces the trade's size and
+   *  positionUsd to the remainder and records the locked-in PnL. */
+  partialCloseTrade: (tradeId: string, fillPrice: number, partialSize: number, partialPnlUsd: number) => void
   clearClosedTrades: () => void
 }
 
@@ -135,7 +138,11 @@ export const useBotStore = create<BotStore>((set) => {
       const trades = state.trades.map(t => {
         if (t.id !== tradeId) return t
         const sign = t.direction === 'long' ? 1 : -1
-        const pnlUsd = sign * (closePrice - t.entryPrice) * t.size
+        // Remainder PnL after any TP1 partial. trade.size already reflects
+        // the remaining position; trade.tp1ClosedPnlUsd holds what was
+        // realized at TP1 (if anything).
+        const remainderPnl = sign * (closePrice - t.entryPrice) * t.size
+        const pnlUsd = remainderPnl + (t.tp1ClosedPnlUsd ?? 0)
         return {
           ...t,
           closedAt,
@@ -169,6 +176,47 @@ export const useBotStore = create<BotStore>((set) => {
         if (t.slMovedToBreakEven) return t
         changed = true
         return { ...t, slMovedToBreakEven: true }
+      })
+      if (!changed) return state
+      persist({ bots: state.bots, trades })
+      return { trades }
+    }),
+
+    partialCloseTrade: (tradeId, fillPrice, partialSize, partialPnlUsd) => set(state => {
+      let changed = false
+      const trades = state.trades.map(t => {
+        if (t.id !== tradeId) return t
+        if (t.tp1Hit) return t
+        // Reduce position by the partial size — protect against rounding
+        // going negative.
+        const remainingSize = Math.max(0, t.size - partialSize)
+        if (remainingSize === 0) {
+          // Fully closed at TP1 — record the partial PnL as the full PnL
+          // and stamp closedAt. Avoids leaving a phantom 0-size open trade.
+          changed = true
+          return {
+            ...t,
+            tp1Hit: true,
+            tp1ClosedPnlUsd: partialPnlUsd,
+            size: 0,
+            positionUsd: 0,
+            closedAt: Date.now(),
+            closePrice: fillPrice,
+            pnlUsd: partialPnlUsd,
+            exitReason: 'tp1_partial' as const,
+          }
+        }
+        // Scale positionUsd proportionally — `positionUsd / size` is the
+        // entry price baseline; we keep the per-unit valuation steady.
+        const remainingUsd = t.size > 0 ? (t.positionUsd * remainingSize) / t.size : 0
+        changed = true
+        return {
+          ...t,
+          tp1Hit: true,
+          tp1ClosedPnlUsd: (t.tp1ClosedPnlUsd ?? 0) + partialPnlUsd,
+          size: remainingSize,
+          positionUsd: remainingUsd,
+        }
       })
       if (!changed) return state
       persist({ bots: state.bots, trades })
