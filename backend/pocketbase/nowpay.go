@@ -10,10 +10,10 @@
 //
 // Invoice "kind" → entitlement effect:
 //
-//   paygo_topup → paygo_balance_usd += amount_usd
-//   sub_30      → pro_days_remaining += 30
-//   sub_180     → pro_days_remaining += 180
-//   sub_365     → pro_days_remaining += 365
+//	paygo_topup → paygo_balance_usd += amount_usd
+//	sub_30      → pro_days_remaining += 30
+//	sub_180     → pro_days_remaining += 180
+//	sub_365     → pro_days_remaining += 365
 //
 // The kind is set when the SPA creates the invoice (via the NOWPayments
 // REST API) and round-tripped in the `order_id` field, formatted as

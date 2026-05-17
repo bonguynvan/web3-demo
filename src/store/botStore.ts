@@ -135,6 +135,9 @@ export const useBotStore = create<BotStore>((set) => {
     removeBot: (id) => set(state => {
       const bots = state.bots.filter(b => b.id !== id)
       persist({ bots, trades: state.trades })
+      // Cross-store cleanup: drop any shadows of this bot. Dynamic import
+      // to avoid a circular dep at module load time.
+      void import('./shadowStore').then(m => m.useShadowStore.getState().removeShadowsForParent(id))
       return { bots }
     }),
 

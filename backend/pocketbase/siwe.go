@@ -2,21 +2,21 @@
 //
 // Flow:
 //
-//   1. SPA calls GET /api/siwe/nonce?address=0xabc…
-//      Backend stores (nonce, wallet_address, created) in siwe_nonces.
+//  1. SPA calls GET /api/siwe/nonce?address=0xabc…
+//     Backend stores (nonce, wallet_address, created) in siwe_nonces.
 //
-//   2. SPA prompts the user to sign an EIP-191 personal_sign message:
+//  2. SPA prompts the user to sign an EIP-191 personal_sign message:
 //
-//        Sign in to TradingDek
+//     Sign in to TradingDek
 //
-//        address: 0xabc…
-//        nonce: <nonce>
-//        issued: <unix-ms>
+//     address: 0xabc…
+//     nonce: <nonce>
+//     issued: <unix-ms>
 //
-//   3. SPA POSTs /api/siwe/verify with {address, message, signature}.
-//      Backend looks up + burns the nonce, recovers the signer with
-//      go-ethereum, checks recovered == claimed, finds/creates a users
-//      row with that wallet_address, and returns a fresh PB auth token.
+//  3. SPA POSTs /api/siwe/verify with {address, message, signature}.
+//     Backend looks up + burns the nonce, recovers the signer with
+//     go-ethereum, checks recovered == claimed, finds/creates a users
+//     row with that wallet_address, and returns a fresh PB auth token.
 //
 // We deliberately keep the message format simple (not full EIP-4361).
 // The nonce is the security primitive; the message shape is informative

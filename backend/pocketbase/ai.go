@@ -6,8 +6,9 @@
 // We never invent numbers — only echo the data we received.
 //
 // Cost model (claude-haiku-4-5):
-//   ~$0.001/call (500 tok in, 100 tok out)
-//   30 calls/user/hour cap → max $0.03/user/hour
+//
+//	~$0.001/call (500 tok in, 100 tok out)
+//	30 calls/user/hour cap → max $0.03/user/hour
 //
 // Rate-limit is in-memory per process. For a single-instance Coolify
 // deploy that's fine; horizontal scaling would want Redis.
@@ -134,7 +135,7 @@ var (
 const aiCacheTTL = time.Hour
 
 type cachedExplanation struct {
-	text     string
+	text      string
 	createdAt time.Time
 }
 
@@ -298,15 +299,15 @@ func aiStrategyHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) erro
 
 // postMortemBody describes a closed trade for the AI to analyze.
 type postMortemBody struct {
-	BotName      string  `json:"bot_name"`
-	MarketID     string  `json:"market_id"`
-	Source       string  `json:"source"`
-	Direction    string  `json:"direction"`
-	EntryPrice   float64 `json:"entry_price"`
-	ClosePrice   float64 `json:"close_price"`
-	PnlUsd       float64 `json:"pnl_usd"`
-	ExitReason   string  `json:"exit_reason"`
-	HoldMinutes  int     `json:"hold_minutes"`
+	BotName     string  `json:"bot_name"`
+	MarketID    string  `json:"market_id"`
+	Source      string  `json:"source"`
+	Direction   string  `json:"direction"`
+	EntryPrice  float64 `json:"entry_price"`
+	ClosePrice  float64 `json:"close_price"`
+	PnlUsd      float64 `json:"pnl_usd"`
+	ExitReason  string  `json:"exit_reason"`
+	HoldMinutes int     `json:"hold_minutes"`
 }
 
 // aiPostMortemHandler streams a short retrospective on a single closed
@@ -558,7 +559,7 @@ Rules:
 type followupBody struct {
 	SignalContext explainBody `json:"signal_context"`
 	History       []struct {
-		Role    string `json:"role"`    // user | assistant
+		Role    string `json:"role"` // user | assistant
 		Content string `json:"content"`
 	} `json:"history"`
 	Question string `json:"question"`

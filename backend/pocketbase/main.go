@@ -2,11 +2,11 @@
 //
 // Boots PocketBase with custom routes layered on top:
 //
-//   GET  /api/siwe/nonce?address=0x…     → issues a one-time nonce
-//   POST /api/siwe/verify                → verifies signature, returns auth token
-//   POST /api/webhooks/nowpay            → credits user balance on confirmed payment
-//   GET  /api/me                         → returns entitlement + balance for the
-//                                          caller (Authorization: Bearer <token>)
+//	GET  /api/siwe/nonce?address=0x…     → issues a one-time nonce
+//	POST /api/siwe/verify                → verifies signature, returns auth token
+//	POST /api/webhooks/nowpay            → credits user balance on confirmed payment
+//	GET  /api/me                         → returns entitlement + balance for the
+//	                                       caller (Authorization: Bearer <token>)
 //
 // All other PocketBase routes (admin UI at /_/, generic CRUD at
 // /api/collections/*) are unchanged and protected by collection-level
