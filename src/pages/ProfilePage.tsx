@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot, ShieldAlert, Trophy, Wallet, BookOpen, Flame } from 'lucide-react'
+import { User, KeyRound, AlertTriangle, Database, Megaphone, Bell, ArrowRight, Lock, ExternalLink, Bot, ShieldAlert, Trophy, Wallet, BookOpen, Flame, Microscope } from 'lucide-react'
 import { ConnectVenueModal } from '../components/ConnectVenueModal'
 import { HyperliquidAgentModal } from '../components/HyperliquidAgentModal'
 import { loadAgent as loadHlAgent, hlNetwork } from '../lib/hyperliquidAgent'
@@ -350,6 +350,16 @@ export function ProfilePage() {
               <div className="min-w-0">
                 <div className="text-sm font-medium text-text-primary">Funding & OI</div>
                 <div className="text-[11px] text-text-muted truncate">Multi-market tape · HL</div>
+              </div>
+            </Link>
+            <Link
+              to="/attribution"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-border bg-panel/40 hover:bg-panel hover:border-accent/40 transition-colors"
+            >
+              <Microscope className="w-4 h-4 text-accent shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text-primary">Attribution</div>
+                <div className="text-[11px] text-text-muted truncate">Slice PnL by source · market · hour</div>
               </div>
             </Link>
           </div>
