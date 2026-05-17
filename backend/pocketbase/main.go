@@ -82,6 +82,7 @@ func main() {
 		e.Router.POST("/api/ai/explain", aiExplainHandler(app))
 		e.Router.POST("/api/ai/followup", aiFollowupHandler(app))
 		e.Router.POST("/api/ai/strategy", aiStrategyHandler(app))
+		e.Router.POST("/api/ai/postmortem", aiPostMortemHandler(app))
 
 		// Opt-in 14-day trial. Replaces the auto-grant that used to
 		// fire on first sign-in.

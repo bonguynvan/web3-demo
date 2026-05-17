@@ -63,6 +63,32 @@ export function followupStreaming(
   return controller
 }
 
+export interface PostMortemRequest {
+  bot_name: string
+  market_id: string
+  source: string
+  direction: 'long' | 'short'
+  entry_price: number
+  close_price: number
+  pnl_usd: number
+  exit_reason: string
+  hold_minutes: number
+}
+
+/**
+ * Post-mortem — short retrospective on a single closed trade. Used by
+ * the auto-post-mortem hook to write a 2-sentence analysis into the
+ * journal whenever a bot closes a position (opt-in).
+ */
+export function postMortemStreaming(
+  req: PostMortemRequest,
+  cb: StreamCallbacks,
+): AbortController {
+  const controller = new AbortController()
+  void runStream('/api/ai/postmortem', req, cb, controller.signal)
+  return controller
+}
+
 /**
  * Strategy assistant — user submits a free-form trading hypothesis,
  * Claude streams back a bot config suggestion + rationale. Same

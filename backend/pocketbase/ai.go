@@ -38,6 +38,18 @@ const (
 	aiMaxTokens      = 200
 )
 
+const aiPostMortemSystemPrompt = `You are TradingDek's trade post-mortem writer. The user just had a bot close a trade. Write a SHORT analysis of why the trade played out the way it did, in 2 sentences max.
+
+Format:
+<one sentence describing the entry rationale and what happened to PnL>
+<one sentence with a specific takeaway for future trades on this market or with this signal source>
+
+Rules:
+- Never invent prices or percentages — only reason from the data given.
+- Be specific, not generic. ("Funding peaked late" beats "market was crowded".)
+- Skip pleasantries — start straight into the analysis.
+- Total response under 60 words. No code fences, no headers.`
+
 const aiStrategySystemPrompt = `You are TradingDek's strategy assistant. The user gives you a trading hypothesis in plain English. You respond with a SPECIFIC bot configuration that tests that hypothesis, plus a brief plan.
 
 Respond in this exact format:
@@ -282,6 +294,76 @@ func aiStrategyHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) erro
 		return streamAnthropicMessages(e, apiKey, model, aiStrategySystemPrompt,
 			[]anthropicMessage{{Role: "user", Content: hyp}})
 	}
+}
+
+// postMortemBody describes a closed trade for the AI to analyze.
+type postMortemBody struct {
+	BotName      string  `json:"bot_name"`
+	MarketID     string  `json:"market_id"`
+	Source       string  `json:"source"`
+	Direction    string  `json:"direction"`
+	EntryPrice   float64 `json:"entry_price"`
+	ClosePrice   float64 `json:"close_price"`
+	PnlUsd       float64 `json:"pnl_usd"`
+	ExitReason   string  `json:"exit_reason"`
+	HoldMinutes  int     `json:"hold_minutes"`
+}
+
+// aiPostMortemHandler streams a short retrospective on a single closed
+// trade. Pro-gated + rate-limited like the other AI endpoints. No
+// caching (each trade is unique). Designed to write into the journal
+// automatically when the user has the feature enabled.
+func aiPostMortemHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = defaultAIModel
+	}
+	return func(e *core.RequestEvent) error {
+		if apiKey == "" {
+			return e.JSON(http.StatusServiceUnavailable, map[string]string{
+				"error": "AI post-mortem not configured",
+			})
+		}
+		user := e.Auth
+		if user == nil {
+			return e.JSON(http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+		}
+		ent, _ := app.FindFirstRecordByFilter(
+			"entitlements", "user = {:u}",
+			map[string]any{"u": user.Id},
+		)
+		if ent == nil || !ent.GetBool("pro_active") {
+			return e.JSON(http.StatusPaymentRequired, map[string]string{"error": "Pro required"})
+		}
+		var body postMortemBody
+		if err := e.BindBody(&body); err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		}
+		if body.MarketID == "" || body.Direction == "" {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
+		}
+		if !checkAIRate(user.Id) {
+			return e.JSON(http.StatusTooManyRequests, map[string]string{
+				"error": "rate limit (30/hour)",
+			})
+		}
+		userPrompt := buildPostMortemPrompt(&body)
+		return streamAnthropicMessages(e, apiKey, model, aiPostMortemSystemPrompt,
+			[]anthropicMessage{{Role: "user", Content: userPrompt}})
+	}
+}
+
+func buildPostMortemPrompt(b *postMortemBody) string {
+	return "Bot: " + b.BotName +
+		"\nMarket: " + b.MarketID +
+		"\nSignal source: " + b.Source +
+		"\nDirection: " + b.Direction +
+		"\nEntry price: " + formatAIFloat(b.EntryPrice, 4) +
+		"\nClose price: " + formatAIFloat(b.ClosePrice, 4) +
+		"\nRealized PnL (USD): " + formatAIFloat(b.PnlUsd, 2) +
+		"\nExit reason: " + b.ExitReason +
+		"\nHold duration: " + formatAIFloat(float64(b.HoldMinutes), 0) + " minutes"
 }
 
 // streamCached writes the cached text in one SSE frame and ends.

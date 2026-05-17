@@ -27,16 +27,20 @@ export interface JournalEntry {
 
 interface PersistedShape {
   entries: Record<string, JournalEntry>
+  autoPostMortemEnabled?: boolean
 }
 
 function load(): PersistedShape {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { entries: {} }
+    if (!raw) return { entries: {}, autoPostMortemEnabled: false }
     const parsed = JSON.parse(raw) as Partial<PersistedShape>
-    return { entries: parsed.entries ?? {} }
+    return {
+      entries: parsed.entries ?? {},
+      autoPostMortemEnabled: parsed.autoPostMortemEnabled ?? false,
+    }
   } catch {
-    return { entries: {} }
+    return { entries: {}, autoPostMortemEnabled: false }
   }
 }
 
@@ -46,16 +50,24 @@ function persist(state: PersistedShape): void {
 
 interface JournalStore {
   entries: Record<string, JournalEntry>
+  autoPostMortemEnabled: boolean
   /** Upsert. Empty notes + zero tags + 0 rating = treated as delete. */
   setEntry: (tradeId: string, patch: Partial<Omit<JournalEntry, 'tradeId' | 'updatedAt'>>) => void
   removeEntry: (tradeId: string) => void
   getEntry: (tradeId: string) => JournalEntry | undefined
+  setAutoPostMortem: (v: boolean) => void
 }
 
 export const useJournalStore = create<JournalStore>((set, get) => {
   const initial = load()
   return {
     entries: initial.entries,
+    autoPostMortemEnabled: initial.autoPostMortemEnabled ?? false,
+    setAutoPostMortem: (v) => {
+      set({ autoPostMortemEnabled: v })
+      const state = get()
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries: state.entries, autoPostMortemEnabled: v })) } catch { /* quota */ }
+    },
     setEntry: (tradeId, patch) => {
       const existing = get().entries[tradeId]
       const next: JournalEntry = {
@@ -71,12 +83,12 @@ export const useJournalStore = create<JournalStore>((set, get) => {
         ? Object.fromEntries(Object.entries(get().entries).filter(([k]) => k !== tradeId))
         : { ...get().entries, [tradeId]: next }
       set({ entries })
-      persist({ entries })
+      persist({ entries, autoPostMortemEnabled: get().autoPostMortemEnabled })
     },
     removeEntry: (tradeId) => {
       const entries = Object.fromEntries(Object.entries(get().entries).filter(([k]) => k !== tradeId))
       set({ entries })
-      persist({ entries })
+      persist({ entries, autoPostMortemEnabled: get().autoPostMortemEnabled })
     },
     getEntry: (tradeId) => get().entries[tradeId],
   }

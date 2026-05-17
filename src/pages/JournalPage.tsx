@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, BookOpen, Star } from 'lucide-react'
+import { ArrowLeft, BookOpen, Star, Sparkles } from 'lucide-react'
 import { useDocumentMeta } from '../lib/documentMeta'
 import { useJournalStore, type JournalEntry } from '../store/journalStore'
 import { useBotStore } from '../store/botStore'
@@ -36,6 +36,8 @@ export function JournalPage() {
   })
 
   const entries = useJournalStore(s => s.entries)
+  const autoPostMortem = useJournalStore(s => s.autoPostMortemEnabled)
+  const setAutoPostMortem = useJournalStore(s => s.setAutoPostMortem)
   const trades = useBotStore(s => s.trades)
   const tradeById = useMemo(() => new Map(trades.map(t => [t.id, t])), [trades])
 
@@ -82,13 +84,30 @@ export function JournalPage() {
               {joined.length} annotated trade{joined.length === 1 ? '' : 's'}. Review weekly — look for recurring tags.
             </p>
           </div>
-          <Link
-            to="/bots"
-            className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary border border-border hover:border-accent/40 rounded-md px-2.5 py-1.5 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Bots
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAutoPostMortem(!autoPostMortem)}
+              title={autoPostMortem
+                ? 'Auto post-mortem ON — Claude analyzes every closed trade. Pro required.'
+                : 'Enable auto post-mortem — Claude writes a 2-line analysis into the journal for every closed trade. Pro required.'}
+              className={cn(
+                'flex items-center gap-1.5 text-xs border rounded-md px-2.5 py-1.5 transition-colors cursor-pointer',
+                autoPostMortem
+                  ? 'border-accent/40 bg-accent-dim/30 text-accent'
+                  : 'border-border text-text-secondary hover:text-text-primary',
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Auto-AI {autoPostMortem ? 'on' : 'off'}
+            </button>
+            <Link
+              to="/bots"
+              className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary border border-border hover:border-accent/40 rounded-md px-2.5 py-1.5 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Bots
+            </Link>
+          </div>
         </header>
 
         {joined.length === 0 ? (
