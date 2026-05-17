@@ -12,12 +12,13 @@
  */
 
 import { useState } from 'react'
-import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle, TrendingDown, GitFork } from 'lucide-react'
+import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle, TrendingDown, GitFork, Copy } from 'lucide-react'
 import { computeBotHealth } from '../lib/botHealth'
 import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
 import { useBotStore } from '../store/botStore'
 import { useToast } from '../store/toastStore'
+import { useShadowStore } from '../store/shadowStore'
 import type { BotConfig, BotTrade } from '../bots/types'
 import { computeStats } from '../bots/computeStats'
 import { profileBundle } from '../bots/riskProfiles'
@@ -49,6 +50,16 @@ export function BotCard({
   const parentBot = bot.parentId && bot.parentKind === 'bot'
     ? allBots.find(b => b.id === bot.parentId)
     : null
+
+  // Shadow bots — phantom variants attached to this real bot.
+  const allShadows = useShadowStore(s => s.shadows)
+  const allShadowTrades = useShadowStore(s => s.trades)
+  const addShadow = useShadowStore(s => s.addShadow)
+  const myShadows = allShadows.filter(s => s.parentBotId === bot.id)
+  const myShadowTrades = allShadowTrades.filter(t =>
+    myShadows.some(sh => sh.id === t.shadowId) && t.closedAt !== undefined && t.pnlUsd !== undefined,
+  )
+  const shadowPnl = myShadowTrades.reduce((s, t) => s + (t.pnlUsd ?? 0), 0)
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
   const recent = trades.slice(0, 5)
   const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
@@ -210,6 +221,20 @@ export function BotCard({
             <GitFork className="w-3 h-3" />
           </button>
           <button
+            onClick={() => {
+              // Spawn a "tighter-stop" shadow as a sensible default.
+              // The user can tune the override later; for v1 we just
+              // demonstrate the counterfactual concept.
+              const parentSl = bot.stopLossPct ?? 2
+              const id = addShadow(bot.id, 'Tight stop', { stopLossPct: Math.max(0.5, parentSl / 2) })
+              if (id) toast.info('Shadow spawned', `Phantom variant with SL halved to ${(parentSl / 2).toFixed(1)}%. Trades land in a separate ledger.`)
+            }}
+            title={`Spawn a phantom variant with tighter stop (currently ${myShadows.length} shadow${myShadows.length === 1 ? '' : 's'})`}
+            className="shrink-0 w-6 h-6 rounded text-text-muted hover:text-amber-300 hover:bg-amber-300/10 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <Copy className="w-3 h-3" />
+          </button>
+          <button
             onClick={onRemove}
             title="Delete bot"
             className="shrink-0 w-6 h-6 rounded text-text-muted hover:text-short hover:bg-short/10 flex items-center justify-center transition-colors cursor-pointer"
@@ -243,6 +268,37 @@ export function BotCard({
             actually comes from. A bot that mostly exits on hold-expired
             has no real edge; one that mostly hits TP has signal alpha. */}
         <ExitMix trades={closedSorted} />
+
+        {/* Shadow PnL — counterfactual variants of this bot. Shows the
+            road-not-taken side-by-side with the real result. */}
+        {myShadows.length > 0 && (
+          <div className="mt-2 rounded-md border border-amber-300/30 bg-amber-300/5 px-2.5 py-1.5 text-[10px] font-mono">
+            <div className="flex items-center justify-between gap-2 text-text-muted uppercase tracking-wider mb-0.5">
+              <span>Shadows ({myShadows.length})</span>
+              <span>{myShadowTrades.length} closed</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-text-secondary">Phantom PnL</span>
+              <span className={cn(
+                'tabular-nums font-semibold',
+                shadowPnl > 0 ? 'text-long' : shadowPnl < 0 ? 'text-short' : 'text-text-muted',
+              )}>
+                {shadowPnl >= 0 ? '+' : ''}${shadowPnl.toFixed(2)}
+              </span>
+            </div>
+            {myShadowTrades.length > 0 && stats.totalPnlUsd !== 0 && (
+              <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                <span className="text-text-muted">vs real bot</span>
+                <span className={cn(
+                  'tabular-nums',
+                  (shadowPnl - stats.totalPnlUsd) > 0 ? 'text-long' : (shadowPnl - stats.totalPnlUsd) < 0 ? 'text-short' : 'text-text-muted',
+                )}>
+                  {(shadowPnl - stats.totalPnlUsd) >= 0 ? '+' : ''}${(shadowPnl - stats.totalPnlUsd).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
 
         {closedSorted.length >= 2 && (

@@ -43,6 +43,7 @@ import { useProfitableBotDetector } from '../hooks/useProfitableBotDetector'
 import { useBotDriftDetector } from '../hooks/useBotDriftDetector'
 import { useAutoPauseDegradation } from '../hooks/useAutoPauseDegradation'
 import { useAutoPostMortem } from '../hooks/useAutoPostMortem'
+import { useShadowEngine } from '../hooks/useShadowEngine'
 import { useTradingStore } from '../store/tradingStore'
 
 export function AppShell() {
@@ -72,6 +73,7 @@ export function AppShell() {
   useBotDriftDetector()
   useAutoPauseDegradation()
   useAutoPostMortem()
+  useShadowEngine()
 
   return (
     <div className="flex h-screen bg-surface">
