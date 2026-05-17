@@ -63,6 +63,21 @@ export function followupStreaming(
   return controller
 }
 
+/**
+ * Strategy assistant — user submits a free-form trading hypothesis,
+ * Claude streams back a bot config suggestion + rationale. Same
+ * Pro gate + 30/hour rate limit as the explainer. No caching
+ * (each hypothesis is bespoke).
+ */
+export function strategyAssistantStreaming(
+  hypothesis: string,
+  cb: StreamCallbacks,
+): AbortController {
+  const controller = new AbortController()
+  void runStream('/api/ai/strategy', { hypothesis }, cb, controller.signal)
+  return controller
+}
+
 async function runStream(path: string, req: object, cb: StreamCallbacks, signal: AbortSignal) {
   if (!apiAvailable()) {
     cb.onError('backend not configured')

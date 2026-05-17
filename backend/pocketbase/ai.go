@@ -38,6 +38,28 @@ const (
 	aiMaxTokens      = 200
 )
 
+const aiStrategySystemPrompt = `You are TradingDek's strategy assistant. The user gives you a trading hypothesis in plain English. You respond with a SPECIFIC bot configuration that tests that hypothesis, plus a brief plan.
+
+Respond in this exact format:
+
+Strategy: <1-line name for the bot>
+
+Configuration:
+- Signal sources: <one or more of: funding, crossover, rsi, volatility, liquidation, news, whale, confluence>
+- Min confidence: <0.50 to 0.90>
+- Position size: <USD, e.g. $50 — or risk-based 0.5%>
+- Hold window: <minutes>
+- Stop loss: <percent, e.g. 2%>
+- Take profit: <percent, e.g. 4%>
+- Markets: <specific list or "any">
+- Max trades per day: <number>
+
+Rationale: <2-3 sentences explaining why this setup tests the hypothesis>
+
+Risks: <one specific way this can fail and what to watch for>
+
+Keep the whole response under 250 words. Be specific — round numbers, not ranges. Don't recommend specific dollar amounts beyond conservative defaults; the user will tune their size in the studio.`
+
 const aiSystemPrompt = `You are TradingDek's signal explainer. The user just saw a market signal fire. Explain in plain English why this signal might matter, then a specific risk to watch.
 
 Output EXACTLY this format with these exact section headers and no preamble:
@@ -203,6 +225,62 @@ func aiExplainHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error
 		}
 		userPrompt := buildAIUserPrompt(&body)
 		return streamAnthropic(e, apiKey, model, userPrompt, body.SignalID)
+	}
+}
+
+// strategyBody is what the SPA POSTs to /api/ai/strategy.
+type strategyBody struct {
+	Hypothesis string `json:"hypothesis"`
+}
+
+// aiStrategyHandler streams Claude's bot-config suggestion for a user
+// trading hypothesis. Same Pro gate + rate limit as the explainer;
+// no caching (each hypothesis is bespoke). Uses aiStrategySystemPrompt
+// rather than aiSystemPrompt to shape the response format.
+func aiStrategyHandler(app *pocketbase.PocketBase) func(*core.RequestEvent) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = defaultAIModel
+	}
+	return func(e *core.RequestEvent) error {
+		if apiKey == "" {
+			return e.JSON(http.StatusServiceUnavailable, map[string]string{
+				"error": "AI strategy assistant not configured",
+			})
+		}
+		user := e.Auth
+		if user == nil {
+			return e.JSON(http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+		}
+		ent, _ := app.FindFirstRecordByFilter(
+			"entitlements", "user = {:u}",
+			map[string]any{"u": user.Id},
+		)
+		if ent == nil || !ent.GetBool("pro_active") {
+			return e.JSON(http.StatusPaymentRequired, map[string]string{"error": "Pro required"})
+		}
+
+		var body strategyBody
+		if err := e.BindBody(&body); err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		}
+		hyp := strings.TrimSpace(body.Hypothesis)
+		if hyp == "" {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "hypothesis required"})
+		}
+		if len(hyp) > 1000 {
+			return e.JSON(http.StatusBadRequest, map[string]string{"error": "hypothesis too long (max 1000 chars)"})
+		}
+
+		if !checkAIRate(user.Id) {
+			return e.JSON(http.StatusTooManyRequests, map[string]string{
+				"error": "rate limit (30/hour)",
+			})
+		}
+		// Reuses streamAnthropicMessages with the strategy-specific system prompt.
+		return streamAnthropicMessages(e, apiKey, model, aiStrategySystemPrompt,
+			[]anthropicMessage{{Role: "user", Content: hyp}})
 	}
 }
 
