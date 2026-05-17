@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2, Trophy } from 'lucide-react'
+import { Plus, BarChart3, Upload, PauseCircle, PlayCircle, Download, Trash2, Trophy, Activity } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useBotStore } from '../store/botStore'
 import { getActiveAdapter } from '../adapters/registry'
@@ -20,6 +20,7 @@ import { cn } from '../lib/format'
 import { BotConfigForm } from '../components/BotConfigForm'
 import { BacktestModal } from '../components/BacktestModal'
 import { StrategyComparisonModal } from '../components/StrategyComparisonModal'
+import { WalkForwardModal } from '../components/WalkForwardModal'
 import { BotImportModal } from '../components/BotImportModal'
 import { PortfolioSummary } from '../components/PortfolioSummary'
 import { BotCard } from '../components/BotCard'
@@ -93,6 +94,7 @@ export function BotManagerPage() {
   const handleNewFromEmpty = () => setShowForm(true)
   const [backtestBot, setBacktestBot] = useState<BotConfig | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
+  const [walkForwardOpen, setWalkForwardOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sharedBotId, setSharedBotId] = useState<string | null>(null)
 
@@ -163,6 +165,15 @@ export function BotManagerPage() {
             >
               <BarChart3 className="w-4 h-4" />
             </button>
+            {bots.length > 0 && (
+              <button
+                onClick={() => setWalkForwardOpen(true)}
+                title="Walk-forward sweep — train/test parameter validation"
+                className="flex items-center justify-center w-7 h-7 rounded text-text-muted hover:text-amber-300 hover:bg-amber-300/10 transition-colors cursor-pointer"
+              >
+                <Activity className="w-4 h-4" />
+              </button>
+            )}
             {trades.length > 0 && (
               <button
                 onClick={() => exportTradesCsv(trades, bots)}
@@ -266,6 +277,7 @@ export function BotManagerPage() {
         />
       )}
       <StrategyComparisonModal open={compareOpen} onClose={() => setCompareOpen(false)} />
+      <WalkForwardModal open={walkForwardOpen} onClose={() => setWalkForwardOpen(false)} baseBotId={bots[0]?.id} />
       <BotImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
