@@ -27,6 +27,7 @@ import { useMarketWs } from '../hooks/useMarketWs'
 import { useSyncMarkets } from '../hooks/useSyncMarkets'
 import { useSignalAlerts } from '../hooks/useSignalAlerts'
 import { useTelegramAlerts } from '../hooks/useTelegramAlerts'
+import { useTelegramLifecycle } from '../hooks/useTelegramLifecycle'
 import { useSignals, useSignalsRoot } from '../hooks/useSignals'
 import { useSignalPerformanceTracker } from '../hooks/useSignalPerformanceTracker'
 import { useBotEngine } from '../hooks/useBotEngine'
@@ -54,6 +55,7 @@ export function AppShell() {
   useSignalPerformanceTracker(signals)
   useSignalAlerts()
   useTelegramAlerts()
+  useTelegramLifecycle()
   useBotEngine()
   useRiskMonitor()
   useMarketWs({ wsUrl: null, market: selectedMarket.symbol })

@@ -36,6 +36,7 @@ export function TelegramConfigModal({ open, onClose }: Props) {
   const [botToken, setBotToken] = useState('')
   const [chatId, setChatId] = useState('')
   const [enabled, setEnabled] = useState(false)
+  const [lifecycleAlerts, setLifecycleAlerts] = useState(false)
   const [testState, setTestState] = useState<TestState>({ kind: 'idle' })
   const [upgradeOpen, setUpgradeOpen] = useState(false)
 
@@ -55,6 +56,7 @@ export function TelegramConfigModal({ open, onClose }: Props) {
     setBotToken(cfg.botToken)
     setChatId(cfg.chatId)
     setEnabled(cfg.enabled)
+    setLifecycleAlerts(cfg.lifecycleAlerts ?? false)
     setTestState({ kind: 'idle' })
   }, [open])
 
@@ -63,6 +65,7 @@ export function TelegramConfigModal({ open, onClose }: Props) {
       botToken: botToken.trim(),
       chatId: chatId.trim(),
       enabled,
+      lifecycleAlerts,
     })
     onClose()
   }
@@ -158,6 +161,32 @@ export function TelegramConfigModal({ open, onClose }: Props) {
             checked={enabled && !locked}
             disabled={locked}
             onChange={e => setEnabled(e.target.checked)}
+            className="w-4 h-4 accent-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </label>
+
+        <label
+          className={cn(
+            'flex items-start justify-between gap-3 px-3 py-2 rounded-md border cursor-pointer transition-colors',
+            locked
+              ? 'bg-surface/40 border-border opacity-60 cursor-not-allowed'
+              : 'bg-surface hover:bg-panel/40 border-border',
+          )}
+          title={locked ? 'Upgrade to Pro to enable Telegram delivery' : undefined}
+        >
+          <div>
+            <div className="text-xs font-medium text-text-primary">Send trade lifecycle alerts</div>
+            <div className="text-[10px] text-text-muted mt-0.5">
+              {locked
+                ? 'Pro required'
+                : 'TP1 hits · BE armed · trade closes · risk-cap breaches. Independent of signal alerts.'}
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={lifecycleAlerts && !locked}
+            disabled={locked}
+            onChange={e => setLifecycleAlerts(e.target.checked)}
             className="w-4 h-4 accent-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           />
         </label>

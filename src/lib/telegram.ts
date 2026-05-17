@@ -16,10 +16,16 @@ const STORAGE_KEY = 'tc-telegram-v1'
 export interface TelegramConfig {
   botToken: string
   chatId: string
+  /** Master enable for signal alerts (existing behavior). */
   enabled: boolean
+  /** Opt-in: send messages on trade lifecycle events (TP1 hit, full
+   *  close, BE armed, risk-cap warnings). Independent of `enabled`
+   *  so a user can keep signal noise off but still get critical
+   *  trade notifications. */
+  lifecycleAlerts?: boolean
 }
 
-const DEFAULT: TelegramConfig = { botToken: '', chatId: '', enabled: false }
+const DEFAULT: TelegramConfig = { botToken: '', chatId: '', enabled: false, lifecycleAlerts: false }
 
 export function loadTelegramConfig(): TelegramConfig {
   try {
@@ -30,6 +36,7 @@ export function loadTelegramConfig(): TelegramConfig {
       botToken: parsed.botToken ?? '',
       chatId: parsed.chatId ?? '',
       enabled: parsed.enabled ?? false,
+      lifecycleAlerts: parsed.lifecycleAlerts ?? false,
     }
   } catch {
     return DEFAULT
