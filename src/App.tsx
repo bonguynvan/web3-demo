@@ -38,6 +38,7 @@ const BotLeaderboardPage = lazy(() => import('./pages/BotLeaderboardPage').then(
 const JournalPage = lazy(() => import('./pages/JournalPage').then(m => ({ default: m.JournalPage })))
 const FundingPage = lazy(() => import('./pages/FundingPage').then(m => ({ default: m.FundingPage })))
 const AttributionPage = lazy(() => import('./pages/AttributionPage').then(m => ({ default: m.AttributionPage })))
+const CalculatorPage = lazy(() => import('./pages/CalculatorPage').then(m => ({ default: m.CalculatorPage })))
 const HyperliquidViewerPage = lazy(() => import('./pages/HyperliquidViewerPage').then(m => ({ default: m.HyperliquidViewerPage })))
 
 function RouteFallback() {
@@ -94,6 +95,7 @@ function App() {
               <Route path="/journal" element={<JournalPage />} />
               <Route path="/funding" element={<FundingPage />} />
               <Route path="/attribution" element={<AttributionPage />} />
+              <Route path="/calc" element={<CalculatorPage />} />
               <Route path="/risk" element={<RiskDashboardPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
