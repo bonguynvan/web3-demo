@@ -90,6 +90,13 @@ export interface BotConfig {
    *  fallback once the user has tuned values away from a preset. */
   riskProfile?: BotRiskProfile
 
+  /** Lineage tracking. When a bot is forked from another bot or a template,
+   *  parentId points at the source so the library can render evolution graphs
+   *  ("this is v7, descended from Confluence Sniper"). */
+  parentId?: string
+  parentKind?: 'bot' | 'template'
+  forkedAt?: number
+
   createdAt: number
 }
 

@@ -39,6 +39,24 @@ function persist(state: PersistedShape): void {
   } catch { /* full or denied */ }
 }
 
+/**
+ * Picks the next available fork name: "Confluence Sniper (fork)",
+ * then "(fork 2)", "(fork 3)", etc. Keeps the lineage discoverable in
+ * the bot list without spammy timestamps.
+ */
+function nextForkName(existing: BotConfig[], baseName: string): string {
+  const taken = new Set(existing.map(b => b.name))
+  // Strip any existing "(fork N)" suffix on the source so a fork-of-a-fork
+  // doesn't drift into "Confluence Sniper (fork) (fork) (fork 2)".
+  const root = baseName.replace(/\s*\(fork(?:\s+\d+)?\)\s*$/, '')
+  const candidate = (n: number) => n === 1 ? `${root} (fork)` : `${root} (fork ${n})`
+  for (let n = 1; n < 1000; n++) {
+    const c = candidate(n)
+    if (!taken.has(c)) return c
+  }
+  return `${root} (fork)`
+}
+
 function seed(): PersistedShape {
   const now = Date.now()
   return {
@@ -69,6 +87,9 @@ interface BotStore {
   setMode: (id: string, mode: 'paper' | 'live') => void
   removeBot: (id: string) => void
   addBot: (cfg: Omit<BotConfig, 'id' | 'createdAt'>) => void
+  /** Clone an existing bot's config into a new bot, recording the lineage.
+   *  Returns the new bot id or null if the source isn't found. */
+  forkBot: (sourceId: string) => string | null
   recordTrade: (trade: BotTrade) => void
   closeTrade: (tradeId: string, closePrice: number, closedAt: number, exitReason?: BotExitReason) => void
   updateTradePeak: (tradeId: string, peakPnlPct: number) => void
@@ -127,6 +148,35 @@ export const useBotStore = create<BotStore>((set) => {
       persist({ bots, trades: state.trades })
       return { bots }
     }),
+
+    forkBot: (sourceId) => {
+      // Need to return the new id, so we read state synchronously, mutate
+      // via set, then return. Avoids zustand's set-returns-state contract.
+      let newId: string | null = null
+      set(state => {
+        const source = state.bots.find(b => b.id === sourceId)
+        if (!source) return state
+        const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        newId = id
+        const child: BotConfig = {
+          ...source,
+          id,
+          name: nextForkName(state.bots, source.name),
+          enabled: false, // safer default — user toggles after review
+          // Mode of fork: paper unless source was already paper, in which
+          // case preserve. Never auto-fork into live.
+          mode: 'paper',
+          parentId: source.id,
+          parentKind: 'bot',
+          forkedAt: Date.now(),
+          createdAt: Date.now(),
+        }
+        const bots = [...state.bots, child]
+        persist({ bots, trades: state.trades })
+        return { bots }
+      })
+      return newId
+    },
 
     recordTrade: (trade) => set(state => {
       const trades = [trade, ...state.trades].slice(0, 500)  // ledger cap

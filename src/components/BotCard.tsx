@@ -12,7 +12,7 @@
  */
 
 import { useState } from 'react'
-import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle, TrendingDown } from 'lucide-react'
+import { Power, Trash2, Play, Share2, Check, ChevronDown, ChevronUp, XCircle, TrendingDown, GitFork } from 'lucide-react'
 import { computeBotHealth } from '../lib/botHealth'
 import { getActiveAdapter, getAdapter } from '../adapters/registry'
 import { useTradingStore } from '../store/tradingStore'
@@ -43,6 +43,12 @@ export function BotCard({
   bot, trades, onToggle, onRename, onRemove, onBacktest, onShare, onModeChange, shared,
 }: BotCardProps) {
   const adapter = getActiveAdapter()
+  const forkBot = useBotStore(s => s.forkBot)
+  const allBots = useBotStore(s => s.bots)
+  const toast = useToast()
+  const parentBot = bot.parentId && bot.parentKind === 'bot'
+    ? allBots.find(b => b.id === bot.parentId)
+    : null
   const stats = computeStats(trades, marketId => adapter.getTicker(marketId)?.price)
   const recent = trades.slice(0, 5)
   const pnlColor = stats.totalPnlUsd >= 0 ? 'text-long' : 'text-short'
@@ -147,6 +153,12 @@ export function BotCard({
                 )
               })()}
             </div>
+            {parentBot && (
+              <div className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1">
+                <GitFork className="w-2.5 h-2.5" />
+                <span>Forked from <span className="text-text-secondary">{parentBot.name}</span></span>
+              </div>
+            )}
             <div className="text-[10px] text-text-muted mt-0.5">
               {bot.allowedSources.length === 0 ? 'any source' : bot.allowedSources.join(' / ')}
               {' · '}min conf {Math.round(bot.minConfidence * 100)}%
@@ -186,6 +198,16 @@ export function BotCard({
             )}
           >
             {shared ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
+          </button>
+          <button
+            onClick={() => {
+              const newId = forkBot(bot.id)
+              if (newId) toast.success('Bot forked', `Created a copy of "${bot.name}". Tune it in the studio.`)
+            }}
+            title="Fork — create a tunable copy (paper mode, disabled by default)"
+            className="shrink-0 w-6 h-6 rounded text-text-muted hover:text-accent hover:bg-accent-dim/30 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <GitFork className="w-3 h-3" />
           </button>
           <button
             onClick={onRemove}
